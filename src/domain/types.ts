@@ -53,6 +53,24 @@ export interface Relationship {
   description: string;
 }
 
+export type AIInsightPatchOperation =
+  | {
+      type: "updateThought";
+      thoughtId: string;
+      patch: Partial<ThoughtItem>;
+    }
+  | {
+      type: "updateProject";
+      projectId: string;
+      patch: Partial<Project>;
+    };
+
+export interface AIInsightPatch {
+  targetType: "thought" | "project";
+  targetId: string;
+  operations: AIInsightPatchOperation[];
+}
+
 export interface AIInsight {
   id: string;
   targetId: string;
@@ -60,6 +78,7 @@ export interface AIInsight {
   content: string;
   status: "draft" | "accepted" | "rejected";
   createdAt: string;
+  patch?: AIInsightPatch;
 }
 
 export interface AppState {

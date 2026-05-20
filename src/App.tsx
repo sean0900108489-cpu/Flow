@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { Brain, Search } from "lucide-react";
 import type { AppState, Project, ThoughtItem } from "./domain/types";
-import { readinessLabel, typeLabel } from "./domain/labels";
+import { typeLabel } from "./domain/labels";
 import { id, now } from "./domain/utils";
 import { readiness } from "./domain/readiness";
 import { seed } from "./data/seed";
 import { loadState, saveState } from "./services/storage";
+import { applyAiInsightPatch } from "./services/applyAiPatch";
+import { generateProjectReadinessInsight, generateThoughtClassificationInsight } from "./services/aiMock";
 import {
   AIPanel,
   AppStateTransfer,
@@ -161,30 +163,21 @@ export function App() {
   const ai = (targetId: string) => {
     const t = state.thoughts.find((x) => x.id === targetId);
     const p = state.projects.find((x) => x.id === targetId);
-    const content = t
-      ? [
-          `分類建議：${/網站|系統|app|專案|建立|做/.test(t.title + t.content) ? "專案" : "靈感"}`,
-          `宇宙建議：${state.universes.find((u) => u.id === t.universeId)?.name ?? state.universes[0]?.name}`,
-          "下一步建議：補上 why、outcome、nextAction；如果範圍清楚，就升級為 Project。"
-        ].join("\n")
+    const draft = t
+      ? generateThoughtClassificationInsight(t, state.universes)
       : p
-        ? [
-            `工程準備度：${readiness(p).score}% / ${readinessLabel[readiness(p).value]}`,
-            readiness(p).missing.length ? `缺少：${readiness(p).missing.join(", ")}` : "必要欄位已具備。",
-            `下一步建議：${p.nextAction || "確認 screens/dataObjects/flowSteps 後匯出 EngineeringFlowInput。"}`
-          ].join("\n")
-        : "沒有可分析目標。";
+        ? generateProjectReadinessInsight(p)
+        : undefined;
+
+    if (!draft) return;
 
     save({
       ...state,
       aiInsights: [
         {
           id: id("ai"),
-          targetId,
-          type: p ? "project_readiness" : "classification",
-          content,
-          status: "draft",
-          createdAt: now()
+          createdAt: now(),
+          ...draft
         },
         ...state.aiInsights
       ]
@@ -192,9 +185,12 @@ export function App() {
   };
 
   const acceptAI = (aiId: string, status: "accepted" | "rejected") => {
+    const insight = state.aiInsights.find((x) => x.id === aiId);
+    const patchedState = status === "accepted" && insight ? applyAiInsightPatch(state, insight) : state;
+
     save({
-      ...state,
-      aiInsights: state.aiInsights.map((x) => x.id === aiId ? { ...x, status } : x)
+      ...patchedState,
+      aiInsights: patchedState.aiInsights.map((x) => x.id === aiId ? { ...x, status } : x)
     });
   };
 

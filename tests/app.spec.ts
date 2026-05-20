@@ -108,6 +108,51 @@ test("mock AI creates draft insight and can accept it", async ({ page }) => {
   await expect(page.getByText("accepted", { exact: true })).toBeVisible();
 });
 
+test("AI patch proposal applies to thought only after accept", async ({ page }) => {
+  await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
+
+  await page.getByLabel("標題").fill("E2E AI patch project idea");
+  await page.getByLabel("內容").fill("Build an app for structured planning.");
+  await page.getByLabel("類型").selectOption("inspiration");
+  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+
+  await page.getByRole("button", { name: /AI Planning Panel/ }).click();
+  await page.getByRole("button", { name: "分析目前 Thought" }).click();
+
+  await expect(page.getByText("classification")).toBeVisible();
+  await expect(page.getByText("Proposed changes")).toBeVisible();
+  await expect(page.getByText('thought.nextAction: "Define the first concrete engineering step."')).toBeVisible();
+
+  await page.getByRole("button", { name: /接受/ }).click();
+  await page.getByRole("button", { name: "Thought Detail", exact: true }).click();
+
+  await expect(page.getByLabel("Next Action / 下一步")).toHaveValue("Define the first concrete engineering step.");
+  await expect(page.getByLabel("Why / 原因")).toHaveValue("Clarify why this matters before execution.");
+  await expect(page.getByLabel("Desired Outcome / 想達成什麼")).toHaveValue("Define what success looks like.");
+});
+
+test("rejecting AI patch proposal does not apply thought changes", async ({ page }) => {
+  await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
+
+  await page.getByLabel("標題").fill("E2E reject AI patch idea");
+  await page.getByLabel("內容").fill("Build an app that should stay unchanged after reject.");
+  await page.getByLabel("類型").selectOption("inspiration");
+  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+
+  await page.getByRole("button", { name: /AI Planning Panel/ }).click();
+  await page.getByRole("button", { name: "分析目前 Thought" }).click();
+
+  await expect(page.getByText("Proposed changes")).toBeVisible();
+  await page.getByRole("button", { name: /拒絕/ }).click();
+  await expect(page.getByText("rejected", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Thought Detail", exact: true }).click();
+
+  await expect(page.getByLabel("Next Action / 下一步")).toHaveValue("");
+  await expect(page.getByLabel("Why / 原因")).toHaveValue("");
+  await expect(page.getByLabel("Desired Outcome / 想達成什麼")).toHaveValue("");
+});
+
 test("relationship page displays seeded relationship", async ({ page }) => {
   await page.getByRole("button", { name: /Relationships/ }).click();
 

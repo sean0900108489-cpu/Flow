@@ -396,6 +396,22 @@ header p,
   opacity: 0.6;
 }
 
+.patch {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+  padding: 0.8rem 0.9rem;
+  border-radius: 0.9rem;
+  background: rgba(59, 130, 246, 0.11);
+  border: 1px solid rgba(147, 197, 253, 0.22);
+}
+
+.patch ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: rgba(255,255,255,0.72);
+}
+
 .json {
   max-height: 620px;
   overflow: auto;

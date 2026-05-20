@@ -25,4 +25,45 @@ describe("app state transfer", () => {
     expect(result.state?.projects[0].name).toBe("Todo Thought Universe MVP");
     expect(result.state?.projects[0].status).toBe("active");
   });
+
+  it("round trips AIInsight patches and legacy insights without patches", () => {
+    const json = stringifyAppState({
+      ...seed,
+      aiInsights: [
+        {
+          id: "ai-patch",
+          targetId: "t-1",
+          type: "classification",
+          content: "Patch draft",
+          status: "draft",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          patch: {
+            targetType: "thought",
+            targetId: "t-1",
+            operations: [
+              {
+                type: "updateThought",
+                thoughtId: "t-1",
+                patch: { nextAction: "Patch from imported state" }
+              }
+            ]
+          }
+        },
+        {
+          id: "ai-legacy",
+          targetId: "t-2",
+          type: "classification",
+          content: "Legacy draft",
+          status: "draft",
+          createdAt: "2026-01-01T00:00:00.000Z"
+        }
+      ]
+    });
+
+    const result = parseAppStateJson(json);
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.aiInsights[0].patch?.operations[0].type).toBe("updateThought");
+    expect(result.state?.aiInsights[1].patch).toBeUndefined();
+  });
 });
