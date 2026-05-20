@@ -23,5 +23,6 @@ describe("app state transfer", () => {
 
     expect(result.ok).toBe(true);
     expect(result.state?.projects[0].name).toBe("Todo Thought Universe MVP");
+    expect(result.state?.projects[0].status).toBe("active");
   });
 });

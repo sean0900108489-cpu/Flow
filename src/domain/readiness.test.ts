@@ -5,6 +5,7 @@ import { readiness } from "./readiness";
 const baseProject: Project = {
   id: "p-test",
   universeId: "u-test",
+  status: "active",
   name: "Test Project",
   intent: "Build thought system",
   users: ["Sean"],

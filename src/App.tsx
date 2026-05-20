@@ -36,6 +36,7 @@ export function App() {
 
   const thought = state.thoughts.find((x) => x.id === selectedThoughtId) ?? state.thoughts[0];
   const project = state.projects.find((x) => x.id === selectedProjectId) ?? state.projects[0];
+  const activeProjects = state.projects.filter((x) => x.status !== "archived");
 
   const filteredThoughts = useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -88,6 +89,7 @@ export function App() {
       id: id("project"),
       sourceThoughtId: thought.id,
       universeId: thought.universeId,
+      status: "active",
       name: thought.title,
       intent: thought.content || thought.outcome,
       users: ["Sean / 創作者本人"],
@@ -110,6 +112,50 @@ export function App() {
     });
     setSelectedProjectId(p.id);
     setScreen("project");
+  };
+
+  const archiveThought = (thoughtId: string) => {
+    save({
+      ...state,
+      thoughts: state.thoughts.map((x) => x.id === thoughtId ? { ...x, status: "archived", updatedAt: now() } : x)
+    });
+    setScreen("dashboard");
+  };
+
+  const deleteThought = (thoughtId: string) => {
+    if (!window.confirm("Delete this thought?")) return;
+
+    save({
+      ...state,
+      thoughts: state.thoughts.filter((x) => x.id !== thoughtId),
+      projects: state.projects.map((x) => x.sourceThoughtId === thoughtId ? { ...x, sourceThoughtId: undefined, updatedAt: now() } : x),
+      relationships: state.relationships.filter((x) => x.sourceId !== thoughtId && x.targetId !== thoughtId),
+      aiInsights: state.aiInsights.filter((x) => x.targetId !== thoughtId)
+    });
+    setSelectedThoughtId(state.thoughts.find((x) => x.id !== thoughtId)?.id ?? "");
+    setScreen("dashboard");
+  };
+
+  const archiveProject = (projectId: string) => {
+    save({
+      ...state,
+      projects: state.projects.map((x) => x.id === projectId ? { ...x, status: "archived", updatedAt: now() } : x)
+    });
+    setScreen("dashboard");
+  };
+
+  const deleteProject = (projectId: string) => {
+    if (!window.confirm("Delete this project?")) return;
+
+    save({
+      ...state,
+      projects: state.projects.filter((x) => x.id !== projectId),
+      thoughts: state.thoughts.map((x) => x.projectId === projectId ? { ...x, projectId: undefined, updatedAt: now() } : x),
+      relationships: state.relationships.filter((x) => x.sourceId !== projectId && x.targetId !== projectId),
+      aiInsights: state.aiInsights.filter((x) => x.targetId !== projectId)
+    });
+    setSelectedProjectId(state.projects.find((x) => x.id !== projectId)?.id ?? "");
+    setScreen("dashboard");
   };
 
   const ai = (targetId: string) => {
@@ -181,6 +227,7 @@ export function App() {
         {screen === "dashboard" && (
           <Dashboard
             state={state}
+            activeProjects={activeProjects}
             setScreen={setScreen}
             selectThought={setSelectedThoughtId}
             selectProject={setSelectedProjectId}
@@ -209,6 +256,8 @@ export function App() {
             onUpdate={(patch) => updateThought(thought.id, patch)}
             onAI={() => ai(thought.id)}
             onConvert={convertToProject}
+            onArchive={() => archiveThought(thought.id)}
+            onDelete={() => deleteThought(thought.id)}
           />
         )}
 
@@ -218,6 +267,8 @@ export function App() {
             universes={state.universes}
             onUpdate={(patch) => updateProject(project.id, patch)}
             onAI={() => ai(project.id)}
+            onArchive={() => archiveProject(project.id)}
+            onDelete={() => deleteProject(project.id)}
           />
         )}
 

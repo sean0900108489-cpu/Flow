@@ -28,6 +28,37 @@ test("quick capture creates a thought and redirects to Thought Detail", async ({
   await expect(page.getByLabel("Next Action / 下一步")).toHaveValue("確認這個想法可以被保存與更新");
 });
 
+test("thought archive hides thought from active dashboard list", async ({ page }) => {
+  await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
+
+  await page.getByLabel("標題").fill("E2E 封存想法");
+  await page.getByLabel("內容").fill("這個想法會先變成 active，再被封存。");
+  await page.getByLabel("類型").selectOption("task");
+  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+
+  await page.getByLabel("狀態").selectOption("active");
+  await page.getByRole("button", { name: "Archive Thought" }).click();
+
+  await expect(page.getByRole("heading", { name: "Universe Dashboard", level: 1 })).toBeVisible();
+  const nextActions = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "目前下一步" }) });
+  await expect(nextActions.getByText("E2E 封存想法")).toHaveCount(0);
+});
+
+test("thought delete removes thought and related UI stays stable", async ({ page }) => {
+  await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
+
+  await page.getByLabel("標題").fill("E2E 刪除想法");
+  await page.getByLabel("內容").fill("這個想法會被刪除。");
+  await page.getByLabel("類型").selectOption("note");
+  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Delete Thought" }).click();
+
+  await expect(page.getByRole("heading", { name: "Universe Dashboard", level: 1 })).toBeVisible();
+  await expect(page.getByText("E2E 刪除想法")).toHaveCount(0);
+});
+
 test("project detail shows readiness and export generates EngineeringFlowInput", async ({ page }) => {
   await page.getByRole("button", { name: /Project Detail/ }).click();
 
@@ -39,6 +70,28 @@ test("project detail shows readiness and export generates EngineeringFlowInput",
   await expect(page.getByRole("heading", { name: "Engineering Handoff Export", level: 1 })).toBeVisible();
   await expect(page.getByText('"schemaVersion": "engineering-flow-input/v0"')).toBeVisible();
   await expect(page.getByText('"projectName": "Todo Thought Universe MVP"')).toBeVisible();
+});
+
+test("project archive hides project from dashboard project list", async ({ page }) => {
+  await page.getByRole("button", { name: /Project Detail/ }).click();
+
+  await page.getByRole("button", { name: "Archive Project" }).click();
+
+  await expect(page.getByRole("heading", { name: "Universe Dashboard", level: 1 })).toBeVisible();
+  const projectsPanel = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Projects" }) });
+  await expect(projectsPanel.getByText("Todo Thought Universe MVP")).toHaveCount(0);
+});
+
+test("project delete removes project without deleting linked thought", async ({ page }) => {
+  await page.getByRole("button", { name: /Project Detail/ }).click();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Delete Project" }).click();
+
+  await expect(page.getByRole("heading", { name: "Universe Dashboard", level: 1 })).toBeVisible();
+  const projectsPanel = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Projects" }) });
+  await expect(projectsPanel.getByText("Todo Thought Universe MVP")).toHaveCount(0);
+  await expect(page.locator("strong", { hasText: "做一個不是普通 todo list 的思想宇宙網站" }).first()).toBeVisible();
 });
 
 test("mock AI creates draft insight and can accept it", async ({ page }) => {
@@ -100,6 +153,7 @@ test("app state transfer exports and imports full local state", async ({ page })
       {
         id: "p-imported",
         universeId: "u-imported",
+        status: "active",
         name: "匯入專案",
         intent: "驗證匯入專案",
         users: ["Tester"],

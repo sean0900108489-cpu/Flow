@@ -52,6 +52,7 @@ export const seed: AppState = {
       id: "p-1",
       sourceThoughtId: "t-1",
       universeId: "u-thought",
+      status: "active",
       name: "Todo Thought Universe MVP",
       intent: "建立 local-first 思想管理系統，讓使用者快速捕捉想法、分類、放入宇宙、產生下一步，並判斷是否能工程化。",
       users: ["Sean / 創作者本人", "一般個人使用者", "AI Assistant"],

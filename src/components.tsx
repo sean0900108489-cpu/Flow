@@ -69,11 +69,13 @@ export function title(screen: string) {
 
 export function Dashboard({
   state,
+  activeProjects,
   setScreen,
   selectThought,
   selectProject
 }: {
   state: AppState;
+  activeProjects: Project[];
   setScreen: (screen: string) => void;
   selectThought: (id: string) => void;
   selectProject: (id: string) => void;
@@ -90,7 +92,7 @@ export function Dashboard({
           <Metric label="Inbox" value={inbox.length} />
           <Metric label="Active" value={active.length} />
           <Metric label="Universes" value={state.universes.length} />
-          <Metric label="Projects" value={state.projects.length} />
+          <Metric label="Projects" value={activeProjects.length} />
         </div>
       </div>
 
@@ -125,7 +127,7 @@ export function Dashboard({
       <div className="panel">
         <h2>Projects</h2>
         <div className="stack">
-          {state.projects.map((p) => {
+          {activeProjects.map((p) => {
             const r = readiness(p);
             return (
               <button className="item" key={p.id} onClick={() => { selectProject(p.id); setScreen("project"); }}>
@@ -210,13 +212,17 @@ export function ThoughtDetail({
   universes,
   onUpdate,
   onAI,
-  onConvert
+  onConvert,
+  onArchive,
+  onDelete
 }: {
   thought: ThoughtItem;
   universes: Universe[];
   onUpdate: (patch: Partial<ThoughtItem>) => void;
   onAI: () => void;
   onConvert: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
 }) {
   return (
     <section className="panel form">
@@ -224,6 +230,8 @@ export function ThoughtDetail({
         <h2>Thought Detail</h2>
         <div className="actions">
           <button className="ghost" onClick={onAI}>AI 建議</button>
+          {thought.status !== "archived" && <button className="ghost" onClick={onArchive}>Archive Thought</button>}
+          <button className="danger" onClick={onDelete}>Delete Thought</button>
           <button onClick={onConvert}>升級為 Project</button>
         </div>
       </div>
@@ -253,12 +261,16 @@ export function ProjectDetail({
   project,
   universes,
   onUpdate,
-  onAI
+  onAI,
+  onArchive,
+  onDelete
 }: {
   project: Project;
   universes: Universe[];
   onUpdate: (patch: Partial<Project>) => void;
   onAI: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
 }) {
   const r = readiness(project);
   return (
@@ -266,9 +278,13 @@ export function ProjectDetail({
       <div className="head">
         <div>
           <h2>Project Detail</h2>
-          <p className="muted">工程準備度：{r.score}% · {readinessLabel[r.value]}</p>
+          <p className="muted">狀態：{project.status === "archived" ? "封存" : "進行中"} · 工程準備度：{r.score}% · {readinessLabel[r.value]}</p>
         </div>
-        <button className="ghost" onClick={onAI}>AI Readiness 建議</button>
+        <div className="actions">
+          <button className="ghost" onClick={onAI}>AI Readiness 建議</button>
+          {project.status !== "archived" && <button className="ghost" onClick={onArchive}>Archive Project</button>}
+          <button className="danger" onClick={onDelete}>Delete Project</button>
+        </div>
       </div>
       <div className="bar"><div style={{ width: `${r.score}%` }} /></div>
       {r.missing.length > 0 && <div className="warn">缺少欄位：{r.missing.join(", ")}</div>}

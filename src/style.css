@@ -49,6 +49,12 @@ button.ghost {
   border: 1px solid rgba(255,255,255,0.12);
 }
 
+button.danger {
+  background: rgba(220, 38, 38, 0.16);
+  border: 1px solid rgba(248, 113, 113, 0.42);
+  color: #fecaca;
+}
+
 button.full {
   width: 100%;
 }
