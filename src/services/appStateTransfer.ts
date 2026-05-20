@@ -1,0 +1,54 @@
+import type { AppState } from "../domain/types";
+
+export interface AppStateImportResult {
+  ok: boolean;
+  state?: AppState;
+  error?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function validateAppState(value: unknown): AppStateImportResult {
+  if (!isRecord(value)) {
+    return { ok: false, error: "Imported JSON must be an object." };
+  }
+
+  const requiredArrays = ["universes", "thoughts", "projects", "relationships", "aiInsights"] as const;
+
+  for (const key of requiredArrays) {
+    if (!Array.isArray(value[key])) {
+      return { ok: false, error: `Missing or invalid array: ${key}` };
+    }
+  }
+
+  return { ok: true, state: value as unknown as AppState };
+}
+
+export function parseAppStateJson(json: string): AppStateImportResult {
+  try {
+    return validateAppState(JSON.parse(json));
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Invalid JSON."
+    };
+  }
+}
+
+export function stringifyAppState(state: AppState): string {
+  return JSON.stringify(state, null, 2);
+}
+
+export function downloadJson(filename: string, json: string) {
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+
+  a.href = url;
+  a.download = filename;
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
