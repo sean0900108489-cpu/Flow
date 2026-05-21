@@ -272,11 +272,32 @@ describe("app state transfer", () => {
     expect(result.state?.nextActionState?.selectedFocusActionId).toBe("project:p-1");
   });
 
-  it("imports legacy relationships without source or target types", () => {
+  it("repairs legacy relationship source and target types when endpoints resolve", () => {
     const result = parseAppStateJson(JSON.stringify(seed));
 
     expect(result.ok).toBe(true);
-    expect(result.state?.relationships[0].sourceType).toBeUndefined();
+    expect(result.state?.relationships[0].sourceType).toBe("thought");
+    expect(result.state?.relationships[0].targetType).toBe("thought");
+  });
+
+  it("preserves orphan relationships during import", () => {
+    const result = parseAppStateJson(JSON.stringify({
+      ...seed,
+      relationships: [
+        {
+          id: "relationship-orphan",
+          sourceId: "missing-thought",
+          targetId: "t-1",
+          type: "related_to",
+          description: "Legacy orphan"
+        }
+      ]
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.relationships[0].id).toBe("relationship-orphan");
+    expect(result.state?.relationships[0]).not.toHaveProperty("sourceType");
+    expect(result.state?.relationships[0]).not.toHaveProperty("targetType");
   });
 
   it("round trips relationship source and target types", () => {

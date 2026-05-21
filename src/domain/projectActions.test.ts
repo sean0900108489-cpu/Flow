@@ -95,6 +95,13 @@ describe("project actions", () => {
     expect(project?.linkedThoughtIds).toEqual(["t-2"]);
     expect(thought?.projectId).toBe(result.projectId);
     expect(thought?.type).toBe("project");
+    expect(result.state.relationships[0]).toMatchObject({
+      sourceId: "t-2",
+      sourceType: "thought",
+      targetId: result.projectId,
+      targetType: "project",
+      type: "evolves_into"
+    });
   });
 
   it("promoteThoughtToProject carries universe and next action from the thought", () => {

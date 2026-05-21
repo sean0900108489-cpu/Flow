@@ -72,6 +72,17 @@ import {
   type CreateRelationshipSafeResult,
   type RelationshipNode
 } from "./domain/relationshipExplorer";
+import {
+  archiveProject as archiveProjectMutation,
+  archiveThought as archiveThoughtMutation,
+  createThought,
+  deleteProject as deleteProjectMutation,
+  deleteThought as deleteThoughtMutation,
+  restoreProject as restoreProjectMutation,
+  restoreThought as restoreThoughtMutation,
+  updateThought as updateThoughtMutation,
+  type SafeMutationResult
+} from "./domain/mutations/appMutations";
 import { id, now } from "./domain/utils";
 import { seed } from "./data/seed";
 import { loadState, saveState } from "./services/storage";
@@ -191,6 +202,17 @@ export function App() {
     return { ok: result.ok, error: result.error };
   };
 
+  const applySafeMutationResult = (result: SafeMutationResult) => {
+    if (!result.ok) {
+      setSystemMessage(result.error ?? "Mutation failed.");
+      return false;
+    }
+
+    setSystemMessage("");
+    save(result.state);
+    return true;
+  };
+
   const thought = state.thoughts.find((x) => x.id === selectedThoughtId) ?? state.thoughts[0];
   const project = state.projects.find((x) => x.id === selectedProjectId) ?? state.projects[0];
   const selectedUniverse = state.universes.find((x) => x.id === selectedUniverseId) ?? state.universes[0];
@@ -204,10 +226,7 @@ export function App() {
   }, [query, state.thoughts]);
 
   const updateThought = (thoughtId: string, patch: Partial<ThoughtItem>) => {
-    save({
-      ...state,
-      thoughts: state.thoughts.map((x) => x.id === thoughtId ? { ...x, ...patch, updatedAt: now() } : x)
-    });
+    applySafeMutationResult(updateThoughtMutation(state, thoughtId, patch));
   };
 
   const updateProject = (projectId: string, patch: ProjectDetailsPatch) =>
@@ -427,22 +446,12 @@ export function App() {
   };
 
   const addThought = (data: Pick<ThoughtItem, "title" | "content" | "type" | "universeId">) => {
-    const item: ThoughtItem = {
-      id: id("thought"),
-      title: data.title || "未命名想法",
-      content: data.content,
-      type: data.type,
-      status: "inbox",
-      universeId: data.universeId,
-      why: "",
-      outcome: "",
-      nextAction: "",
-      createdAt: now(),
-      updatedAt: now()
-    };
-    save({ ...state, thoughts: [item, ...state.thoughts] });
-    setSelectedThoughtId(item.id);
-    setScreen("thought");
+    const result = createThought(state, data);
+
+    if (applySafeMutationResult(result) && result.thoughtId) {
+      setSelectedThoughtId(result.thoughtId);
+      setScreen("thought");
+    }
   };
 
   const handleCreateProject = (input: {
@@ -562,11 +571,9 @@ export function App() {
   };
 
   const archiveThought = (thoughtId: string, nextScreen = "dashboard") => {
-    save({
-      ...state,
-      thoughts: state.thoughts.map((x) => x.id === thoughtId ? { ...x, status: "archived", updatedAt: now() } : x)
-    });
-    setScreen(nextScreen);
+    if (applySafeMutationResult(archiveThoughtMutation(state, thoughtId))) {
+      setScreen(nextScreen);
+    }
   };
 
   const visibleThoughts = filteredThoughts.filter((x) => x.status !== "archived");
@@ -578,66 +585,37 @@ export function App() {
     : activeUniverses;
 
   const restoreThought = (thoughtId: string) => {
-    save({
-      ...state,
-      thoughts: state.thoughts.map((x) => x.id === thoughtId && x.status === "archived"
-        ? { ...x, status: "inbox", updatedAt: now() }
-        : x)
-    });
+    applySafeMutationResult(restoreThoughtMutation(state, thoughtId));
   };
 
   const deleteThought = (thoughtId: string, nextScreen = "dashboard") => {
     if (!window.confirm("Delete this thought?")) return;
+    const result = deleteThoughtMutation(state, thoughtId);
 
-    save({
-      ...state,
-      thoughts: state.thoughts.filter((x) => x.id !== thoughtId),
-      projects: state.projects.map((x) =>
-        x.sourceThoughtId === thoughtId || x.linkedThoughtIds?.includes(thoughtId)
-          ? {
-              ...x,
-              sourceThoughtId: x.sourceThoughtId === thoughtId ? undefined : x.sourceThoughtId,
-              linkedThoughtIds: x.linkedThoughtIds?.filter((id) => id !== thoughtId),
-              updatedAt: now()
-            }
-          : x
-      ),
-      relationships: state.relationships.filter((x) => x.sourceId !== thoughtId && x.targetId !== thoughtId),
-      aiInsights: state.aiInsights.filter((x) => x.targetId !== thoughtId)
-    });
-    setSelectedThoughtId(state.thoughts.find((x) => x.id !== thoughtId)?.id ?? "");
-    setScreen(nextScreen);
+    if (applySafeMutationResult(result)) {
+      setSelectedThoughtId(result.state.thoughts.find((x) => x.id !== thoughtId)?.id ?? "");
+      setScreen(nextScreen);
+    }
   };
 
   const archiveProject = (projectId: string) => {
-    save({
-      ...state,
-      projects: state.projects.map((x) => x.id === projectId ? { ...x, status: "archived", updatedAt: now() } : x)
-    });
-    setScreen("dashboard");
+    if (applySafeMutationResult(archiveProjectMutation(state, projectId))) {
+      setScreen("dashboard");
+    }
   };
 
   const restoreProject = (projectId: string) => {
-    save({
-      ...state,
-      projects: state.projects.map((x) => x.id === projectId && x.status === "archived"
-        ? { ...x, status: "active", updatedAt: now() }
-        : x)
-    });
+    applySafeMutationResult(restoreProjectMutation(state, projectId));
   };
 
   const deleteProject = (projectId: string, nextScreen = "dashboard") => {
     if (!window.confirm("Delete this project?")) return;
+    const result = deleteProjectMutation(state, projectId);
 
-    save({
-      ...state,
-      projects: state.projects.filter((x) => x.id !== projectId),
-      thoughts: state.thoughts.map((x) => x.projectId === projectId ? { ...x, projectId: undefined, updatedAt: now() } : x),
-      relationships: state.relationships.filter((x) => x.sourceId !== projectId && x.targetId !== projectId),
-      aiInsights: state.aiInsights.filter((x) => x.targetId !== projectId)
-    });
-    setSelectedProjectId(state.projects.find((x) => x.id !== projectId)?.id ?? "");
-    setScreen(nextScreen);
+    if (applySafeMutationResult(result)) {
+      setSelectedProjectId(result.state.projects.find((x) => x.id !== projectId)?.id ?? "");
+      setScreen(nextScreen);
+    }
   };
 
   const ai = (targetId: string) => {

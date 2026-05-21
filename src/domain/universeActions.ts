@@ -1,4 +1,7 @@
 import type { AppState, Universe, UniverseStatus } from "./types";
+import { isUniverseActive as isUniverseSemanticallyActive } from "./semantics/statusSemantics";
+import { removeRelationshipsForNode } from "./relationships/relationshipGraph";
+import { removeDeletedNodeReferences } from "./mutations/referenceCleanup";
 import { id } from "./utils";
 
 export type DeleteUniverseMode = "detach" | "blockIfInUse";
@@ -44,7 +47,7 @@ export function universeStatus(universe: Universe): UniverseStatus {
 }
 
 export function isUniverseActive(universe: Universe) {
-  return universeStatus(universe) === "active";
+  return isUniverseSemanticallyActive(universe);
 }
 
 export function universeOptionsForItemUniverseIds(universes: Universe[], itemUniverseIds: string[]) {
@@ -126,24 +129,21 @@ export function deleteUniverse(
 
   const isInUse =
     state.thoughts.some((thought) => thought.universeId === universeId) ||
-    state.projects.some((project) => project.universeId === universeId);
+    state.projects.some((project) => project.universeId === universeId) ||
+    state.blockingQuestions?.some((question) => question.linkedUniverseIds?.includes(universeId)) ||
+    state.decisionRecords?.some((record) => record.linkedUniverseIds?.includes(universeId));
 
   if (mode === "blockIfInUse" && isInUse) {
     return fail(state, universeInUseError);
   }
 
+  const relationshipCleanup = removeRelationshipsForNode(state, { id: universeId, type: "universe" });
+  const referenceCleanup = mode === "detach"
+    ? removeDeletedNodeReferences(relationshipCleanup.state, { id: universeId, type: "universe" })
+    : relationshipCleanup.state;
+
   return ok({
-    ...state,
-    universes: state.universes.filter((item) => item.id !== universeId),
-    thoughts: mode === "detach"
-      ? state.thoughts.map((thought) =>
-          thought.universeId === universeId ? { ...thought, universeId: "" } : thought
-        )
-      : state.thoughts,
-    projects: mode === "detach"
-      ? state.projects.map((project) =>
-          project.universeId === universeId ? { ...project, universeId: "" } : project
-        )
-      : state.projects
+    ...referenceCleanup,
+    universes: referenceCleanup.universes.filter((item) => item.id !== universeId)
   });
 }

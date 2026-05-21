@@ -5,6 +5,13 @@ import type {
   BlockingQuestionOption,
   BlockingQuestionStatus
 } from "./types";
+import {
+  isBlockingQuestionArchived,
+  isBlockingQuestionResolved,
+  isBlockingQuestionUnresolved
+} from "./semantics/questionDecisionSemantics";
+import { removeRelationshipsForNode } from "./relationships/relationshipGraph";
+import { removeDeletedNodeReferences } from "./mutations/referenceCleanup";
 import { id, now } from "./utils";
 
 export interface BlockingQuestionActionResult {
@@ -271,14 +278,14 @@ export function normalizeAppState(state: AppState): AppState {
 
 export function getBlockingQuestionSummary(state: AppState): BlockingQuestionSummary {
   const normalizedQuestions = normalizeBlockingQuestions(state.blockingQuestions).filter(
-    (question) => question.status !== "archived"
+    (question) => !isBlockingQuestionArchived(question)
   );
   const unresolved = normalizedQuestions
-    .filter((question) => question.status === "open" || question.status === "in_review")
+    .filter(isBlockingQuestionUnresolved)
     .sort(compareDecisionPriority);
-  const decided = normalizedQuestions.filter((question) => question.status === "resolved");
+  const decided = normalizedQuestions.filter(isBlockingQuestionResolved);
   const allCoreDecided = coreBlockingQuestions.every((coreQuestion) =>
-    normalizedQuestions.some((question) => question.id === coreQuestion.id && question.status === "resolved")
+    normalizedQuestions.some((question) => question.id === coreQuestion.id && isBlockingQuestionResolved(question))
   );
 
   return {
@@ -415,11 +422,17 @@ export function archiveBlockingQuestion(state: AppState, questionId: string): Bl
 }
 
 export function deleteBlockingQuestion(state: AppState, questionId: string): BlockingQuestionActionResult {
+  const relationshipCleanup = removeRelationshipsForNode(state, { id: questionId, type: "blocking_question" });
+  const referenceCleanup = removeDeletedNodeReferences(relationshipCleanup.state, {
+    id: questionId,
+    type: "blocking_question"
+  });
+
   return {
     ok: true,
     state: {
-      ...state,
-      blockingQuestions: questions(state).filter((question) => question.id !== questionId)
+      ...referenceCleanup,
+      blockingQuestions: (referenceCleanup.blockingQuestions ?? []).filter((question) => question.id !== questionId)
     }
   };
 }

@@ -1,1 +1,22 @@
 .vercel
+
+# Dependencies and local package manager state
+node_modules/
+
+# Build and preview output
+dist/
+
+# Test, coverage, and local reports
+coverage/
+playwright-report/
+test-results/
+
+# Tooling caches and incremental build state
+.vite/
+*.tsbuildinfo
+
+# Local environment and OS files
+.DS_Store
+.env
+.env.*
+!.env.example

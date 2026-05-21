@@ -1,5 +1,5 @@
 import { listNextActions } from "./nextActions";
-import { resolveRelationshipNode } from "./relationshipExplorer";
+import { resolveRelationshipNode } from "./relationships/relationshipGraph";
 import type { AppState, Relationship } from "./types";
 
 export type GlobalSearchResultType =

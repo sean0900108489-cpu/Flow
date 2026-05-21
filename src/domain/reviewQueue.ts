@@ -1,4 +1,13 @@
-import { readiness } from "./readiness";
+import { shouldAIInsightAppearInReviewQueue } from "./semantics/statusSemantics";
+import {
+  isBlockingQuestionInReview,
+  shouldBlockingQuestionAppearInReviewQueue,
+  shouldDecisionRecordAppearInReviewQueue
+} from "./semantics/questionDecisionSemantics";
+import {
+  getProjectContentReadiness,
+  shouldProjectAppearInHandoffReviewQueue
+} from "./semantics/projectSemantics";
 import type { AIInsight, AppState, BlockingQuestion, DecisionRecord, Project } from "./types";
 
 export type ReviewQueueItemType =
@@ -103,7 +112,7 @@ function targetForInsight(state: AppState, insight: AIInsight) {
 }
 
 function aiInsightItem(state: AppState, insight: AIInsight): ReviewQueueItem | undefined {
-  if (insight.status !== "draft") return undefined;
+  if (!shouldAIInsightAppearInReviewQueue(insight)) return undefined;
 
   const target = targetForInsight(state, insight);
 
@@ -126,7 +135,7 @@ function aiInsightItem(state: AppState, insight: AIInsight): ReviewQueueItem | u
 }
 
 function decisionRecordItem(record: DecisionRecord): ReviewQueueItem | undefined {
-  if (record.status !== "proposed") return undefined;
+  if (!shouldDecisionRecordAppearInReviewQueue(record)) return undefined;
 
   return {
     id: `decision_record:${record.id}`,
@@ -148,12 +157,12 @@ function blockingQuestionPriority(question: BlockingQuestion) {
   if (question.impactLevel === "blocking") return 95;
   if (question.impactLevel === "high") return 92;
   if (question.finalResolution || question.proposedResolution) return 90;
-  if (question.status === "in_review") return 75;
+  if (isBlockingQuestionInReview(question)) return 75;
   return 55;
 }
 
 function blockingQuestionItem(question: BlockingQuestion): ReviewQueueItem | undefined {
-  if (question.status !== "open" && question.status !== "in_review") return undefined;
+  if (!shouldBlockingQuestionAppearInReviewQueue(question)) return undefined;
 
   const reviewResolution = clean(question.finalResolution) || clean(question.proposedResolution);
 
@@ -181,13 +190,9 @@ function blockingQuestionItem(question: BlockingQuestion): ReviewQueueItem | und
 }
 
 function handoffCandidateItem(project: Project): ReviewQueueItem | undefined {
-  const projectReadiness = readiness(project);
+  const projectReadiness = getProjectContentReadiness(project);
 
-  if (
-    project.status === "archived" ||
-    project.lifecycleStatus === "handoff_ready" ||
-    projectReadiness.value !== "ready_for_engineering"
-  ) {
+  if (!shouldProjectAppearInHandoffReviewQueue(project, projectReadiness)) {
     return undefined;
   }
 

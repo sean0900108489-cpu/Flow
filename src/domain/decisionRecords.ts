@@ -1,4 +1,10 @@
 import type { AppState, DecisionRecord, DecisionRecordStatus } from "./types";
+import {
+  isBlockingQuestionArchived,
+  isBlockingQuestionResolved
+} from "./semantics/questionDecisionSemantics";
+import { removeRelationshipsForNode } from "./relationships/relationshipGraph";
+import { removeDeletedNodeReferences } from "./mutations/referenceCleanup";
 import { id, now } from "./utils";
 
 export interface DecisionRecordActionResult {
@@ -205,7 +211,28 @@ export function updateDecisionRecord(
 }
 
 export function acceptDecisionRecord(state: AppState, decisionRecordId: string) {
-  return updateDecisionRecord(state, decisionRecordId, { status: "accepted" });
+  const record = records(state).find((item) => item.id === decisionRecordId);
+  const result = updateDecisionRecord(state, decisionRecordId, { status: "accepted" });
+
+  if (!result.ok || !record?.sourceBlockingQuestionId) return result;
+
+  return {
+    ...result,
+    state: {
+      ...result.state,
+      blockingQuestions: (result.state.blockingQuestions ?? []).map((question) =>
+        question.id === record.sourceBlockingQuestionId && !isBlockingQuestionArchived(question)
+          ? {
+              ...question,
+              status: "resolved" as const,
+              finalResolution: text(question.finalResolution) || record.decision,
+              decisionNote: text(question.decisionNote) || text(record.rationale) || record.decision,
+              updatedAt: now()
+            }
+          : question
+      )
+    }
+  };
 }
 
 export function supersedeDecisionRecord(
@@ -225,10 +252,16 @@ export function archiveDecisionRecord(state: AppState, decisionRecordId: string)
 }
 
 export function deleteDecisionRecord(state: AppState, decisionRecordId: string): DecisionRecordActionResult {
+  const relationshipCleanup = removeRelationshipsForNode(state, { id: decisionRecordId, type: "decision_record" });
+  const referenceCleanup = removeDeletedNodeReferences(relationshipCleanup.state, {
+    id: decisionRecordId,
+    type: "decision_record"
+  });
+
   return {
     state: {
-      ...state,
-      decisionRecords: records(state).filter((record) => record.id !== decisionRecordId)
+      ...referenceCleanup,
+      decisionRecords: (referenceCleanup.decisionRecords ?? []).filter((record) => record.id !== decisionRecordId)
     },
     ok: true
   };
@@ -258,7 +291,7 @@ export function createDecisionFromBlockingQuestion(
     title: question.question,
     decision,
     rationale: question.context,
-    status: question.status === "resolved" ? "accepted" : "proposed",
+    status: isBlockingQuestionResolved(question) ? "accepted" : "proposed",
     sourceBlockingQuestionId: question.id,
     linkedThoughtIds: question.linkedThoughtIds,
     linkedProjectIds: question.linkedProjectIds,

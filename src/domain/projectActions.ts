@@ -1,4 +1,5 @@
 import { readiness as projectReadiness } from "./readiness";
+import { createTypedRelationship } from "./relationships/relationshipGraph";
 import { id, now } from "./utils";
 import type {
   AppState,
@@ -225,30 +226,31 @@ export function promoteThoughtToProject(
     return result;
   }
 
+  const promotedState: AppState = {
+    ...result.state,
+    thoughts: result.state.thoughts.map((item) =>
+      item.id === thoughtId
+        ? { ...item, type: "project", status: "active", projectId: result.projectId, updatedAt: now() }
+        : item
+    ),
+    projects: result.state.projects.map((project) =>
+      project.id === result.projectId
+        ? { ...project, sourceThoughtId: thoughtId, updatedAt: now() }
+        : project
+    )
+  };
+  const relationshipResult = createTypedRelationship(promotedState, {
+    sourceId: thoughtId,
+    sourceType: "thought",
+    targetId: result.projectId,
+    targetType: "project",
+    type: "evolves_into",
+    description: "ThoughtItem promoted to Project.",
+    idPrefix: "rel"
+  });
+
   return {
-    state: {
-      ...result.state,
-      thoughts: result.state.thoughts.map((item) =>
-        item.id === thoughtId
-          ? { ...item, type: "project", status: "active", projectId: result.projectId, updatedAt: now() }
-          : item
-      ),
-      projects: result.state.projects.map((project) =>
-        project.id === result.projectId
-          ? { ...project, sourceThoughtId: thoughtId, updatedAt: now() }
-          : project
-      ),
-      relationships: [
-        {
-          id: id("rel"),
-          sourceId: thoughtId,
-          targetId: result.projectId,
-          type: "evolves_into",
-          description: "ThoughtItem promoted to Project."
-        },
-        ...result.state.relationships
-      ]
-    },
+    state: relationshipResult.ok ? relationshipResult.state : promotedState,
     ok: true,
     projectId: result.projectId
   };

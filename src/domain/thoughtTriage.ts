@@ -1,4 +1,5 @@
 import type { AppState, ThoughtItem, ThoughtType } from "./types";
+import { isThoughtArchived, isThoughtInbox } from "./semantics/statusSemantics";
 import { now } from "./utils";
 
 export type ThoughtTriageStage = "needs_universe" | "needs_context" | "needs_next_action" | "ready";
@@ -94,7 +95,7 @@ export function listThoughtsForTriage(state: AppState, options: ThoughtTriageLis
   const stage = options.stage ?? "all";
 
   return state.thoughts
-    .filter((thought) => thought.status === "inbox")
+    .filter(isThoughtInbox)
     .map(triageItem)
     .filter((item) => type === "all" || item.thought.type === type)
     .filter((item) => universeId === "all" || item.thought.universeId === universeId)
@@ -114,7 +115,7 @@ export function updateThoughtTriage(
     return { state, ok: false, error: "Thought not found." };
   }
 
-  if (thought.status === "archived") {
+  if (isThoughtArchived(thought)) {
     return { state, ok: false, error: "Archived thoughts cannot be triaged." };
   }
 
@@ -138,7 +139,7 @@ export function markThoughtTriaged(state: AppState, thoughtId: string): ThoughtT
     return { state, ok: false, error: "Thought not found." };
   }
 
-  if (thought.status !== "inbox") {
+  if (!isThoughtInbox(thought)) {
     return { state, ok: false, error: "Only inbox thoughts can be marked triaged." };
   }
 

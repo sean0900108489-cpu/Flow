@@ -1,23 +1,21 @@
 import type { AppState, Project, Relationship, RelationshipNodeType, ThoughtItem } from "./types";
-import { id } from "./utils";
+import {
+  createTypedRelationship,
+  listRelationshipGraphEdges,
+  listRelationshipGraphNodes,
+  listRelationshipsTouchingNode,
+  resolveRelationshipNode,
+  type RelationshipGraphEdge,
+  type RelationshipGraphNode
+} from "./relationships/relationshipGraph";
+import { isProjectArchived } from "./semantics/projectSemantics";
+import { isThoughtArchived } from "./semantics/statusSemantics";
 
 export type { RelationshipNodeType };
+export { resolveRelationshipNode };
 
-export type RelationshipNode = {
-  id: string;
-  type: RelationshipNodeType;
-  title: string;
-  status?: string;
-  universeId?: string;
-};
-
-export type RelationshipExplorerEdge = {
-  id: string;
-  type: string;
-  source: RelationshipNode;
-  target: RelationshipNode;
-  description?: string;
-};
+export type RelationshipNode = RelationshipGraphNode;
+export type RelationshipExplorerEdge = RelationshipGraphEdge;
 
 export type RelationshipImpactSummary = {
   node: RelationshipNode;
@@ -58,28 +56,8 @@ export type RelationshipListOptions = {
   universeId?: string | "all";
 };
 
-const nodeTypes: RelationshipNodeType[] = ["thought", "project", "universe", "blocking_question", "decision_record"];
-const relationshipTypes: Relationship["type"][] = [
-  "related_to",
-  "belongs_to",
-  "depends_on",
-  "supports",
-  "blocks",
-  "evolves_into"
-];
-
 function clean(value: string | undefined) {
   return value?.trim() ?? "";
-}
-
-function firstValue(values: string[] | undefined) {
-  return values?.find((value) => clean(value));
-}
-
-function compareNodes(a: RelationshipNode, b: RelationshipNode) {
-  return a.type.localeCompare(b.type) ||
-    a.title.localeCompare(b.title) ||
-    a.id.localeCompare(b.id);
 }
 
 function compareEdges(a: RelationshipExplorerEdge, b: RelationshipExplorerEdge) {
@@ -89,138 +67,8 @@ function compareEdges(a: RelationshipExplorerEdge, b: RelationshipExplorerEdge) 
     a.id.localeCompare(b.id);
 }
 
-function thoughtNode(thought: ThoughtItem): RelationshipNode {
-  return {
-    id: thought.id,
-    type: "thought",
-    title: clean(thought.title) || "Untitled thought",
-    status: thought.status,
-    universeId: thought.universeId
-  };
-}
-
-function projectNode(project: Project): RelationshipNode {
-  return {
-    id: project.id,
-    type: "project",
-    title: clean(project.name) || "Untitled project",
-    status: project.status,
-    universeId: project.universeId
-  };
-}
-
 export function listRelationshipNodes(state: AppState): RelationshipNode[] {
-  return [
-    ...state.thoughts.map(thoughtNode),
-    ...state.projects.map(projectNode),
-    ...state.universes.map((universe) => ({
-      id: universe.id,
-      type: "universe" as const,
-      title: clean(universe.name) || "Untitled universe",
-      status: universe.status ?? "active",
-      universeId: universe.id
-    })),
-    ...(state.blockingQuestions ?? []).map((question) => ({
-      id: question.id,
-      type: "blocking_question" as const,
-      title: clean(question.question) || "Untitled blocking question",
-      status: question.status,
-      universeId: firstValue(question.linkedUniverseIds)
-    })),
-    ...(state.decisionRecords ?? []).map((record) => ({
-      id: record.id,
-      type: "decision_record" as const,
-      title: clean(record.title) || "Untitled decision record",
-      status: record.status,
-      universeId: firstValue(record.linkedUniverseIds)
-    }))
-  ].sort(compareNodes);
-}
-
-export function resolveRelationshipNode(
-  state: AppState,
-  nodeId: string,
-  explicitType?: RelationshipNodeType
-): RelationshipNode | undefined {
-  const finders: Record<RelationshipNodeType, () => RelationshipNode | undefined> = {
-    thought: () => {
-      const thought = state.thoughts.find((item) => item.id === nodeId);
-      return thought ? thoughtNode(thought) : undefined;
-    },
-    project: () => {
-      const project = state.projects.find((item) => item.id === nodeId);
-      return project ? projectNode(project) : undefined;
-    },
-    universe: () => {
-      const universe = state.universes.find((item) => item.id === nodeId);
-      return universe
-        ? {
-            id: universe.id,
-            type: "universe",
-            title: clean(universe.name) || "Untitled universe",
-            status: universe.status ?? "active",
-            universeId: universe.id
-          }
-        : undefined;
-    },
-    blocking_question: () => {
-      const question = (state.blockingQuestions ?? []).find((item) => item.id === nodeId);
-      return question
-        ? {
-            id: question.id,
-            type: "blocking_question",
-            title: clean(question.question) || "Untitled blocking question",
-            status: question.status,
-            universeId: firstValue(question.linkedUniverseIds)
-          }
-        : undefined;
-    },
-    decision_record: () => {
-      const record = (state.decisionRecords ?? []).find((item) => item.id === nodeId);
-      return record
-        ? {
-            id: record.id,
-            type: "decision_record",
-            title: clean(record.title) || "Untitled decision record",
-            status: record.status,
-            universeId: firstValue(record.linkedUniverseIds)
-          }
-        : undefined;
-    }
-  };
-
-  if (explicitType) return finders[explicitType]();
-
-  for (const type of nodeTypes) {
-    const node = finders[type]();
-    if (node) return node;
-  }
-
-  return undefined;
-}
-
-function missingNode(idValue: string, explicitType?: RelationshipNodeType): RelationshipNode {
-  return {
-    id: idValue,
-    type: explicitType ?? "thought",
-    title: "Missing node",
-    status: "missing"
-  };
-}
-
-function toEdge(state: AppState, relationship: Relationship): RelationshipExplorerEdge {
-  const source = resolveRelationshipNode(state, relationship.sourceId, relationship.sourceType) ??
-    missingNode(relationship.sourceId, relationship.sourceType);
-  const target = resolveRelationshipNode(state, relationship.targetId, relationship.targetType) ??
-    missingNode(relationship.targetId, relationship.targetType);
-
-  return {
-    id: relationship.id,
-    type: relationship.type,
-    source,
-    target,
-    description: relationship.description
-  };
+  return listRelationshipGraphNodes(state);
 }
 
 function nodeMatchesUniverse(state: AppState, node: RelationshipNode, universeId: string) {
@@ -251,8 +99,7 @@ export function listRelationshipEdges(
   const targetType = options.targetType ?? "all";
   const universeId = options.universeId ?? "all";
 
-  return state.relationships
-    .map((relationship) => toEdge(state, relationship))
+  return listRelationshipGraphEdges(state)
     .filter((edge) => type === "all" || edge.type === type)
     .filter((edge) => sourceType === "all" || edge.source.type === sourceType)
     .filter((edge) => targetType === "all" || edge.target.type === targetType)
@@ -310,77 +157,19 @@ export function getRelationshipImpact(
 }
 
 export function listOrphanItems(state: AppState): { thoughts: ThoughtItem[]; projects: Project[] } {
-  const linkedIds = new Set(state.relationships.flatMap((relationship) => [
-    relationship.sourceId,
-    relationship.targetId
-  ]));
-
   return {
     thoughts: state.thoughts.filter((thought) =>
-      thought.status !== "archived" && !linkedIds.has(thought.id)
+      !isThoughtArchived(thought) && listRelationshipsTouchingNode(state, { id: thought.id, type: "thought" }).length === 0
     ),
     projects: state.projects.filter((project) =>
-      project.status !== "archived" && !linkedIds.has(project.id)
+      !isProjectArchived(project) && listRelationshipsTouchingNode(state, { id: project.id, type: "project" }).length === 0
     )
   };
-}
-
-function isSupportedRelationshipType(value: string): value is Relationship["type"] {
-  return relationshipTypes.includes(value as Relationship["type"]);
 }
 
 export function createRelationshipSafe(
   state: AppState,
   input: CreateRelationshipSafeInput
 ): CreateRelationshipSafeResult {
-  if (!isSupportedRelationshipType(input.type)) {
-    return { state, ok: false, error: "Invalid relationship type." };
-  }
-
-  const source = resolveRelationshipNode(state, input.sourceId, input.sourceType);
-  const target = resolveRelationshipNode(state, input.targetId, input.targetType);
-
-  if (!source) {
-    return { state, ok: false, error: "Source node not found." };
-  }
-
-  if (!target) {
-    return { state, ok: false, error: "Target node not found." };
-  }
-
-  if (input.sourceId === input.targetId && input.sourceType === input.targetType) {
-    return { state, ok: false, error: "Source and target must be different." };
-  }
-
-  const isDuplicate = state.relationships.some((relationship) =>
-    relationship.sourceId === input.sourceId &&
-    relationship.targetId === input.targetId &&
-    relationship.type === input.type &&
-    (relationship.sourceType ?? source.type) === input.sourceType &&
-    (relationship.targetType ?? target.type) === input.targetType
-  );
-
-  if (isDuplicate) {
-    return { state, ok: false, error: "Relationship already exists." };
-  }
-
-  const relationshipId = id("relationship");
-  const relationship: Relationship = {
-    id: relationshipId,
-    sourceId: input.sourceId,
-    sourceType: input.sourceType,
-    targetId: input.targetId,
-    targetType: input.targetType,
-    type: input.type,
-    description: clean(input.description)
-  };
-
-  return {
-    state: {
-      ...state,
-      relationships: [relationship, ...state.relationships]
-    },
-    ok: true,
-    relationshipId
-  };
+  return createTypedRelationship(state, input);
 }

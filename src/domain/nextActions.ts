@@ -1,6 +1,22 @@
 import { getBlockingQuestionSummary, normalizeBlockingQuestions } from "./blockingQuestions";
 import { calculateEngineeringReadiness, normalizeEngineeringReadiness } from "./engineeringReadiness";
 import { getReviewQueueCounts, searchReviewQueue } from "./reviewQueue";
+import {
+  isBlockingQuestionOpen,
+  isBlockingQuestionUnresolved,
+  isHighImpactBlockingQuestion,
+  shouldBlockingQuestionAppearInNextAction
+} from "./semantics/questionDecisionSemantics";
+import {
+  isProjectLifecycleBlocked,
+  isProjectReadyForEngineering,
+  projectLifecycleStatus,
+  shouldProjectAppearInNextAction
+} from "./semantics/projectSemantics";
+import {
+  isThoughtPaused,
+  shouldThoughtAppearInNextAction
+} from "./semantics/statusSemantics";
 import type {
   AppState,
   BlockingQuestion,
@@ -101,7 +117,6 @@ export type NextActionStatePatch = Partial<
 const defaultTimestamp = "2026-01-01T00:00:00.000Z";
 const confidenceLevels: NextActionConfidence[] = ["low", "medium", "high"];
 const focusModes: NextActionFocusMode[] = ["explore", "decide", "build", "review"];
-const highImpactLevels = new Set(["high", "blocking"]);
 
 export function defaultNextActionState(): NextActionState {
   return {
@@ -163,14 +178,6 @@ function firstValue(values: string[] | undefined) {
   return values?.find((value) => text(value));
 }
 
-function isUnresolved(question: BlockingQuestion) {
-  return question.status === "open" || question.status === "in_review";
-}
-
-function isHighImpact(question: BlockingQuestion) {
-  return highImpactLevels.has(question.impactLevel ?? "medium");
-}
-
 function priorityRank(priority: NextActionPriority) {
   return {
     urgent: 4,
@@ -222,10 +229,11 @@ function searchHaystack(item: NextActionItem) {
 function thoughtAction(thought: ThoughtItem): NextActionItem | undefined {
   const actionText = text(thought.nextAction);
 
-  if (thought.status === "archived" || !actionText) return undefined;
+  if (!shouldThoughtAppearInNextAction(thought)) return undefined;
 
   const actionType: NextActionType =
     thought.type === "task" ? "implement" : thought.type === "question" ? "clarify" : "organize";
+  const paused = isThoughtPaused(thought);
 
   return {
     id: `thought:${thought.id}`,
@@ -236,13 +244,13 @@ function thoughtAction(thought: ThoughtItem): NextActionItem | undefined {
     actionText,
     suggestedNextActionText: actionText,
     universeId: thought.universeId,
-    status: thought.status === "paused" ? "blocked" : "available",
+    status: paused ? "blocked" : "available",
     sourceStatus: thought.status,
     sourceArea: "Thought",
     reason: text(thought.why) || "Existing thought next action is ready to review.",
-    priority: thought.status === "paused" ? "high" : "medium",
+    priority: paused ? "high" : "medium",
     actionType,
-    blockers: thought.status === "paused" ? [thought.title] : [],
+    blockers: paused ? [thought.title] : [],
     confidence: thought.type === "task" ? 72 : 64,
     updatedAt: thought.updatedAt
   };
@@ -251,10 +259,10 @@ function thoughtAction(thought: ThoughtItem): NextActionItem | undefined {
 function projectAction(project: Project): NextActionItem | undefined {
   const actionText = text(project.nextAction);
 
-  if (project.status === "archived" || !actionText) return undefined;
+  if (!shouldProjectAppearInNextAction(project)) return undefined;
 
-  const blocked = project.lifecycleStatus === "blocked";
-  const ready = project.readiness === "ready_for_engineering";
+  const blocked = isProjectLifecycleBlocked(project);
+  const ready = isProjectReadyForEngineering(project);
 
   return {
     id: `project:${project.id}`,
@@ -266,7 +274,7 @@ function projectAction(project: Project): NextActionItem | undefined {
     suggestedNextActionText: actionText,
     universeId: project.universeId,
     status: blocked ? "blocked" : "available",
-    sourceStatus: project.lifecycleStatus ?? project.readiness,
+    sourceStatus: projectLifecycleStatus(project),
     sourceArea: "Project",
     reason: ready ? "Project is already close to an engineering handoff." : "Project next action can move planning forward.",
     priority: blocked ? "high" : ready ? "high" : "medium",
@@ -278,9 +286,9 @@ function projectAction(project: Project): NextActionItem | undefined {
 }
 
 function blockingQuestionAction(question: BlockingQuestion): NextActionItem | undefined {
-  if (!isUnresolved(question)) return undefined;
+  if (!shouldBlockingQuestionAppearInNextAction(question)) return undefined;
 
-  const highImpact = isHighImpact(question);
+  const highImpact = isHighImpactBlockingQuestion(question);
   const actionText = text(question.proposedResolution) ? "Review proposed resolution" : "Resolve blocking question";
 
   return {
@@ -436,7 +444,7 @@ export function calculateNextActionSummary(state: AppState): NextActionSummary {
   const reviewCounts = getReviewQueueCounts(reviewItems);
   const decisionSummary = getBlockingQuestionSummary(nextState);
   const highBlockingUnresolved = (nextState.blockingQuestions ?? []).filter(
-    (question) => isUnresolved(question) && isHighImpact(question)
+    (question) => isBlockingQuestionUnresolved(question) && isHighImpactBlockingQuestion(question)
   );
   const confidenceOffset = nextActionState.manualConfidence === "high" ? 8 : nextActionState.manualConfidence === "low" ? -8 : 0;
   const confidence = Math.max(0, Math.min(100, (topAction?.confidence ?? 50) + confidenceOffset));
@@ -589,7 +597,7 @@ export function completeNextAction(state: AppState, item: NextActionItem): NextA
         candidate.id === item.sourceId
           ? {
               ...candidate,
-              status: candidate.status === "open" ? "in_review" : candidate.status,
+              status: isBlockingQuestionOpen(candidate) ? "in_review" : candidate.status,
               updatedAt: now()
             }
           : candidate

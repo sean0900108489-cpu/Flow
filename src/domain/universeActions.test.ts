@@ -62,7 +62,28 @@ function baseState(): AppState {
       }
     ],
     relationships: [],
-    aiInsights: []
+    aiInsights: [],
+    blockingQuestions: [
+      {
+        id: "bq-1",
+        question: "Question",
+        status: "open",
+        linkedUniverseIds: ["u-1"],
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    decisionRecords: [
+      {
+        id: "decision-1",
+        title: "Decision",
+        decision: "Decision body",
+        status: "proposed",
+        linkedUniverseIds: ["u-1"],
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z"
+      }
+    ]
   };
 }
 
@@ -128,6 +149,8 @@ describe("universe actions", () => {
     expect(result.state.universes.some((universe) => universe.id === "u-1")).toBe(false);
     expect(result.state.thoughts[0].universeId).toBe("");
     expect(result.state.projects[0].universeId).toBe("");
+    expect(result.state.blockingQuestions?.[0].linkedUniverseIds).toEqual([]);
+    expect(result.state.decisionRecords?.[0].linkedUniverseIds).toEqual([]);
   });
 
   it("deleteUniverse blockIfInUse stops deletion for linked universes", () => {

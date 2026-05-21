@@ -1,5 +1,12 @@
 import { evaluateProjectHandoff } from "./engineeringHandoff";
 import { listNextActions, type NextActionItem } from "./nextActions";
+import { listRelationshipsTouchingAnyNode } from "./relationships/relationshipGraph";
+import { isBlockingQuestionUnresolved } from "./semantics/questionDecisionSemantics";
+import {
+  isProjectArchived,
+  isProjectLifecycleHandoffReady
+} from "./semantics/projectSemantics";
+import { isThoughtArchived } from "./semantics/statusSemantics";
 import { listThoughtsForTriage } from "./thoughtTriage";
 import type { AppState, BlockingQuestion, DecisionRecord, Project, Relationship, ThoughtItem, Universe } from "./types";
 import { universeStatus } from "./universeActions";
@@ -86,15 +93,11 @@ function universeRelationships(
   thoughts: ThoughtItem[],
   projects: Project[]
 ) {
-  const ids = new Set([
-    universeId,
-    ...thoughts.map((thought) => thought.id),
-    ...projects.map((project) => project.id)
+  return listRelationshipsTouchingAnyNode(state, [
+    { id: universeId, type: "universe" },
+    ...thoughts.map((thought) => ({ id: thought.id, type: "thought" as const })),
+    ...projects.map((project) => ({ id: project.id, type: "project" as const }))
   ]);
-
-  return state.relationships.filter((relationship) =>
-    ids.has(relationship.sourceId) || ids.has(relationship.targetId)
-  );
 }
 
 function universeBlockingQuestions(
@@ -133,7 +136,7 @@ function universeNeedsTriage(state: AppState, universeId: string) {
 }
 
 function isHandoffReady(project: Project, state: AppState) {
-  return project.lifecycleStatus === "handoff_ready" || evaluateProjectHandoff(project, state).readiness === "ready";
+  return isProjectLifecycleHandoffReady(project) || evaluateProjectHandoff(project, state).readiness === "ready";
 }
 
 function clampScore(score: number) {
@@ -147,9 +150,7 @@ function healthForUniverse(
   nextActions: NextActionItem[]
 ): UniverseOverview["health"] {
   const reasons: string[] = [];
-  const openBlockers = blockingQuestions.filter((question) =>
-    question.status === "open" || question.status === "in_review"
-  );
+  const openBlockers = blockingQuestions.filter(isBlockingQuestionUnresolved);
   let score = 100;
 
   if (openBlockers.length > 0) {
@@ -201,12 +202,12 @@ export function getUniverseOverview(state: AppState, universeId: string): Univer
   const decisionRecords = universeDecisionRecords(state, universeId);
   const nextActions = universeNextActions(state, universeId, blockingQuestions);
   const needsTriage = universeNeedsTriage(state, universeId);
-  const activeProjects = projects.filter((project) => project.status !== "archived");
+  const activeProjects = projects.filter((project) => !isProjectArchived(project));
   const summary: UniverseOverview["summary"] = {
-    activeThoughts: thoughts.filter((thought) => thought.status !== "archived").length,
-    archivedThoughts: thoughts.filter((thought) => thought.status === "archived").length,
+    activeThoughts: thoughts.filter((thought) => !isThoughtArchived(thought)).length,
+    archivedThoughts: thoughts.filter(isThoughtArchived).length,
     activeProjects: activeProjects.length,
-    archivedProjects: projects.filter((project) => project.status === "archived").length,
+    archivedProjects: projects.filter(isProjectArchived).length,
     nextActions: nextActions.length,
     blockingQuestions: blockingQuestions.length,
     needsTriage,

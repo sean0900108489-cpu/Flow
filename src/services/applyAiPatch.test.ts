@@ -90,6 +90,7 @@ describe("applyAiInsightPatch", () => {
           patch: {
             id: "hijacked",
             createdAt: "2030-01-01T00:00:00.000Z",
+            status: "done",
             nextAction: "Allowed change"
           }
         }
@@ -98,7 +99,35 @@ describe("applyAiInsightPatch", () => {
 
     expect(next.thoughts[0].id).toBe("t-1");
     expect(next.thoughts[0].createdAt).toBe("2026-01-01T00:00:00.000Z");
+    expect(next.thoughts[0].status).toBe("inbox");
     expect(next.thoughts[0].nextAction).toBe("Allowed change");
+  });
+
+  it("does not let AI directly change Project status or readiness", () => {
+    const state = baseState();
+    const next = applyAiInsightPatch(state, {
+      ...insight(),
+      targetId: "p-1",
+      patch: {
+        targetType: "project",
+        targetId: "p-1",
+        operations: [
+          {
+            type: "updateProject",
+            projectId: "p-1",
+            patch: {
+              status: "archived",
+              readiness: "ready_for_engineering",
+              name: "AI suggested project name"
+            }
+          }
+        ]
+      }
+    });
+
+    expect(next.projects[0].name).toBe("AI suggested project name");
+    expect(next.projects[0].status).toBe("active");
+    expect(next.projects[0].readiness).not.toBe("ready_for_engineering");
   });
 
   it("keeps state safe when targetId is missing", () => {

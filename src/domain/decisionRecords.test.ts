@@ -113,6 +113,36 @@ describe("decision records", () => {
     expect(deleted.state.decisionRecords).toHaveLength(0);
   });
 
+  it("acceptDecisionRecord resolves its source blocking question", () => {
+    const result = acceptDecisionRecord({
+      ...emptyState,
+      blockingQuestions: [
+        {
+          id: "bq-1",
+          question: "Resolve from decision?",
+          status: "in_review",
+          createdAt: timestamp,
+          updatedAt: timestamp
+        }
+      ],
+      decisionRecords: [
+        decision({
+          id: "decision-1",
+          decision: "Use the accepted decision as the final resolution.",
+          status: "proposed",
+          sourceBlockingQuestionId: "bq-1"
+        })
+      ]
+    }, "decision-1");
+
+    expect(result.ok).toBe(true);
+    expect(result.state.decisionRecords?.[0].status).toBe("accepted");
+    expect(result.state.blockingQuestions?.[0]).toMatchObject({
+      status: "resolved",
+      finalResolution: "Use the accepted decision as the final resolution."
+    });
+  });
+
   it("creates a decision from a resolved blocking question", () => {
     const state: AppState = {
       ...emptyState,
@@ -181,6 +211,20 @@ describe("decision records", () => {
     });
 
     expect(listDecisionRecords(state, { universeId: "u-1" }).map((item) => item.id)).toEqual(["decision-1"]);
+  });
+
+  it("deleteDecisionRecord clears supersedes references", () => {
+    const result = deleteDecisionRecord(stateWithDecision({
+      decisionRecords: [
+        decision({ id: "decision-1" }),
+        decision({ id: "decision-2", supersedesDecisionId: "decision-1" })
+      ]
+    }), "decision-1");
+
+    expect(result.state.decisionRecords?.[0]).toMatchObject({
+      id: "decision-2",
+      supersedesDecisionId: undefined
+    });
   });
 
   it("does not mutate original state", () => {

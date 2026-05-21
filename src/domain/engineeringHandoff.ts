@@ -1,6 +1,17 @@
 import { engineeringInput } from "../services/exportEngineeringInput";
 import { now } from "./utils";
 import { readiness as projectReadiness } from "./readiness";
+import {
+  getProjectUnresolvedHandoffQuestions,
+  hasBlockingRelationshipToProject,
+  isProjectArchived,
+  isProjectLifecycleBlocked
+} from "./semantics/projectSemantics";
+import {
+  listRelationshipsTouchingAnyNode,
+  listRelationshipsTouchingNode,
+  relationshipToGraphEdge
+} from "./relationships/relationshipGraph";
 import type { AppState, Project, Relationship, ThoughtItem } from "./types";
 
 export type ProjectHandoffReadiness = "ready" | "needs_clarification" | "blocked";
@@ -35,11 +46,20 @@ const unique = (items: string[]) => Array.from(new Set(items));
 
 function linkedThoughts(project: Project, state: AppState) {
   const linkedThoughtIds = project.linkedThoughtIds ?? [];
-  const relatedThoughtIds = state.relationships.flatMap((relationship) => {
-    if (relationship.sourceId === project.id) return [relationship.targetId];
-    if (relationship.targetId === project.id) return [relationship.sourceId];
-    return [];
-  });
+  const relatedThoughtIds = listRelationshipsTouchingNode(state, { id: project.id, type: "project" })
+    .flatMap((relationship) => {
+      const edge = relationshipToGraphEdge(state, relationship);
+
+      if (edge.source.type === "project" && edge.source.id === project.id && edge.target.type === "thought") {
+        return [edge.target.id];
+      }
+
+      if (edge.target.type === "project" && edge.target.id === project.id && edge.source.type === "thought") {
+        return [edge.source.id];
+      }
+
+      return [];
+    });
 
   return state.thoughts.filter((thought) =>
     linkedThoughtIds.includes(thought.id) ||
@@ -50,19 +70,10 @@ function linkedThoughts(project: Project, state: AppState) {
 }
 
 function projectRelationships(project: Project, thoughts: ThoughtItem[], state: AppState) {
-  const ids = new Set([project.id, ...thoughts.map((thought) => thought.id)]);
-
-  return state.relationships.filter((relationship) =>
-    ids.has(relationship.sourceId) || ids.has(relationship.targetId)
-  );
-}
-
-function hasBlockingRelationship(project: Project, state: AppState) {
-  return state.relationships.some((relationship) =>
-    relationship.type === "blocks" &&
-    relationship.targetId === project.id &&
-    (relationship.targetType === undefined || relationship.targetType === "project")
-  );
+  return listRelationshipsTouchingAnyNode(state, [
+    { id: project.id, type: "project" },
+    ...thoughts.map((thought) => ({ id: thought.id, type: "thought" as const }))
+  ]);
 }
 
 export function evaluateProjectHandoff(project: Project, state: AppState): ProjectHandoffStatus {
@@ -77,9 +88,11 @@ export function evaluateProjectHandoff(project: Project, state: AppState): Proje
   const hasNextAction = project.nextAction.trim().length > 0;
   const hasUniverse = project.universeId.trim().length > 0 ||
     thoughts.some((thought) => thought.universeId.trim().length > 0);
-  const isArchived = project.status === "archived";
-  const isLifecycleBlocked = project.lifecycleStatus === "blocked";
-  const isBlockedByRelationship = hasBlockingRelationship(project, state);
+  const isArchived = isProjectArchived(project);
+  const isLifecycleBlocked = isProjectLifecycleBlocked(project);
+  const isBlockedByRelationship = hasBlockingRelationshipToProject(project, state.relationships);
+  const unresolvedHandoffQuestions = getProjectUnresolvedHandoffQuestions(project, state);
+  const isBlockedByQuestion = unresolvedHandoffQuestions.length > 0;
 
   if (!hasTitle) missing.push("title");
   if (!hasDescription) missing.push("description");
@@ -88,13 +101,25 @@ export function evaluateProjectHandoff(project: Project, state: AppState): Proje
   if (isArchived) warnings.push("Project is archived.");
   if (isLifecycleBlocked) warnings.push("Project lifecycle is blocked.");
   if (isBlockedByRelationship) warnings.push("Project has a blocking relationship.");
+  if (isBlockedByQuestion) {
+    warnings.push(`Project has unresolved blocking question(s): ${unresolvedHandoffQuestions.map((question) => question.question).join(", ")}`);
+  }
 
-  const handoffChecks = [hasTitle, hasDescription, hasNextAction, hasUniverse, !isArchived, !isBlockedByRelationship, !isLifecycleBlocked];
+  const handoffChecks = [
+    hasTitle,
+    hasDescription,
+    hasNextAction,
+    hasUniverse,
+    !isArchived,
+    !isBlockedByRelationship,
+    !isLifecycleBlocked,
+    !isBlockedByQuestion
+  ];
   const handoffScore = Math.round((handoffChecks.filter(Boolean).length / handoffChecks.length) * 100);
   let score = Math.round((existingReadiness.score + handoffScore) / 2);
   let readiness: ProjectHandoffReadiness = "needs_clarification";
 
-  if (!hasTitle || isArchived || isLifecycleBlocked || isBlockedByRelationship) {
+  if (!hasTitle || isArchived || isLifecycleBlocked || isBlockedByRelationship || isBlockedByQuestion) {
     readiness = "blocked";
     score = Math.min(score, isArchived ? 20 : 45);
   } else if (unique(missing).length === 0 && existingReadiness.value === "ready_for_engineering") {

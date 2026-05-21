@@ -181,6 +181,25 @@ describe("blocking questions", () => {
     expect(result.state.universes).toHaveLength(1);
   });
 
+  it("deleteBlockingQuestion clears decision source references", () => {
+    const result = deleteBlockingQuestion({
+      ...linkedState,
+      decisionRecords: [
+        {
+          id: "decision-1",
+          title: "Decision",
+          decision: "Decision body",
+          status: "accepted",
+          sourceBlockingQuestionId: "bq-1",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z"
+        }
+      ]
+    }, "bq-1");
+
+    expect(result.state.decisionRecords?.[0].sourceBlockingQuestionId).toBeUndefined();
+  });
+
   it("searches case-insensitively", () => {
     expect(listBlockingQuestions(linkedState, { searchText: "ARCHITECTURE" })).toHaveLength(1);
     expect(listBlockingQuestions(linkedState, { searchText: "missing" })).toHaveLength(0);

@@ -1,5 +1,15 @@
 import { getBlockingQuestionSummary, normalizeBlockingQuestions } from "./blockingQuestions";
 import { getReviewQueueCounts, searchReviewQueue, type ReviewQueueItem } from "./reviewQueue";
+import {
+  hasBlockingQuestionDecisionPath,
+  isBlockingQuestionArchived,
+  isBlockingQuestionResolved,
+  isBlockingQuestionStrictlyDecided,
+  isBlockingQuestionUnresolved,
+  isHighImpactBlockingQuestion,
+  shouldBlockingQuestionAffectEngineeringReadiness
+} from "./semantics/questionDecisionSemantics";
+import { listOrphanRelationships } from "./relationships/relationshipGraph";
 import type {
   AppState,
   BlockingQuestion,
@@ -59,7 +69,6 @@ export interface EngineeringReadinessActionResult {
 const defaultTimestamp = "2026-01-01T00:00:00.000Z";
 const confidenceLevels: EngineeringReadinessConfidence[] = ["low", "medium", "high"];
 const targetPhases: EngineeringReadinessTargetPhase[] = ["exploration", "prototype", "engineering"];
-const highImpactLevels = new Set(["high", "blocking"]);
 
 export function defaultEngineeringReadinessAssessment(): EngineeringReadinessAssessment {
   return {
@@ -110,29 +119,8 @@ function normalizedState(state: AppState): AppState {
   };
 }
 
-function isUnresolved(question: BlockingQuestion) {
-  return question.status === "open" || question.status === "in_review";
-}
-
-function isHighImpact(question: BlockingQuestion) {
-  return highImpactLevels.has(question.impactLevel ?? "medium");
-}
-
 function preferredOptionLabel(question: BlockingQuestion) {
   return question.possibleOptions?.find((option) => option.id === question.preferredOptionId)?.label;
-}
-
-function hasDecisionPath(question: BlockingQuestion) {
-  return Boolean(
-    clean(question.finalResolution) ||
-    clean(question.proposedResolution) ||
-    clean(question.decisionNote) ||
-    clean(question.preferredOptionId)
-  );
-}
-
-function isStrictlyDecided(question: BlockingQuestion) {
-  return question.status === "resolved" && Boolean(clean(question.finalResolution) || clean(question.proposedResolution));
 }
 
 function questionById(questions: BlockingQuestion[], id: string, fallbackQuestion: string) {
@@ -165,7 +153,7 @@ function decisionCriterion(
     };
   }
 
-  if (isStrictlyDecided(question)) {
+  if (isBlockingQuestionStrictlyDecided(question)) {
     return {
       id,
       title,
@@ -176,7 +164,7 @@ function decisionCriterion(
     };
   }
 
-  if (hasDecisionPath(question)) {
+  if (hasBlockingQuestionDecisionPath(question)) {
     const option = preferredOptionLabel(question);
 
     return {
@@ -184,7 +172,7 @@ function decisionCriterion(
       title,
       status: "partial",
       explanation: option ? `Preferred option on file: ${option}` : "A tentative decision path exists.",
-      relatedBlockers: isUnresolved(question) ? [question.question] : [],
+      relatedBlockers: isBlockingQuestionUnresolved(question) ? [question.question] : [],
       relatedDecisions: [question.question]
     };
   }
@@ -192,9 +180,9 @@ function decisionCriterion(
   return {
     id,
     title,
-    status: isHighImpact(question) && isUnresolved(question) ? "blocked" : "unmet",
+    status: isHighImpactBlockingQuestion(question) && isBlockingQuestionUnresolved(question) ? "blocked" : "unmet",
     explanation: "No final decision or preferred option has been captured yet.",
-    relatedBlockers: isUnresolved(question) ? [question.question] : [],
+    relatedBlockers: isBlockingQuestionUnresolved(question) ? [question.question] : [],
     relatedDecisions: [question.question]
   };
 }
@@ -203,13 +191,13 @@ function reviewItemHasDecisionPath(item: ReviewQueueItem, questions: BlockingQue
   if (item.type !== "blocking_question") return false;
   const question = questions.find((candidate) => candidate.id === item.sourceId);
 
-  return question ? hasDecisionPath(question) : Boolean(item.reviewResolution);
+  return question ? hasBlockingQuestionDecisionPath(question) : Boolean(item.reviewResolution);
 }
 
 export function calculateEngineeringReadiness(state: AppState): EngineeringReadinessSummary {
   const nextState = normalizedState(state);
   const assessment = nextState.engineeringReadiness ?? defaultEngineeringReadinessAssessment();
-  const questions = (nextState.blockingQuestions ?? []).filter((question) => question.status !== "archived");
+  const questions = (nextState.blockingQuestions ?? []).filter((question) => !isBlockingQuestionArchived(question));
   const thoughtTodoQuestion = questionById(
     questions,
     "bq-thought-todo",
@@ -221,10 +209,11 @@ export function calculateEngineeringReadiness(state: AppState): EngineeringReadi
     "Universe 是標籤、資料夾，還是獨立物件？"
   );
 
-  const highImpactUnresolved = questions.filter((question) => isHighImpact(question) && isUnresolved(question));
-  const hardDecisionBlockers = highImpactUnresolved.filter((question) => !hasDecisionPath(question));
+  const highImpactUnresolved = questions.filter(shouldBlockingQuestionAffectEngineeringReadiness);
+  const hardDecisionBlockers = highImpactUnresolved.filter((question) => !hasBlockingQuestionDecisionPath(question));
   const reviewItems = searchReviewQueue(nextState);
   const reviewCounts = getReviewQueueCounts(reviewItems);
+  const orphanRelationships = listOrphanRelationships(nextState);
   const reviewBlockers = reviewItems.filter(
     (item) =>
       item.type === "blocking_question" &&
@@ -263,7 +252,7 @@ export function calculateEngineeringReadiness(state: AppState): EngineeringReadi
       status: "met",
       explanation: "No high impact unresolved decision currently blocks readiness.",
       relatedBlockers: [],
-      relatedDecisions: questions.filter((question) => question.status === "resolved").map((question) => question.question)
+      relatedDecisions: questions.filter(isBlockingQuestionResolved).map((question) => question.question)
     };
   })();
 
@@ -371,6 +360,7 @@ export function calculateEngineeringReadiness(state: AppState): EngineeringReadi
       ? "High impact decisions still need formal resolution before Ready for Engineering."
       : "",
     reviewCounts.total > 0 ? `${reviewCounts.total} review queue item(s) still need attention.` : "",
+    orphanRelationships.length > 0 ? `${orphanRelationships.length} relationship(s) have unresolved endpoints.` : "",
     assessment.manualConfidence !== "high" ? "Manual confidence is not high yet." : "",
     assessment.targetPhase !== "engineering" ? "Target phase is not engineering yet." : ""
   ].filter(Boolean);
