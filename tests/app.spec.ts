@@ -37,6 +37,10 @@ function blockingQuestionCard(page: Page, question: string) {
   return page.locator(".blocking-question-card").filter({ hasText: question });
 }
 
+function decisionRecordCard(page: Page, title: string) {
+  return page.locator(".decision-record-card").filter({ hasText: title });
+}
+
 function projectCard(page: Page, title: string) {
   return page.locator(".project-card").filter({ hasText: title });
 }
@@ -54,6 +58,17 @@ async function loadAppState(page: Page, state: AppState) {
     localStorage.setItem("todo-thought-universe:v1", JSON.stringify(nextState));
   }, state);
   await page.reload();
+}
+
+async function createDecisionRecord(page: Page, title: string, decision = "Keep TodoItem for now.") {
+  await page.getByRole("button", { name: "Decision Records", exact: true }).click();
+  const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Decision" }) });
+
+  await form.getByLabel("Title").fill(title);
+  await form.getByLabel("Decision").fill(decision);
+  await form.getByLabel("Rationale").fill("The decision keeps product and architecture tradeoffs explicit.");
+  await form.getByLabel("Consequences").fill("Future work can revisit the boundary deliberately.");
+  await form.getByRole("button", { name: "Create Decision Record" }).click();
 }
 
 function handoffProject(patch: Partial<Project> = {}): Project {
@@ -594,6 +609,93 @@ test("archive and delete blocking question", async ({ page }) => {
   await expect(blockingQuestionCard(page, "Temporary blocking question")).toHaveCount(0);
 });
 
+test("decision records center screen loads", async ({ page }) => {
+  await page.getByRole("button", { name: "Decision Records", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "Decision Records Center", level: 1 })).toBeVisible();
+  await expect(page.getByText("Proposed decisions")).toBeVisible();
+  await expect(page.getByText("Accepted decisions")).toBeVisible();
+});
+
+test("create decision record adds a proposed decision", async ({ page }) => {
+  await createDecisionRecord(page, "TodoItem persistence decision", "Use TodoItem as the persisted implementation object.");
+
+  const card = decisionRecordCard(page, "TodoItem persistence decision");
+  await expect(card).toBeVisible();
+  await expect(card.locator(".badge", { hasText: "proposed" })).toBeVisible();
+  await expect(card.locator("p", { hasText: "Use TodoItem as the persisted implementation object." }).first()).toBeVisible();
+});
+
+test("accept decision record marks it accepted", async ({ page }) => {
+  await createDecisionRecord(page, "Acceptable TodoItem decision");
+
+  const card = decisionRecordCard(page, "Acceptable TodoItem decision");
+  await card.getByRole("button", { name: "Accept" }).click();
+
+  await expect(card.locator(".badge", { hasText: "accepted" })).toBeVisible();
+});
+
+test("edit decision record title saves changes", async ({ page }) => {
+  await createDecisionRecord(page, "Editable decision title");
+
+  const card = decisionRecordCard(page, "Editable decision title");
+  await card.getByLabel("Title").fill("Updated decision title");
+  await card.getByRole("button", { name: "Save Decision" }).click();
+
+  await expect(decisionRecordCard(page, "Updated decision title")).toBeVisible();
+});
+
+test("archive and delete temporary decision record", async ({ page }) => {
+  await createDecisionRecord(page, "Temporary decision record");
+
+  const card = decisionRecordCard(page, "Temporary decision record");
+  await card.getByRole("button", { name: "Archive" }).click();
+  await expect(card.locator(".badge", { hasText: "archived" })).toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await card.getByRole("button", { name: "Delete" }).click();
+
+  await expect(decisionRecordCard(page, "Temporary decision record")).toHaveCount(0);
+});
+
+test("create decision record from resolved blocking question", async ({ page }) => {
+  await page.getByRole("button", { name: "Blocking Questions" }).click();
+  const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Blocking Question" }) });
+
+  await form.getByLabel("Question").fill("Should TodoItem remain the persisted object?");
+  await form.getByLabel("Context").fill("This decision affects architecture names and migrations.");
+  await form.getByRole("button", { name: "Create Blocking Question" }).click();
+
+  const card = blockingQuestionCard(page, "Should TodoItem remain the persisted object?");
+  await card.getByLabel("Final resolution").fill("Keep TodoItem as the persisted object for now.");
+  await card.getByRole("button", { name: "Resolve" }).click();
+  await card.getByRole("button", { name: "Create Decision Record" }).click();
+
+  await expect(page.getByRole("heading", { name: "Decision Records Center", level: 1 })).toBeVisible();
+  const decision = decisionRecordCard(page, "Should TodoItem remain the persisted object?");
+  await expect(decision).toBeVisible();
+  await expect(decision.locator("p", { hasText: "Keep TodoItem as the persisted object for now." }).first()).toBeVisible();
+});
+
+test("decision records search and status filter", async ({ page }) => {
+  await createDecisionRecord(page, "Alpha architecture decision", "Alpha keeps TodoItem stable.");
+  await createDecisionRecord(page, "Beta architecture decision", "Beta changes the object boundary.");
+
+  const alpha = decisionRecordCard(page, "Alpha architecture decision");
+  await alpha.getByRole("button", { name: "Accept" }).click();
+
+  await page.getByLabel("Search decision records").fill("Alpha");
+
+  await expect(decisionRecordCard(page, "Alpha architecture decision")).toBeVisible();
+  await expect(decisionRecordCard(page, "Beta architecture decision")).toHaveCount(0);
+
+  await page.getByLabel("Search decision records").fill("");
+  await page.getByLabel("Decision status filter").selectOption("accepted");
+
+  await expect(decisionRecordCard(page, "Alpha architecture decision")).toBeVisible();
+  await expect(decisionRecordCard(page, "Beta architecture decision")).toHaveCount(0);
+});
+
 test("archived thought can be restored to inbox", async ({ page }) => {
   await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
 
@@ -849,6 +951,47 @@ test("universe detail shows blocking questions linked to the universe", async ({
   await expect(blockers.getByText("Pick a direction.")).toBeVisible();
 });
 
+test("universe detail shows linked decision records", async ({ page }) => {
+  await loadAppState(page, {
+    universes: [
+      {
+        id: "u-strategy",
+        name: "Strategy Universe",
+        description: "Imported decision universe",
+        purpose: "Test linked decisions",
+        focus: "main"
+      }
+    ],
+    thoughts: [],
+    projects: [],
+    relationships: [],
+    aiInsights: [],
+    decisionRecords: [
+      {
+        id: "decision-strategy",
+        title: "Strategy TodoItem decision",
+        decision: "Keep TodoItem naming inside persistence while presenting thoughts in the UI.",
+        status: "accepted",
+        linkedUniverseIds: ["u-strategy"],
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z"
+      }
+    ]
+  });
+
+  await page.getByRole("button", { name: "Universes" }).click();
+  await universeCard(page, "Strategy Universe").getByRole("button", { name: "View Universe" }).click();
+
+  const decisions = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Decision records in this universe" }) });
+
+  await expect(decisions.locator(".universe-decision-record-card", { hasText: "Strategy TodoItem decision" })).toBeVisible();
+  await expect(decisions.getByText("accepted", { exact: true })).toBeVisible();
+  await expect(decisions.getByText("Keep TodoItem naming inside persistence while presenting thoughts in the UI.")).toBeVisible();
+
+  await decisions.getByRole("button", { name: "Open Decision Records" }).first().click();
+  await expect(page.getByRole("heading", { name: "Decision Records Center", level: 1 })).toBeVisible();
+});
+
 test("universe detail copies universe JSON and shows package preview", async ({ page }) => {
   await createUniverse(page, "Export Universe");
 
@@ -867,6 +1010,7 @@ test("universe detail shows empty states for an empty universe", async ({ page }
   await expect(page.getByText("No thoughts in this universe.")).toBeVisible();
   await expect(page.getByText("No projects in this universe.")).toBeVisible();
   await expect(page.getByText("No next actions in this universe.")).toBeVisible();
+  await expect(page.getByText("No decision records in this universe.")).toBeVisible();
   await expect(page.getByText("No relationships in this universe.")).toBeVisible();
 });
 

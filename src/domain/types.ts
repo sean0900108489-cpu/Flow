@@ -5,6 +5,7 @@ export type ProjectLifecycleStatus = "planning" | "handoff_ready" | "blocked";
 export type UniverseStatus = "active" | "archived";
 export type Readiness = "not_ready" | "needs_clarification" | "draftable" | "ready_for_engineering";
 export type BlockingQuestionStatus = "open" | "in_review" | "resolved" | "archived";
+export type DecisionRecordStatus = "proposed" | "accepted" | "superseded" | "archived";
 
 export interface Universe {
   id: string;
@@ -73,6 +74,22 @@ export interface BlockingQuestion {
   updatedAt: string;
 }
 
+export type DecisionRecord = {
+  id: string;
+  title: string;
+  decision: string;
+  rationale?: string;
+  consequences?: string;
+  status: DecisionRecordStatus;
+  sourceBlockingQuestionId?: string;
+  linkedThoughtIds?: string[];
+  linkedProjectIds?: string[];
+  linkedUniverseIds?: string[];
+  supersedesDecisionId?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AIInsightPatchOperation =
   | {
       type: "updateThought";
@@ -108,4 +125,5 @@ export interface AppState {
   relationships: Relationship[];
   aiInsights: AIInsight[];
   blockingQuestions?: BlockingQuestion[];
+  decisionRecords?: DecisionRecord[];
 }

@@ -1,7 +1,7 @@
 import { evaluateProjectHandoff } from "./engineeringHandoff";
 import { listNextActions, type NextActionItem } from "./nextActions";
 import { listThoughtsForTriage } from "./thoughtTriage";
-import type { AppState, BlockingQuestion, Project, Relationship, ThoughtItem, Universe } from "./types";
+import type { AppState, BlockingQuestion, DecisionRecord, Project, Relationship, ThoughtItem, Universe } from "./types";
 import { universeStatus } from "./universeActions";
 import { now } from "./utils";
 
@@ -26,6 +26,7 @@ export interface UniverseOverview {
   projects: Project[];
   relationships: Relationship[];
   blockingQuestions: BlockingQuestion[];
+  decisionRecords: DecisionRecord[];
   nextActions: NextActionItem[];
   health: {
     score: number;
@@ -47,6 +48,7 @@ export interface UniversePackage {
   projects: Project[];
   relationships: Relationship[];
   blockingQuestions: BlockingQuestion[];
+  decisionRecords: DecisionRecord[];
   nextActions: NextActionItem[];
   health: UniverseOverview["health"];
   generatedAt: string;
@@ -54,6 +56,10 @@ export interface UniversePackage {
 
 function questions(state: AppState) {
   return state.blockingQuestions ?? [];
+}
+
+function decisions(state: AppState) {
+  return state.decisionRecords ?? [];
 }
 
 function hasAnyLink(candidateIds: string[] | undefined, ids: Set<string>) {
@@ -105,6 +111,10 @@ function universeBlockingQuestions(
     hasAnyLink(question.linkedThoughtIds, thoughtIds) ||
     hasAnyLink(question.linkedProjectIds, projectIds)
   );
+}
+
+function universeDecisionRecords(state: AppState, universeId: string) {
+  return decisions(state).filter((decision) => decision.linkedUniverseIds?.includes(universeId));
 }
 
 function universeNextActions(state: AppState, universeId: string, blockingQuestions: BlockingQuestion[]) {
@@ -188,6 +198,7 @@ export function getUniverseOverview(state: AppState, universeId: string): Univer
   const projects = universeProjects(state, universeId, thoughts);
   const relationships = universeRelationships(state, universeId, thoughts, projects);
   const blockingQuestions = universeBlockingQuestions(state, universeId, thoughts, projects);
+  const decisionRecords = universeDecisionRecords(state, universeId);
   const nextActions = universeNextActions(state, universeId, blockingQuestions);
   const needsTriage = universeNeedsTriage(state, universeId);
   const activeProjects = projects.filter((project) => project.status !== "archived");
@@ -214,6 +225,7 @@ export function getUniverseOverview(state: AppState, universeId: string): Univer
       projects,
       relationships,
       blockingQuestions,
+      decisionRecords,
       nextActions,
       health: healthForUniverse(universe, summary, blockingQuestions, nextActions)
     }
@@ -244,6 +256,7 @@ export function buildUniversePackage(state: AppState, universeId: string): Unive
     projects: result.overview.projects,
     relationships: result.overview.relationships,
     blockingQuestions: result.overview.blockingQuestions,
+    decisionRecords: result.overview.decisionRecords,
     nextActions: result.overview.nextActions,
     health: result.overview.health,
     generatedAt: now()

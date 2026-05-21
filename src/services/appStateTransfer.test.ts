@@ -35,6 +35,17 @@ describe("app state transfer", () => {
     expect(result.state?.blockingQuestions).toBeUndefined();
   });
 
+  it("imports old state without decision records", () => {
+    const { decisionRecords, ...oldState } = {
+      ...seed,
+      decisionRecords: undefined
+    };
+    const result = parseAppStateJson(JSON.stringify(oldState));
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.decisionRecords).toBeUndefined();
+  });
+
   it("imports state with blocking questions", () => {
     const result = parseAppStateJson(stringifyAppState(seed));
 
@@ -42,11 +53,49 @@ describe("app state transfer", () => {
     expect(result.state?.blockingQuestions?.[0].question).toContain("ThoughtItem");
   });
 
+  it("imports state with decision records", () => {
+    const result = parseAppStateJson(stringifyAppState({
+      ...seed,
+      decisionRecords: [
+        {
+          id: "decision-transfer",
+          title: "Persist decision records",
+          decision: "Include decisionRecords in AppState.",
+          status: "accepted",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z"
+        }
+      ]
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.decisionRecords?.[0].title).toBe("Persist decision records");
+  });
+
   it("exports blocking questions when present", () => {
     const json = stringifyAppState(seed);
 
     expect(json).toContain('"blockingQuestions"');
     expect(json).toContain("Universe 是標籤、資料夾，還是獨立物件？");
+  });
+
+  it("exports decision records when present", () => {
+    const json = stringifyAppState({
+      ...seed,
+      decisionRecords: [
+        {
+          id: "decision-export",
+          title: "Export decision records",
+          decision: "Keep decisions portable with AppState.",
+          status: "proposed",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z"
+        }
+      ]
+    });
+
+    expect(json).toContain('"decisionRecords"');
+    expect(json).toContain("Export decision records");
   });
 
   it("round trips project linked thought ids", () => {

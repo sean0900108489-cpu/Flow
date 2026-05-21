@@ -12,6 +12,7 @@ export { Relationships } from "./components/screens/Relationships";
 export { Export } from "./components/screens/Export";
 export { EngineeringHandoffCenter } from "./components/screens/EngineeringHandoffCenter";
 export { BlockingQuestionsCenter } from "./components/screens/BlockingQuestionsCenter";
+export { DecisionRecordsCenter } from "./components/screens/DecisionRecordsCenter";
 export { Universes } from "./components/screens/Universes";
 export { AppStateTransfer } from "./components/screens/AppStateTransfer";
 export { ArchivedItems } from "./components/screens/ArchivedItems";

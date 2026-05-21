@@ -11,6 +11,18 @@ import {
   type BlockingQuestionActionResult
 } from "./domain/blockingQuestions";
 import {
+  acceptDecisionRecord,
+  archiveDecisionRecord,
+  createDecisionFromBlockingQuestion,
+  createDecisionRecord,
+  deleteDecisionRecord,
+  supersedeDecisionRecord,
+  updateDecisionRecord,
+  type DecisionRecordActionResult,
+  type DecisionRecordInput,
+  type DecisionRecordPatch
+} from "./domain/decisionRecords";
+import {
   archiveUniverse,
   createUniverse,
   deleteUniverse,
@@ -53,6 +65,7 @@ import {
   BlockingQuestionsCenter,
   Capture,
   Dashboard,
+  DecisionRecordsCenter,
   EngineeringHandoffCenter,
   Export,
   Nav,
@@ -100,6 +113,19 @@ export function App() {
     }
 
     return { ok: result.ok, error: result.error };
+  };
+
+  const applyDecisionRecordResult = (result: DecisionRecordActionResult) => {
+    if (result.ok) {
+      save(result.state);
+    }
+
+    return {
+      state: result.state,
+      ok: result.ok,
+      decisionRecordId: result.decisionRecordId,
+      error: result.error
+    };
   };
 
   const applyProjectResult = (result: ProjectActionResult) => {
@@ -194,6 +220,27 @@ export function App() {
 
   const handleDeleteBlockingQuestion = (questionId: string) =>
     applyBlockingQuestionResult(deleteBlockingQuestion(state, questionId));
+
+  const handleCreateDecisionRecord = (input: DecisionRecordInput) =>
+    applyDecisionRecordResult(createDecisionRecord(state, input));
+
+  const handleUpdateDecisionRecord = (decisionRecordId: string, patch: DecisionRecordPatch) =>
+    applyDecisionRecordResult(updateDecisionRecord(state, decisionRecordId, patch));
+
+  const handleAcceptDecisionRecord = (decisionRecordId: string) =>
+    applyDecisionRecordResult(acceptDecisionRecord(state, decisionRecordId));
+
+  const handleSupersedeDecisionRecord = (decisionRecordId: string) =>
+    applyDecisionRecordResult(supersedeDecisionRecord(state, decisionRecordId));
+
+  const handleArchiveDecisionRecord = (decisionRecordId: string) =>
+    applyDecisionRecordResult(archiveDecisionRecord(state, decisionRecordId));
+
+  const handleDeleteDecisionRecord = (decisionRecordId: string) =>
+    applyDecisionRecordResult(deleteDecisionRecord(state, decisionRecordId));
+
+  const handleCreateDecisionFromBlockingQuestion = (questionId: string) =>
+    applyDecisionRecordResult(createDecisionFromBlockingQuestion(state, questionId));
 
   const addThought = (data: Pick<ThoughtItem, "title" | "content" | "type" | "universeId">) => {
     const item: ThoughtItem = {
@@ -562,6 +609,7 @@ export function App() {
             }}
             onOpenNextActionCenter={() => setScreen("next-actions")}
             onOpenBlockingQuestions={() => setScreen("blocking-questions")}
+            onOpenDecisionRecords={() => setScreen("decision-records")}
           />
         )}
 
@@ -584,6 +632,21 @@ export function App() {
             onResolve={handleResolveBlockingQuestion}
             onArchive={handleArchiveBlockingQuestion}
             onDelete={handleDeleteBlockingQuestion}
+            onCreateDecisionFromBlockingQuestion={handleCreateDecisionFromBlockingQuestion}
+            onOpenDecisionRecords={() => setScreen("decision-records")}
+          />
+        )}
+
+        {screen === "decision-records" && (
+          <DecisionRecordsCenter
+            state={state}
+            onCreateDecisionRecord={handleCreateDecisionRecord}
+            onUpdateDecisionRecord={handleUpdateDecisionRecord}
+            onAcceptDecisionRecord={handleAcceptDecisionRecord}
+            onSupersedeDecisionRecord={handleSupersedeDecisionRecord}
+            onArchiveDecisionRecord={handleArchiveDecisionRecord}
+            onDeleteDecisionRecord={handleDeleteDecisionRecord}
+            onCreateDecisionFromBlockingQuestion={handleCreateDecisionFromBlockingQuestion}
           />
         )}
 

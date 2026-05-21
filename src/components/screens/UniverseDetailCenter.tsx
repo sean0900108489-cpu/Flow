@@ -25,7 +25,8 @@ export function UniverseDetailCenter({
   onViewThought,
   onViewProject,
   onOpenNextActionCenter,
-  onOpenBlockingQuestions
+  onOpenBlockingQuestions,
+  onOpenDecisionRecords
 }: {
   state: AppState;
   universeId: string;
@@ -33,6 +34,7 @@ export function UniverseDetailCenter({
   onViewProject: (projectId: string) => void;
   onOpenNextActionCenter: () => void;
   onOpenBlockingQuestions: () => void;
+  onOpenDecisionRecords: () => void;
 }) {
   const [notice, setNotice] = useState("");
   const result = useMemo(() => getUniverseOverview(state, universeId), [state, universeId]);
@@ -220,6 +222,31 @@ export function UniverseDetailCenter({
                   <span className={`badge question-status-${question.status}`}>{question.status}</span>
                 </div>
                 <p>{question.proposedResolution || "No proposed resolution yet."}</p>
+              </article>
+            ))
+          )}
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="head">
+          <h2>Decision records in this universe</h2>
+          <button className="ghost" onClick={onOpenDecisionRecords}>Open Decision Records</button>
+        </div>
+        <div className="cards">
+          {overview.decisionRecords.length === 0 ? (
+            <EmptyState>No decision records in this universe.</EmptyState>
+          ) : (
+            overview.decisionRecords.map((decision) => (
+              <article className="card universe-decision-record-card" key={decision.id}>
+                <div className="line">
+                  <strong>{decision.title}</strong>
+                  <span className={`badge decision-status-${decision.status}`}>{decision.status}</span>
+                </div>
+                <p>{decision.decision}</p>
+                <div className="actions">
+                  <button className="ghost" onClick={onOpenDecisionRecords}>Open Decision Records</button>
+                </div>
               </article>
             ))
           )}

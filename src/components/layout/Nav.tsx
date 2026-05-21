@@ -10,6 +10,7 @@ import {
   ListTodo,
   Plus,
   Rocket,
+  ScrollText,
   Wand2
 } from "lucide-react";
 
@@ -28,6 +29,7 @@ export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen:
     ["relationships", GitBranch, "Relationships"],
     ["engineering-handoff", Rocket, "Engineering Handoff"],
     ["blocking-questions", CircleHelp, "Blocking Questions"],
+    ["decision-records", ScrollText, "Decision Records"],
     ["export", Download, "Engineering Export"],
     ["transfer", Download, "App State Transfer"],
     ["universes", FolderKanban, "Universes"]
@@ -61,6 +63,7 @@ export function title(screen: string) {
     relationships: "Relationship Map",
     "engineering-handoff": "Engineering Handoff Center",
     "blocking-questions": "Blocking Questions Center",
+    "decision-records": "Decision Records Center",
     export: "Engineering Handoff Export",
     transfer: "App State Transfer",
     universes: "Universe Management"

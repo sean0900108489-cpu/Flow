@@ -14,6 +14,8 @@ function BlockingQuestionCard({
   onResolve,
   onArchive,
   onDelete,
+  onCreateDecisionFromBlockingQuestion,
+  onOpenDecisionRecords,
   onError
 }: {
   question: BlockingQuestion;
@@ -21,6 +23,8 @@ function BlockingQuestionCard({
   onResolve: (questionId: string, finalResolution: string) => { ok: boolean; error?: string };
   onArchive: (questionId: string) => { ok: boolean; error?: string };
   onDelete: (questionId: string) => { ok: boolean; error?: string };
+  onCreateDecisionFromBlockingQuestion: (questionId: string) => { ok: boolean; error?: string };
+  onOpenDecisionRecords: () => void;
   onError: (message: string) => void;
 }) {
   const [proposedResolution, setProposedResolution] = useState(question.proposedResolution ?? "");
@@ -52,6 +56,14 @@ function BlockingQuestionCard({
     if (!window.confirm("Delete this blocking question?")) return;
     applyResult(onDelete(question.id));
   };
+
+  const createDecision = () => {
+    if (applyResult(onCreateDecisionFromBlockingQuestion(question.id))) {
+      onOpenDecisionRecords();
+    }
+  };
+
+  const canCreateDecision = Boolean(question.finalResolution?.trim() || question.proposedResolution?.trim());
 
   return (
     <article className="card blocking-question-card">
@@ -97,6 +109,9 @@ function BlockingQuestionCard({
       <div className="actions">
         <button className="ghost" onClick={save}>Save</button>
         <button className="restore" onClick={resolve}>Resolve</button>
+        {canCreateDecision && (
+          <button className="ghost" onClick={createDecision}>Create Decision Record</button>
+        )}
         <button className="ghost" onClick={archive}>Archive</button>
         <button className="danger" onClick={deleteQuestion}>Delete</button>
       </div>
@@ -110,7 +125,9 @@ export function BlockingQuestionsCenter({
   onUpdate,
   onResolve,
   onArchive,
-  onDelete
+  onDelete,
+  onCreateDecisionFromBlockingQuestion,
+  onOpenDecisionRecords
 }: {
   state: AppState;
   onCreate: (input: { question: string; context?: string }) => { ok: boolean; error?: string };
@@ -118,6 +135,8 @@ export function BlockingQuestionsCenter({
   onResolve: (questionId: string, finalResolution: string) => { ok: boolean; error?: string };
   onArchive: (questionId: string) => { ok: boolean; error?: string };
   onDelete: (questionId: string) => { ok: boolean; error?: string };
+  onCreateDecisionFromBlockingQuestion: (questionId: string) => { ok: boolean; error?: string };
+  onOpenDecisionRecords: () => void;
 }) {
   const [searchText, setSearchText] = useState("");
   const [status, setStatus] = useState<BlockingQuestionStatus | "all">("all");
@@ -214,6 +233,8 @@ export function BlockingQuestionsCenter({
                 onResolve={onResolve}
                 onArchive={onArchive}
                 onDelete={onDelete}
+                onCreateDecisionFromBlockingQuestion={onCreateDecisionFromBlockingQuestion}
+                onOpenDecisionRecords={onOpenDecisionRecords}
                 onError={setError}
               />
             ))}

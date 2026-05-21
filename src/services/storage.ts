@@ -6,7 +6,8 @@ export const STORAGE_KEY = "todo-thought-universe:v1";
 function normalizeState(state: AppState): AppState {
   return {
     ...state,
-    blockingQuestions: state.blockingQuestions ?? []
+    blockingQuestions: state.blockingQuestions ?? [],
+    decisionRecords: state.decisionRecords ?? []
   };
 }
 

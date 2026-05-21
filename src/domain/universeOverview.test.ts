@@ -115,6 +115,17 @@ function baseState(patch: Partial<AppState> = {}): AppState {
         updatedAt: timestamp
       }
     ],
+    decisionRecords: [
+      {
+        id: "decision-1",
+        title: "Universe decision",
+        decision: "Use this universe as the decision scope.",
+        status: "accepted",
+        linkedUniverseIds: ["u-1"],
+        createdAt: timestamp,
+        updatedAt: timestamp
+      }
+    ],
     ...patch
   };
 }
@@ -154,6 +165,10 @@ describe("universe overview", () => {
   it("includes blocking questions linked through linkedUniverseIds", () => {
     expect(overview().blockingQuestions.map((question) => question.id)).toEqual(["bq-1"]);
     expect(overview().summary.blockingQuestions).toBe(1);
+  });
+
+  it("includes decision records linked through linkedUniverseIds", () => {
+    expect(overview().decisionRecords.map((decision) => decision.id)).toEqual(["decision-1"]);
   });
 
   it("counts thoughts that still need triage", () => {
@@ -210,6 +225,7 @@ describe("universe overview", () => {
     expect(pkg.projects).toHaveLength(2);
     expect(pkg.relationships).toHaveLength(1);
     expect(pkg.blockingQuestions).toHaveLength(1);
+    expect(pkg.decisionRecords).toHaveLength(1);
     expect(pkg.generatedAt).toBeTruthy();
   });
 
