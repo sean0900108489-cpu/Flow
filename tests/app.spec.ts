@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import type { AppState, Project, Relationship } from "../src/domain/types";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -30,6 +31,70 @@ async function createUniverse(page: Page, name: string, description = "Personal 
 
 function universeCard(page: Page, name: string) {
   return page.locator(".card").filter({ has: page.locator("strong", { hasText: name }) });
+}
+
+async function loadAppState(page: Page, state: AppState) {
+  await page.evaluate((nextState) => {
+    localStorage.setItem("todo-thought-universe:v1", JSON.stringify(nextState));
+  }, state);
+  await page.reload();
+}
+
+function handoffProject(patch: Partial<Project> = {}): Project {
+  return {
+    id: "p-handoff",
+    sourceThoughtId: "t-handoff",
+    universeId: "u-handoff",
+    status: "active",
+    name: "Ready Handoff Project",
+    intent: "A project with enough structure for engineering handoff.",
+    users: ["Tester"],
+    features: ["Handoff"],
+    screens: ["Handoff Center"],
+    dataObjects: ["Project"],
+    flowSteps: ["Review readiness", "Export JSON"],
+    unknowns: [],
+    nextAction: "Send project to engineering.",
+    readiness: "ready_for_engineering",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...patch
+  };
+}
+
+function handoffState(projectPatch: Partial<Project> = {}, relationships: Relationship[] = []): AppState {
+  const project = handoffProject(projectPatch);
+
+  return {
+    universes: [
+      {
+        id: "u-handoff",
+        name: "Handoff Universe",
+        description: "Universe for handoff testing",
+        purpose: "Validate engineering handoff",
+        focus: "main"
+      }
+    ],
+    thoughts: [
+      {
+        id: "t-handoff",
+        title: "Handoff thought",
+        content: "Linked thought context for engineering handoff.",
+        type: "project",
+        status: "active",
+        universeId: "u-handoff",
+        why: "It should be ready to hand off.",
+        outcome: "A valid handoff package.",
+        nextAction: "Send project to engineering.",
+        projectId: project.id,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    projects: [project],
+    relationships,
+    aiInsights: []
+  };
 }
 
 test("dashboard renders core product areas", async ({ page }) => {
@@ -118,6 +183,73 @@ test("project delete removes project without deleting linked thought", async ({ 
   const projectsPanel = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Projects" }) });
   await expect(projectsPanel.getByText("Todo Thought Universe MVP")).toHaveCount(0);
   await expect(page.locator("strong", { hasText: "做一個不是普通 todo list 的思想宇宙網站" }).first()).toBeVisible();
+});
+
+test("engineering handoff screen loads", async ({ page }) => {
+  await page.getByRole("button", { name: "Engineering Handoff" }).click();
+
+  await expect(page.getByRole("heading", { name: "Engineering Handoff Center", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ready for handoff" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Needs clarification" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Blocked" })).toBeVisible();
+});
+
+test("ready project can be marked handoff ready", async ({ page }) => {
+  await loadAppState(page, handoffState());
+  await page.getByRole("button", { name: "Engineering Handoff" }).click();
+
+  const card = page.locator(".handoff-card").filter({ hasText: "Ready Handoff Project" });
+  await expect(card).toBeVisible();
+
+  await card.getByRole("button", { name: "Mark Handoff Ready" }).click();
+
+  await expect(page.getByText("Project marked handoff_ready")).toBeVisible();
+  await expect(card.getByText("lifecycle handoff_ready")).toBeVisible();
+});
+
+test("not ready project cannot be marked", async ({ page }) => {
+  await loadAppState(page, handoffState({ nextAction: "" }));
+  await page.getByRole("button", { name: "Engineering Handoff" }).click();
+
+  const card = page.locator(".handoff-card").filter({ hasText: "Ready Handoff Project" });
+
+  await expect(card.getByText("needs clarification")).toBeVisible();
+  await expect(card.getByRole("button", { name: "Mark Handoff Ready" })).toBeDisabled();
+});
+
+test("copy handoff JSON shows copied state and preview", async ({ page }) => {
+  await loadAppState(page, handoffState());
+  await page.getByRole("button", { name: "Engineering Handoff" }).click();
+
+  const card = page.locator(".handoff-card").filter({ hasText: "Ready Handoff Project" });
+  await card.getByRole("button", { name: "Copy Handoff JSON" }).click();
+
+  await expect(page.getByText("Handoff JSON copied")).toBeVisible();
+  await expect(page.locator("pre.json").first()).toContainText("EngineeringFlowInput");
+});
+
+test("blocking relationship makes project blocked", async ({ page }) => {
+  await loadAppState(
+    page,
+    handoffState(
+      {},
+      [
+        {
+          id: "r-block-handoff",
+          sourceId: "t-handoff",
+          targetId: "p-handoff",
+          type: "blocks",
+          description: "Missing final decision blocks engineering."
+        }
+      ]
+    )
+  );
+  await page.getByRole("button", { name: "Engineering Handoff" }).click();
+
+  const blocked = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Blocked" }) });
+
+  await expect(blocked.locator(".handoff-card").filter({ hasText: "Ready Handoff Project" })).toBeVisible();
+  await expect(blocked.getByText("blocked", { exact: true })).toBeVisible();
 });
 
 test("archived thought can be restored to inbox", async ({ page }) => {

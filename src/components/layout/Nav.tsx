@@ -20,6 +20,7 @@ export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen:
     ["project", Rocket, "Project Detail"],
     ["ai", Wand2, "AI Planning Panel"],
     ["relationships", GitBranch, "Relationships"],
+    ["engineering-handoff", Rocket, "Engineering Handoff"],
     ["export", Download, "Engineering Export"],
     ["transfer", Download, "App State Transfer"],
     ["universes", FolderKanban, "Universes"]
@@ -47,6 +48,7 @@ export function title(screen: string) {
     project: "Project Detail",
     ai: "AI Planning Panel",
     relationships: "Relationship Map",
+    "engineering-handoff": "Engineering Handoff Center",
     export: "Engineering Handoff Export",
     transfer: "App State Transfer",
     universes: "Universe Management"

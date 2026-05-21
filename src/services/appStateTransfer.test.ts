@@ -31,7 +31,7 @@ describe("app state transfer", () => {
       ...seed,
       universes: seed.universes.map((universe, index) => index === 0 ? { ...universe, status: "archived" } : universe),
       thoughts: seed.thoughts.map((thought, index) => index === 0 ? { ...thought, status: "archived" } : thought),
-      projects: seed.projects.map((project, index) => index === 0 ? { ...project, status: "archived" } : project)
+      projects: seed.projects.map((project, index) => index === 0 ? { ...project, status: "archived", lifecycleStatus: "handoff_ready" } : project)
     });
 
     const result = parseAppStateJson(json);
@@ -40,6 +40,7 @@ describe("app state transfer", () => {
     expect(result.state?.universes[0].status).toBe("archived");
     expect(result.state?.thoughts[0].status).toBe("archived");
     expect(result.state?.projects[0].status).toBe("archived");
+    expect(result.state?.projects[0].lifecycleStatus).toBe("handoff_ready");
   });
 
   it("round trips AIInsight patches and legacy insights without patches", () => {

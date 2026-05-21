@@ -12,6 +12,7 @@ import {
   universeOptionsForItemUniverseIds,
   type UniverseActionResult
 } from "./domain/universeActions";
+import { markProjectHandoffReady } from "./domain/engineeringHandoff";
 import { id, now } from "./domain/utils";
 import { readiness } from "./domain/readiness";
 import { seed } from "./data/seed";
@@ -24,6 +25,7 @@ import {
   ArchivedItems,
   Capture,
   Dashboard,
+  EngineeringHandoffCenter,
   Export,
   Nav,
   ProjectDetail,
@@ -111,6 +113,16 @@ export function App() {
   const handleDetachDeleteUniverse = (universeId: string) => {
     if (!window.confirm("Detach linked items and delete this universe?")) return;
     applyUniverseResult(deleteUniverse(state, universeId, "detach"));
+  };
+
+  const handleMarkProjectHandoffReady = (projectId: string) => {
+    const result = markProjectHandoffReady(state, projectId);
+
+    if (result.ok) {
+      save(result.state);
+    }
+
+    return { ok: result.ok, error: result.error };
   };
 
   const addThought = (data: Pick<ThoughtItem, "title" | "content" | "type" | "universeId">) => {
@@ -365,6 +377,17 @@ export function App() {
 
         {screen === "relationships" && (
           <Relationships state={state} />
+        )}
+
+        {screen === "engineering-handoff" && (
+          <EngineeringHandoffCenter
+            state={state}
+            onViewProject={(projectId) => {
+              setSelectedProjectId(projectId);
+              setScreen("project");
+            }}
+            onMarkProjectHandoffReady={handleMarkProjectHandoffReady}
+          />
         )}
 
         {screen === "export" && project && (

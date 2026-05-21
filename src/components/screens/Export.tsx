@@ -25,6 +25,7 @@ export function Export({ project, universe }: { project: Project; universe?: Uni
           <button onClick={download}>下載 JSON</button>
         </div>
       </div>
+      <div className="notice">For project-by-project readiness review, use Engineering Handoff.</div>
       <pre className="json">{json}</pre>
     </section>
   );

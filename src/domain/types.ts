@@ -1,6 +1,7 @@
 export type ThoughtType = "inspiration" | "task" | "project" | "goal" | "question" | "note";
 export type ThoughtStatus = "inbox" | "active" | "paused" | "done" | "archived";
 export type ProjectStatus = "active" | "archived";
+export type ProjectLifecycleStatus = "planning" | "handoff_ready" | "blocked";
 export type UniverseStatus = "active" | "archived";
 export type Readiness = "not_ready" | "needs_clarification" | "draftable" | "ready_for_engineering";
 
@@ -33,6 +34,7 @@ export interface Project {
   sourceThoughtId?: string;
   universeId: string;
   status: ProjectStatus;
+  lifecycleStatus?: ProjectLifecycleStatus;
   name: string;
   intent: string;
   users: string[];
