@@ -6,12 +6,30 @@ test.beforeEach(async ({ page }) => {
   await page.reload();
 });
 
-async function createThought(page: Page, title: string, type = "note") {
+async function createThought(page: Page, title: string, type = "note", universeName?: string) {
   await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
-  await page.getByLabel("標題").fill(title);
-  await page.getByLabel("內容").fill(`${title} content`);
-  await page.getByLabel("類型").selectOption(type);
-  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+  const capture = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "快速捕捉想法" }) });
+
+  await capture.getByLabel("標題").fill(title);
+  await capture.getByLabel("內容").fill(`${title} content`);
+  await capture.getByLabel("類型").selectOption(type);
+  if (universeName) {
+    await capture.locator("select").last().selectOption({ label: universeName });
+  }
+  await capture.getByRole("button", { name: "儲存到 Inbox" }).click();
+}
+
+async function createUniverse(page: Page, name: string, description = "Personal body and energy system") {
+  await page.getByRole("button", { name: "Universes" }).click();
+  const createCard = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Create Universe" }) });
+
+  await createCard.getByLabel("Name").fill(name);
+  await createCard.getByLabel("Description").fill(description);
+  await createCard.getByRole("button", { name: "Create Universe" }).click();
+}
+
+function universeCard(page: Page, name: string) {
+  return page.locator(".card").filter({ has: page.locator("strong", { hasText: name }) });
 }
 
 test("dashboard renders core product areas", async ({ page }) => {
@@ -211,6 +229,80 @@ test("archived items search filters archived thoughts", async ({ page }) => {
 
   await archivedThoughts.getByLabel("Search").fill("nonsense");
   await expect(archivedThoughts.getByText("Archived searchable thought")).toHaveCount(0);
+});
+
+test("create universe adds it to universe management", async ({ page }) => {
+  await createUniverse(page, "Health Universe");
+
+  await expect(page.getByRole("heading", { name: "Universe Management", level: 1 })).toBeVisible();
+  await expect(universeCard(page, "Health Universe")).toBeVisible();
+  await expect(universeCard(page, "Health Universe").locator("p", { hasText: "Personal body and energy system" })).toBeVisible();
+});
+
+test("edit universe updates its displayed name", async ({ page }) => {
+  await createUniverse(page, "Health Universe");
+  const card = universeCard(page, "Health Universe");
+
+  await card.getByLabel("Name").fill("Health Universe Updated");
+  await card.getByRole("button", { name: "Save" }).click();
+
+  await expect(universeCard(page, "Health Universe Updated")).toBeVisible();
+});
+
+test("archive and restore universe updates its status", async ({ page }) => {
+  await createUniverse(page, "Health Universe");
+  const card = universeCard(page, "Health Universe");
+
+  await card.getByRole("button", { name: "Archive" }).click();
+  await expect(card.getByText("archived", { exact: true })).toBeVisible();
+
+  await card.getByRole("button", { name: "Restore" }).click();
+  await expect(card.getByText("active", { exact: true })).toBeVisible();
+});
+
+test("delete unused universe removes it", async ({ page }) => {
+  await createUniverse(page, "Unused Delete Universe");
+  const card = universeCard(page, "Unused Delete Universe");
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await card.getByRole("button", { name: "Delete", exact: true }).click();
+
+  await expect(universeCard(page, "Unused Delete Universe")).toHaveCount(0);
+});
+
+test("delete in-use universe is blocked", async ({ page }) => {
+  await createUniverse(page, "Used Blocked Universe");
+  await createThought(page, "Thought linked to blocked universe", "note", "Used Blocked Universe");
+
+  await page.getByRole("button", { name: "Universes" }).click();
+  const card = universeCard(page, "Used Blocked Universe");
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await card.getByRole("button", { name: "Delete", exact: true }).click();
+
+  await expect(page.getByText("Cannot delete universe while it is in use.")).toBeVisible();
+  await expect(card).toBeVisible();
+});
+
+test("detach and delete in-use universe clears linked thought universe", async ({ page }) => {
+  await createUniverse(page, "Detach Delete Universe");
+  await createThought(page, "Thought linked to detachable universe", "note", "Detach Delete Universe");
+
+  await page.getByRole("button", { name: "Universes" }).click();
+  const card = universeCard(page, "Detach Delete Universe");
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await card.getByRole("button", { name: "Detach and Delete" }).click();
+
+  await expect(universeCard(page, "Detach Delete Universe")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Idea Inbox" }).click();
+  const inbox = page.locator("main > div.panel").first();
+  await inbox.locator(".item", { hasText: "Thought linked to detachable universe" }).click();
+
+  await expect(page.getByRole("heading", { name: "Thought Detail", level: 1 })).toBeVisible();
+  const detail = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Thought Detail" }) });
+  await expect(detail.locator("select").last()).toHaveValue("");
 });
 
 test("mock AI creates draft insight and can accept it", async ({ page }) => {

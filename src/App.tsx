@@ -2,6 +2,16 @@ import React, { useMemo, useState } from "react";
 import { Brain, Search } from "lucide-react";
 import type { AppState, Project, ThoughtItem } from "./domain/types";
 import { filterThoughts } from "./domain/listQuery";
+import {
+  archiveUniverse,
+  createUniverse,
+  deleteUniverse,
+  isUniverseActive,
+  restoreUniverse,
+  updateUniverse,
+  universeOptionsForItemUniverseIds,
+  type UniverseActionResult
+} from "./domain/universeActions";
 import { id, now } from "./domain/utils";
 import { readiness } from "./domain/readiness";
 import { seed } from "./data/seed";
@@ -31,10 +41,22 @@ export function App() {
   const [selectedThoughtId, setSelectedThoughtId] = useState("t-1");
   const [selectedProjectId, setSelectedProjectId] = useState("p-1");
   const [query, setQuery] = useState("");
+  const [universeError, setUniverseError] = useState("");
 
   const save = (next: AppState) => {
     setState(next);
     saveState(next);
+  };
+
+  const applyUniverseResult = (result: UniverseActionResult) => {
+    if (!result.ok) {
+      setUniverseError(result.error ?? "Universe action failed.");
+      return false;
+    }
+
+    setUniverseError("");
+    save(result.state);
+    return true;
   };
 
   const thought = state.thoughts.find((x) => x.id === selectedThoughtId) ?? state.thoughts[0];
@@ -42,6 +64,7 @@ export function App() {
   const activeProjects = state.projects.filter((x) => x.status !== "archived");
   const archivedThoughts = state.thoughts.filter((x) => x.status === "archived");
   const archivedProjects = state.projects.filter((x) => x.status === "archived");
+  const activeUniverses = state.universes.filter(isUniverseActive);
 
   const filteredThoughts = useMemo(() => {
     return filterThoughts(state.thoughts, { searchText: query });
@@ -63,6 +86,31 @@ export function App() {
         return { ...next, readiness: readiness(next).value };
       })
     });
+  };
+
+  const handleCreateUniverse = (input: { name: string; description?: string }) =>
+    applyUniverseResult(createUniverse(state, input));
+
+  const handleUpdateUniverse = (universeId: string, patch: { name?: string; description?: string }) => {
+    applyUniverseResult(updateUniverse(state, universeId, patch));
+  };
+
+  const handleArchiveUniverse = (universeId: string) => {
+    applyUniverseResult(archiveUniverse(state, universeId));
+  };
+
+  const handleRestoreUniverse = (universeId: string) => {
+    applyUniverseResult(restoreUniverse(state, universeId));
+  };
+
+  const handleDeleteUniverse = (universeId: string) => {
+    if (!window.confirm("Delete this universe?")) return;
+    applyUniverseResult(deleteUniverse(state, universeId, "blockIfInUse"));
+  };
+
+  const handleDetachDeleteUniverse = (universeId: string) => {
+    if (!window.confirm("Detach linked items and delete this universe?")) return;
+    applyUniverseResult(deleteUniverse(state, universeId, "detach"));
   };
 
   const addThought = (data: Pick<ThoughtItem, "title" | "content" | "type" | "universeId">) => {
@@ -124,6 +172,12 @@ export function App() {
   };
 
   const visibleThoughts = filteredThoughts.filter((x) => x.status !== "archived");
+  const thoughtUniverseOptions = thought
+    ? universeOptionsForItemUniverseIds(state.universes, [thought.universeId])
+    : activeUniverses;
+  const projectUniverseOptions = project
+    ? universeOptionsForItemUniverseIds(state.universes, [project.universeId])
+    : activeUniverses;
 
   const restoreThought = (thoughtId: string) => {
     save({
@@ -250,7 +304,7 @@ export function App() {
         )}
 
         {screen === "capture" && (
-          <Capture universes={state.universes} onAdd={addThought} />
+          <Capture universes={activeUniverses} onAdd={addThought} />
         )}
 
         {screen === "inbox" && (
@@ -268,7 +322,7 @@ export function App() {
         {screen === "thought" && thought && (
           <ThoughtDetail
             thought={thought}
-            universes={state.universes}
+            universes={thoughtUniverseOptions}
             onUpdate={(patch) => updateThought(thought.id, patch)}
             onAI={() => ai(thought.id)}
             onConvert={convertToProject}
@@ -280,7 +334,7 @@ export function App() {
         {screen === "project" && project && (
           <ProjectDetail
             project={project}
-            universes={state.universes}
+            universes={projectUniverseOptions}
             onUpdate={(patch) => updateProject(project.id, patch)}
             onAI={() => ai(project.id)}
             onArchive={() => archiveProject(project.id)}
@@ -332,17 +386,15 @@ export function App() {
         {screen === "universes" && (
           <Universes
             universes={state.universes}
-            onAdd={() => save({
-              ...state,
-              universes: [
-                { id: id("universe"), name: "新的宇宙", description: "", purpose: "", focus: "secondary" },
-                ...state.universes
-              ]
-            })}
-            onUpdate={(uid, patch) => save({
-              ...state,
-              universes: state.universes.map((u) => u.id === uid ? { ...u, ...patch } : u)
-            })}
+            thoughts={state.thoughts}
+            projects={state.projects}
+            error={universeError}
+            onCreate={handleCreateUniverse}
+            onUpdate={handleUpdateUniverse}
+            onArchive={handleArchiveUniverse}
+            onRestore={handleRestoreUniverse}
+            onDelete={handleDeleteUniverse}
+            onDetachDelete={handleDetachDeleteUniverse}
           />
         )}
 

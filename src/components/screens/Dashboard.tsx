@@ -4,6 +4,7 @@ import { readiness } from "../../domain/readiness";
 import { readinessLabel } from "../../domain/labels";
 import type { ListSortBy } from "../../domain/listQuery";
 import { filterProjects, filterThoughts, sortProjects, sortThoughts } from "../../domain/listQuery";
+import { isUniverseActive, universeOptionsForItemUniverseIds } from "../../domain/universeActions";
 import { ListControls } from "../common/ListControls";
 import { Metric } from "../common/Metric";
 
@@ -30,6 +31,9 @@ export function Dashboard({
   const [projectSortBy, setProjectSortBy] = useState<ListSortBy>("updated_desc");
   const active = state.thoughts.filter((x) => x.status === "active");
   const inbox = state.thoughts.filter((x) => x.status === "inbox");
+  const activeUniverses = state.universes.filter(isUniverseActive);
+  const thoughtUniverseOptions = universeOptionsForItemUniverseIds(state.universes, active.map((thought) => thought.universeId));
+  const projectUniverseOptions = universeOptionsForItemUniverseIds(state.universes, activeProjects.map((project) => project.universeId));
   const visibleActive = sortThoughts(
     filterThoughts(active, {
       searchText: thoughtSearchText,
@@ -56,7 +60,7 @@ export function Dashboard({
         <div className="metrics">
           <Metric label="Inbox" value={inbox.length} />
           <Metric label="Active" value={active.length} />
-          <Metric label="Universes" value={state.universes.length} />
+          <Metric label="Universes" value={activeUniverses.length} />
           <Metric label="Projects" value={activeProjects.length} />
         </div>
       </div>
@@ -72,7 +76,7 @@ export function Dashboard({
           onUniverseFilterChange={setThoughtUniverseFilter}
           sortBy={thoughtSortBy}
           onSortByChange={setThoughtSortBy}
-          universes={state.universes}
+          universes={thoughtUniverseOptions}
         />
         <div className="stack">
           {visibleActive.map((t) => (
@@ -87,7 +91,7 @@ export function Dashboard({
       <div className="panel">
         <h2>Universes</h2>
         <div className="cards">
-          {state.universes.map((u) => (
+          {activeUniverses.map((u) => (
             <div className="card" key={u.id}>
               <strong>{u.name}</strong>
               <p>{u.purpose || u.description}</p>
@@ -112,7 +116,7 @@ export function Dashboard({
           onUniverseFilterChange={setProjectUniverseFilter}
           sortBy={projectSortBy}
           onSortByChange={setProjectSortBy}
-          universes={state.universes}
+          universes={projectUniverseOptions}
         />
         <div className="stack">
           {visibleProjects.map((p) => {

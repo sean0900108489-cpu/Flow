@@ -29,6 +29,7 @@ describe("app state transfer", () => {
   it("round trips archived thought and project statuses", () => {
     const json = stringifyAppState({
       ...seed,
+      universes: seed.universes.map((universe, index) => index === 0 ? { ...universe, status: "archived" } : universe),
       thoughts: seed.thoughts.map((thought, index) => index === 0 ? { ...thought, status: "archived" } : thought),
       projects: seed.projects.map((project, index) => index === 0 ? { ...project, status: "archived" } : project)
     });
@@ -36,6 +37,7 @@ describe("app state transfer", () => {
     const result = parseAppStateJson(json);
 
     expect(result.ok).toBe(true);
+    expect(result.state?.universes[0].status).toBe("archived");
     expect(result.state?.thoughts[0].status).toBe("archived");
     expect(result.state?.projects[0].status).toBe("archived");
   });

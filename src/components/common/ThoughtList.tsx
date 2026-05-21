@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ListSortBy } from "../../domain/listQuery";
 import { filterThoughts, sortThoughts } from "../../domain/listQuery";
 import type { ThoughtItem, Universe } from "../../domain/types";
+import { universeOptionsForItemUniverseIds } from "../../domain/universeActions";
 import { statusLabel, typeLabel } from "../../domain/labels";
 import { EmptyState } from "./EmptyState";
 import { ListControls } from "./ListControls";
@@ -26,6 +27,7 @@ export function ThoughtList({
   const [statusFilter, setStatusFilter] = useState<ThoughtItem["status"] | "all">("all");
   const [universeFilter, setUniverseFilter] = useState("all");
   const [sortBy, setSortBy] = useState<ListSortBy>("updated_desc");
+  const universeOptions = universeOptionsForItemUniverseIds(universes, thoughts.map((thought) => thought.universeId));
   const visibleThoughts = showControls
     ? sortThoughts(
         filterThoughts(thoughts, {
@@ -52,7 +54,7 @@ export function ThoughtList({
           onUniverseFilterChange={setUniverseFilter}
           sortBy={sortBy}
           onSortByChange={setSortBy}
-          universes={universes}
+          universes={universeOptions}
         />
       )}
       <div className="stack">

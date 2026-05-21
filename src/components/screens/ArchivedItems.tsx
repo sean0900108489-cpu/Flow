@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ListSortBy } from "../../domain/listQuery";
 import { filterProjects, filterThoughts, sortProjects, sortThoughts } from "../../domain/listQuery";
 import type { Project, ThoughtItem, Universe } from "../../domain/types";
+import { universeOptionsForItemUniverseIds } from "../../domain/universeActions";
 import { readinessLabel, statusLabel, typeLabel } from "../../domain/labels";
 import { EmptyState } from "../common/EmptyState";
 import { ListControls } from "../common/ListControls";
@@ -32,6 +33,8 @@ export function ArchivedItems({
   const [projectStatusFilter, setProjectStatusFilter] = useState<Project["status"] | "all">("all");
   const [projectUniverseFilter, setProjectUniverseFilter] = useState("all");
   const [projectSortBy, setProjectSortBy] = useState<ListSortBy>("updated_desc");
+  const thoughtUniverseOptions = universeOptionsForItemUniverseIds(universes, thoughts.map((thought) => thought.universeId));
+  const projectUniverseOptions = universeOptionsForItemUniverseIds(universes, projects.map((project) => project.universeId));
   const visibleThoughts = sortThoughts(
     filterThoughts(thoughts, {
       searchText: thoughtSearchText,
@@ -74,7 +77,7 @@ export function ArchivedItems({
           onUniverseFilterChange={setThoughtUniverseFilter}
           sortBy={thoughtSortBy}
           onSortByChange={setThoughtSortBy}
-          universes={universes}
+          universes={thoughtUniverseOptions}
         />
         <div className="archive-list">
           {visibleThoughts.length === 0 && <EmptyState>No archived thoughts.</EmptyState>}
@@ -113,7 +116,7 @@ export function ArchivedItems({
           onUniverseFilterChange={setProjectUniverseFilter}
           sortBy={projectSortBy}
           onSortByChange={setProjectSortBy}
-          universes={universes}
+          universes={projectUniverseOptions}
         />
         <div className="archive-list">
           {visibleProjects.length === 0 && <EmptyState>No archived projects.</EmptyState>}
