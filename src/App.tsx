@@ -36,6 +36,10 @@ import {
 } from "./domain/universeActions";
 import { markProjectHandoffReady } from "./domain/engineeringHandoff";
 import {
+  updateEngineeringReadinessAssessment,
+  type EngineeringReadinessPatch
+} from "./domain/engineeringReadiness";
+import {
   createProject,
   promoteThoughtToProject,
   unlinkThoughtFromProject,
@@ -75,6 +79,7 @@ import {
   Dashboard,
   DecisionRecordsCenter,
   EngineeringHandoffCenter,
+  EngineeringReadinessCenter,
   Export,
   GlobalSearchCenter,
   Nav,
@@ -252,6 +257,16 @@ export function App() {
 
   const handleCreateDecisionFromBlockingQuestion = (questionId: string) =>
     applyDecisionRecordResult(createDecisionFromBlockingQuestion(state, questionId));
+
+  const handleUpdateEngineeringReadiness = (patch: EngineeringReadinessPatch) => {
+    const result = updateEngineeringReadinessAssessment(state, patch);
+
+    if (result.ok) {
+      save(result.state);
+    }
+
+    return { ok: result.ok, error: result.error };
+  };
 
   const handleCreateRelationshipSafe = (input: CreateRelationshipSafeInput): CreateRelationshipSafeResult => {
     const result = createRelationshipSafe(state, input);
@@ -644,6 +659,15 @@ export function App() {
             onMarkProjectHandoffReady={handleMarkProjectHandoffReady}
             onOpenReviewItem={handleOpenReviewQueueItem}
             onOpenDecisionCenter={() => setScreen("blocking-questions")}
+          />
+        )}
+
+        {screen === "engineering-readiness" && (
+          <EngineeringReadinessCenter
+            state={state}
+            onUpdateAssessment={handleUpdateEngineeringReadiness}
+            onOpenDecisionCenter={() => setScreen("blocking-questions")}
+            onOpenReviewQueue={() => setScreen("review-queue")}
           />
         )}
 

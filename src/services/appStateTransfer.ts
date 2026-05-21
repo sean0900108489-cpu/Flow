@@ -1,5 +1,5 @@
 import type { AppState } from "../domain/types";
-import { normalizeAppState } from "../domain/blockingQuestions";
+import { normalizeAppState } from "../domain/appState";
 
 export interface AppStateImportResult {
   ok: boolean;

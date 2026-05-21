@@ -1,6 +1,6 @@
 import type { AppState } from "../domain/types";
 import { seed } from "../data/seed";
-import { normalizeAppState } from "../domain/blockingQuestions";
+import { normalizeAppState } from "../domain/appState";
 
 export const STORAGE_KEY = "todo-thought-universe:v1";
 

@@ -205,10 +205,10 @@ function normalizeQuestion(question: BlockingQuestion): BlockingQuestion {
   const possibleOptions = question.possibleOptions?.length
     ? copyOptions(question.possibleOptions)
     : copyOptions(coreQuestion?.possibleOptions);
-  const preferredOptionId = validPreferredOptionId(
-    possibleOptions,
-    question.preferredOptionId ?? coreQuestion?.preferredOptionId
-  );
+  const hasPreferredOption = Object.prototype.hasOwnProperty.call(question, "preferredOptionId");
+  const preferredOptionId = hasPreferredOption
+    ? validPreferredOptionId(possibleOptions, question.preferredOptionId) ?? ""
+    : validPreferredOptionId(possibleOptions, coreQuestion?.preferredOptionId);
 
   return {
     ...question,
@@ -377,7 +377,7 @@ export function updateBlockingQuestion(state: AppState, questionId: string, patc
   if (patch.proposedResolution !== undefined) normalizedPatch.proposedResolution = text(patch.proposedResolution);
   if (patch.finalResolution !== undefined) normalizedPatch.finalResolution = text(patch.finalResolution);
   if (patch.decisionNote !== undefined) normalizedPatch.decisionNote = text(patch.decisionNote);
-  if (patch.preferredOptionId !== undefined) normalizedPatch.preferredOptionId = text(patch.preferredOptionId) || undefined;
+  if (patch.preferredOptionId !== undefined) normalizedPatch.preferredOptionId = text(patch.preferredOptionId);
   if (patch.possibleOptions !== undefined) {
     normalizedPatch.possibleOptions = patch.possibleOptions.map((option) => ({
       id: text(option.id),

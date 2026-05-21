@@ -587,6 +587,48 @@ test("blocking relationship makes project blocked", async ({ page }) => {
   await expect(blocked.getByText("blocked", { exact: true })).toBeVisible();
 });
 
+test("engineering readiness center shows criteria and persists assessment", async ({ page }) => {
+  await page.getByRole("button", { name: "Engineering Readiness" }).click();
+
+  await expect(page.getByRole("heading", { name: "Engineering Readiness Center", level: 1 })).toBeVisible();
+  await expect(page.getByText("Readiness score")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Criteria Checklist" })).toBeVisible();
+  await expect(page.getByText("Blocking questions resolved enough")).toBeVisible();
+  await expect(page.locator(".readiness-blocker-card").filter({ hasText: "專案什麼時候可以進入工程階段？" })).toBeVisible();
+
+  await page.getByLabel("Readiness note").fill("Confirm review queue health before engineering starts.");
+  await page.getByLabel("Manual confidence").selectOption("high");
+  await page.getByLabel("Target phase").selectOption("engineering");
+  await page.getByRole("button", { name: "Save Readiness Assessment" }).click();
+
+  await expect(page.getByText("Readiness assessment saved.")).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Engineering Readiness" }).click();
+
+  await expect(page.getByLabel("Readiness note")).toHaveValue("Confirm review queue health before engineering starts.");
+  await expect(page.getByLabel("Manual confidence")).toHaveValue("high");
+  await expect(page.getByLabel("Target phase")).toHaveValue("engineering");
+});
+
+test("engineering readiness center reflects unresolved decision blockers", async ({ page }) => {
+  await page.getByRole("button", { name: "Blocking Questions" }).click();
+  const card = blockingQuestionCard(page, "專案什麼時候可以進入工程階段？");
+
+  await card.getByLabel("Decision note / current thinking").fill("");
+  await card.getByLabel("Preferred option").selectOption("");
+  await card.getByLabel("Proposed resolution").fill("");
+  await card.getByLabel("Final resolution").fill("");
+  await card.getByLabel("Status").selectOption("open");
+  await card.getByRole("button", { name: "Save" }).click();
+
+  await page.getByRole("button", { name: "Engineering Readiness" }).click();
+
+  await expect(page.locator(".readiness-status-not_ready", { hasText: "Not Ready" })).toBeVisible();
+  await expect(page.getByText("Choose a preferred option for: 專案什麼時候可以進入工程階段？")).toBeVisible();
+  await expect(page.locator(".readiness-blocker-card").filter({ hasText: "專案什麼時候可以進入工程階段？" })).toBeVisible();
+});
+
 test("blocking questions screen loads with seed questions", async ({ page }) => {
   await page.getByRole("button", { name: "Blocking Questions" }).click();
 

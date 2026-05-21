@@ -14,6 +14,7 @@ export { Relationships } from "./components/screens/Relationships";
 export { RelationshipExplorer } from "./components/screens/RelationshipExplorer";
 export { Export } from "./components/screens/Export";
 export { EngineeringHandoffCenter } from "./components/screens/EngineeringHandoffCenter";
+export { EngineeringReadinessCenter } from "./components/screens/EngineeringReadinessCenter";
 export { BlockingQuestionsCenter } from "./components/screens/BlockingQuestionsCenter";
 export { DecisionRecordsCenter } from "./components/screens/DecisionRecordsCenter";
 export { Universes } from "./components/screens/Universes";

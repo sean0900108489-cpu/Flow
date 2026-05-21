@@ -78,6 +78,13 @@ export const seed: AppState = {
     }
   ],
   aiInsights: [],
+  engineeringReadiness: {
+    note: "Use the readiness center to decide when product decisions, review queue health, and persistence are stable enough for engineering.",
+    manualConfidence: "medium",
+    targetPhase: "prototype",
+    lastReviewedAt: undefined,
+    updatedAt: now()
+  },
   blockingQuestions: [
     {
       id: "bq-thought-todo",

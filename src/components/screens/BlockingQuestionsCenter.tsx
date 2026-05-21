@@ -72,7 +72,7 @@ function BlockingQuestionCard({
       status,
       impactLevel,
       decisionNote,
-      preferredOptionId: preferredOptionId || undefined
+      preferredOptionId
     }));
   };
 

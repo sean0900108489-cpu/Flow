@@ -8,6 +8,14 @@ export type BlockingQuestionStatus = "open" | "in_review" | "resolved" | "archiv
 export type BlockingQuestionImpactLevel = "low" | "medium" | "high" | "blocking";
 export type DecisionRecordStatus = "proposed" | "accepted" | "superseded" | "archived";
 export type RelationshipNodeType = "thought" | "project" | "universe" | "blocking_question" | "decision_record";
+export type EngineeringReadinessConfidence = "low" | "medium" | "high";
+export type EngineeringReadinessTargetPhase = "exploration" | "prototype" | "engineering";
+export type EngineeringReadinessOverallStatus =
+  | "not_ready"
+  | "partially_ready"
+  | "ready_to_prototype"
+  | "ready_for_engineering";
+export type EngineeringReadinessCriterionStatus = "met" | "partial" | "unmet" | "blocked";
 
 export interface Universe {
   id: string;
@@ -104,6 +112,14 @@ export type DecisionRecord = {
   updatedAt: string;
 };
 
+export interface EngineeringReadinessAssessment {
+  note: string;
+  manualConfidence: EngineeringReadinessConfidence;
+  targetPhase: EngineeringReadinessTargetPhase;
+  lastReviewedAt?: string;
+  updatedAt: string;
+}
+
 export type AIInsightPatchOperation =
   | {
       type: "updateThought";
@@ -140,4 +156,5 @@ export interface AppState {
   aiInsights: AIInsight[];
   blockingQuestions?: BlockingQuestion[];
   decisionRecords?: DecisionRecord[];
+  engineeringReadiness?: EngineeringReadinessAssessment;
 }

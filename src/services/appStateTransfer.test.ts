@@ -51,6 +51,18 @@ describe("app state transfer", () => {
     expect(result.state?.decisionRecords).toEqual([]);
   });
 
+  it("imports old state without engineering readiness data", () => {
+    const { engineeringReadiness, ...oldState } = seed;
+    const result = parseAppStateJson(JSON.stringify(oldState));
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.engineeringReadiness).toMatchObject({
+      note: "",
+      manualConfidence: "medium",
+      targetPhase: "exploration"
+    });
+  });
+
   it("imports state with blocking questions", () => {
     const result = parseAppStateJson(stringifyAppState(seed));
 
@@ -156,6 +168,28 @@ describe("app state transfer", () => {
 
     expect(json).toContain('"decisionRecords"');
     expect(json).toContain("Export decision records");
+  });
+
+  it("round trips engineering readiness data", () => {
+    const json = stringifyAppState({
+      ...seed,
+      engineeringReadiness: {
+        note: "Engineering can start after core decisions are stable.",
+        manualConfidence: "high",
+        targetPhase: "engineering",
+        lastReviewedAt: "2026-05-21T00:00:00.000Z",
+        updatedAt: "2026-05-21T00:00:00.000Z"
+      }
+    });
+    const result = parseAppStateJson(json);
+
+    expect(json).toContain('"engineeringReadiness"');
+    expect(result.ok).toBe(true);
+    expect(result.state?.engineeringReadiness).toMatchObject({
+      note: "Engineering can start after core decisions are stable.",
+      manualConfidence: "high",
+      targetPhase: "engineering"
+    });
   });
 
   it("imports legacy relationships without source or target types", () => {
