@@ -16,6 +16,8 @@ export type EngineeringReadinessOverallStatus =
   | "ready_to_prototype"
   | "ready_for_engineering";
 export type EngineeringReadinessCriterionStatus = "met" | "partial" | "unmet" | "blocked";
+export type NextActionConfidence = "low" | "medium" | "high";
+export type NextActionFocusMode = "explore" | "decide" | "build" | "review";
 
 export interface Universe {
   id: string;
@@ -120,6 +122,17 @@ export interface EngineeringReadinessAssessment {
   updatedAt: string;
 }
 
+export interface NextActionState {
+  savedActionIds: string[];
+  selectedFocusActionId?: string;
+  dismissedActionIds: string[];
+  manualNote: string;
+  manualConfidence: NextActionConfidence;
+  focusMode: NextActionFocusMode;
+  lastReviewedAt?: string;
+  updatedAt: string;
+}
+
 export type AIInsightPatchOperation =
   | {
       type: "updateThought";
@@ -157,4 +170,5 @@ export interface AppState {
   blockingQuestions?: BlockingQuestion[];
   decisionRecords?: DecisionRecord[];
   engineeringReadiness?: EngineeringReadinessAssessment;
+  nextActionState?: NextActionState;
 }

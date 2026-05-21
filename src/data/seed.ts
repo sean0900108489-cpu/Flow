@@ -85,6 +85,16 @@ export const seed: AppState = {
     lastReviewedAt: undefined,
     updatedAt: now()
   },
+  nextActionState: {
+    savedActionIds: [],
+    selectedFocusActionId: undefined,
+    dismissedActionIds: [],
+    manualNote: "Start by confirming the remaining engineering readiness decision, then choose the smallest next workflow.",
+    manualConfidence: "medium",
+    focusMode: "decide",
+    lastReviewedAt: undefined,
+    updatedAt: now()
+  },
   blockingQuestions: [
     {
       id: "bq-thought-todo",

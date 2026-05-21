@@ -261,7 +261,7 @@ header p,
 }
 
 .next-action-metrics {
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   margin-top: 0;
 }
 
@@ -437,6 +437,11 @@ header p,
 .triage-card {
   display: grid;
   gap: 0.75rem;
+}
+
+.next-action-primary {
+  border-color: rgba(96,165,250,0.38);
+  background: rgba(59,130,246,0.12);
 }
 
 .triage-grid {
@@ -677,6 +682,22 @@ header p,
 
 .next-action-completed {
   background: rgba(148,163,184,0.22);
+}
+
+.next-action-priority-low {
+  background: rgba(148,163,184,0.22);
+}
+
+.next-action-priority-medium {
+  background: rgba(59,130,246,0.22);
+}
+
+.next-action-priority-high {
+  background: rgba(245,158,11,0.22);
+}
+
+.next-action-priority-urgent {
+  background: rgba(239,68,68,0.22);
 }
 
 .triage-needs_universe {

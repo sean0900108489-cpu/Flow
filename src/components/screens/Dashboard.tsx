@@ -36,7 +36,7 @@ export function Dashboard({
   const activeUniverses = state.universes.filter(isUniverseActive);
   const nextActions = listNextActions(state);
   const availableNextActions = nextActions.filter((action) => action.status === "available");
-  const firstAvailableAction = availableNextActions[0];
+  const dashboardNextActions = availableNextActions.slice(0, 4);
   const reviewQueue = buildReviewQueue(state);
   const firstReviewItem = reviewQueue[0];
   const thoughtUniverseOptions = universeOptionsForItemUniverseIds(state.universes, active.map((thought) => thought.universeId));
@@ -111,11 +111,15 @@ export function Dashboard({
             <p className="muted">{availableNextActions.length} available actions</p>
           </div>
         </div>
-        {firstAvailableAction ? (
-          <button className="item" onClick={() => setScreen("next-actions")}>
-            <strong>{firstAvailableAction.title}</strong>
-            <span>{firstAvailableAction.actionText}</span>
-          </button>
+        {dashboardNextActions.length > 0 ? (
+          <div className="stack">
+            {dashboardNextActions.map((action) => (
+              <button className="item" key={action.id} onClick={() => setScreen("next-actions")}>
+                <strong>{action.title}</strong>
+                <span>{action.actionText}</span>
+              </button>
+            ))}
+          </div>
         ) : (
           <div className="notice">No available next action.</div>
         )}

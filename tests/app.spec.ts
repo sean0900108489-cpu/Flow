@@ -381,8 +381,9 @@ test("next action center screen loads", async ({ page }) => {
   await page.getByRole("button", { name: "Next Actions" }).click();
 
   await expect(page.getByRole("heading", { name: "Next Action Center", level: 1 })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Focus Mode" })).toBeVisible();
-  await expect(page.getByText("Available actions")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Top Recommended Action" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recommended Actions List" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "System Signals Summary" })).toBeVisible();
 });
 
 test("thought triage center screen loads", async ({ page }) => {
@@ -440,19 +441,35 @@ test("thought next action appears in next action center", async ({ page }) => {
   await expect(card.getByText("Do the first thought step")).toBeVisible();
 });
 
-test("complete thought next action clears the source action", async ({ page }) => {
-  await createThought(page, "Complete thought next action", "task");
-  await page.getByLabel("Next Action / 下一步").fill("Clear this thought action");
+test("next action center saves note, pins focus, dismisses actions, and survives reload", async ({ page }) => {
+  await createThought(page, "Persistent next action", "task");
+  await page.getByLabel("Next Action / 下一步").fill("Persist this thought action");
   await page.getByRole("button", { name: "Next Actions" }).click();
 
-  const card = nextActionCard(page, "Complete thought next action");
-  page.once("dialog", (dialog) => dialog.accept());
-  await card.getByRole("button", { name: "Complete Action" }).click();
+  await page.getByLabel("Manual next action note").fill("Review the focus action before building.");
+  await page.getByLabel("Manual confidence").selectOption("high");
+  await page.getByLabel("Focus mode").selectOption("review");
+  await page.getByRole("button", { name: "Save Next Action Settings" }).click();
+  await expect(page.getByText("Next action settings saved.")).toBeVisible();
 
-  await expect(nextActionCard(page, "Complete thought next action")).toHaveCount(0);
+  const card = nextActionCard(page, "Persistent next action");
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Pin Focus" }).click();
+  await expect(page.getByText("Focus action pinned.")).toBeVisible();
+  await expect(page.locator("section").filter({ has: page.getByRole("heading", { name: "Focus Action" }) }).getByText("Persistent next action")).toBeVisible();
 
-  await page.getByRole("button", { name: "Thought Detail", exact: true }).click();
-  await expect(page.getByLabel("Next Action / 下一步")).toHaveValue("");
+  await page.reload();
+  await page.getByRole("button", { name: "Next Actions" }).click();
+  await expect(page.getByLabel("Manual next action note")).toHaveValue("Review the focus action before building.");
+  await expect(page.locator("section").filter({ has: page.getByRole("heading", { name: "Focus Action" }) }).getByText("Persistent next action")).toBeVisible();
+
+  await nextActionCard(page, "Persistent next action").getByRole("button", { name: "Dismiss" }).click();
+  await expect(page.getByText("Next action dismissed.")).toBeVisible();
+  await expect(nextActionCard(page, "Persistent next action")).toHaveCount(0);
+
+  await page.reload();
+  await page.getByRole("button", { name: "Next Actions" }).click();
+  await expect(nextActionCard(page, "Persistent next action")).toHaveCount(0);
 });
 
 test("project next action appears in next action center", async ({ page }) => {

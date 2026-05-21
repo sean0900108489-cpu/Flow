@@ -32,6 +32,10 @@ export function validateAppState(value: unknown): AppStateImportResult {
     return { ok: false, error: "Invalid array: decisionRecords" };
   }
 
+  if ("nextActionState" in value && value.nextActionState !== undefined && !isRecord(value.nextActionState)) {
+    return { ok: false, error: "Invalid object: nextActionState" };
+  }
+
   return { ok: true, state: normalizeAppState(value as unknown as AppState) };
 }
 

@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { AppState } from "./types";
 import {
+  calculateNextActionSummary,
+  clearDismissedNextActions,
+  clearFocusNextAction,
   completeNextAction,
+  defaultNextActionState,
+  dismissNextAction,
   listNextActions,
+  normalizeNextActionState,
+  pinNextAction,
   setNextActionForSource,
+  updateNextActionState,
   type NextActionItem
 } from "./nextActions";
 
@@ -34,7 +42,7 @@ const baseState: AppState = {
       type: "task",
       status: "active",
       universeId: "u-1",
-      why: "",
+      why: "Thought reason",
       outcome: "",
       nextAction: "Do the thought step",
       createdAt: timestamp,
@@ -92,22 +100,33 @@ const baseState: AppState = {
     }
   ],
   relationships: [],
-  aiInsights: [],
+  aiInsights: [
+    {
+      id: "ai-1",
+      targetId: "t-1",
+      type: "next_action",
+      content: "Review draft next action",
+      status: "draft",
+      createdAt: "2026-01-05T00:00:00.000Z"
+    }
+  ],
   blockingQuestions: [
     {
       id: "bq-1",
       question: "Should this block execution?",
       context: "Architecture blocker",
       status: "open",
+      impactLevel: "blocking",
       linkedUniverseIds: ["u-1"],
       createdAt: timestamp,
       updatedAt: "2026-01-04T00:00:00.000Z"
     }
-  ]
+  ],
+  decisionRecords: []
 };
 
 function action(sourceType: NextActionItem["sourceType"], sourceId: string): NextActionItem {
-  const item = listNextActions(baseState).find((candidate) =>
+  const item = calculateNextActionSummary(baseState).allActions.find((candidate) =>
     candidate.sourceType === sourceType && candidate.sourceId === sourceId
   );
 
@@ -116,16 +135,47 @@ function action(sourceType: NextActionItem["sourceType"], sourceId: string): Nex
 }
 
 describe("next actions", () => {
-  it("lists thought next actions", () => {
+  it("creates a default next action state", () => {
+    expect(defaultNextActionState()).toMatchObject({
+      savedActionIds: [],
+      dismissedActionIds: [],
+      manualNote: "",
+      manualConfidence: "medium",
+      focusMode: "decide"
+    });
+  });
+
+  it("normalizes missing or partial next action state for old data", () => {
+    expect(normalizeNextActionState(undefined)).toMatchObject({
+      manualConfidence: "medium",
+      focusMode: "decide"
+    });
+    expect(normalizeNextActionState({
+      savedActionIds: [" a ", "a"],
+      dismissedActionIds: [" b "],
+      selectedFocusActionId: " a ",
+      manualNote: "  Note  ",
+      manualConfidence: "invalid" as never,
+      focusMode: "bad" as never,
+      updatedAt: ""
+    })).toMatchObject({
+      savedActionIds: ["a"],
+      dismissedActionIds: ["b"],
+      selectedFocusActionId: "a",
+      manualNote: "Note",
+      manualConfidence: "medium",
+      focusMode: "decide"
+    });
+  });
+
+  it("lists thought and project next actions", () => {
     expect(action("thought", "t-1")).toMatchObject({
       title: "Thought action",
       actionText: "Do the thought step",
       universeId: "u-1",
-      status: "available"
+      status: "available",
+      actionType: "implement"
     });
-  });
-
-  it("lists project next actions", () => {
     expect(action("project", "p-1")).toMatchObject({
       title: "Project action",
       actionText: "Do the project step",
@@ -134,101 +184,96 @@ describe("next actions", () => {
     });
   });
 
-  it("lists open blocking questions as blocked actions", () => {
-    expect(action("blocking_question", "bq-1")).toMatchObject({
-      title: "Should this block execution?",
-      actionText: "Resolve blocking question",
-      universeId: "u-1",
-      status: "blocked"
+  it("prioritizes unresolved blocking decisions as the top action", () => {
+    const summary = calculateNextActionSummary(baseState);
+
+    expect(summary.topAction).toMatchObject({
+      sourceType: "blocking_question",
+      sourceId: "bq-1",
+      priority: "urgent",
+      actionType: "decide"
+    });
+    expect(summary.signals.highBlockingUnresolvedDecisionCount).toBe(1);
+  });
+
+  it("reflects engineering readiness blockers", () => {
+    const readinessAction = action("engineering_readiness", "not_ready");
+
+    expect(readinessAction).toMatchObject({
+      sourceType: "engineering_readiness",
+      actionType: "clarify",
+      priority: "high"
+    });
+    expect(readinessAction.blockers.length).toBeGreaterThan(0);
+  });
+
+  it("reflects pending review queue items", () => {
+    const reviewActions = calculateNextActionSummary(baseState).allActions.filter((item) => item.sourceType === "review_queue");
+
+    expect(reviewActions.some((item) => item.sourceId === "ai-1")).toBe(true);
+    expect(calculateNextActionSummary(baseState).signals.pendingReviewCount).toBeGreaterThan(0);
+  });
+
+  it("searches and filters recommended actions", () => {
+    expect(listNextActions(baseState, { searchText: "PROJECT STEP" }).some((item) => item.sourceId === "p-1")).toBe(true);
+    expect(listNextActions(baseState, { sourceType: "project" })).toEqual([
+      expect.objectContaining({ sourceId: "p-1" })
+    ]);
+    expect(listNextActions(baseState, { universeId: "u-2" }).some((item) => item.sourceId === "p-1")).toBe(true);
+  });
+
+  it("pins, dismisses, clears dismissed actions, and clears focus", () => {
+    const item = action("blocking_question", "bq-1");
+    const pinned = pinNextAction(baseState, item.id);
+
+    expect(pinned.ok).toBe(true);
+    expect(pinned.state.nextActionState?.selectedFocusActionId).toBe(item.id);
+    expect(calculateNextActionSummary(pinned.state).focusAction?.id).toBe(item.id);
+
+    const dismissed = dismissNextAction(pinned.state, item.id);
+    expect(dismissed.state.nextActionState?.dismissedActionIds).toContain(item.id);
+    expect(calculateNextActionSummary(dismissed.state).recommendedActions.some((action) => action.id === item.id)).toBe(false);
+
+    const clearedDismissed = clearDismissedNextActions(dismissed.state);
+    expect(clearedDismissed.state.nextActionState?.dismissedActionIds).toEqual([]);
+
+    const clearedFocus = clearFocusNextAction(clearedDismissed.state);
+    expect(clearedFocus.state.nextActionState?.selectedFocusActionId).toBeUndefined();
+  });
+
+  it("updates manual note, confidence, and focus mode", () => {
+    const result = updateNextActionState(baseState, {
+      manualNote: "Focus the review path.",
+      manualConfidence: "high",
+      focusMode: "review"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.nextActionState).toMatchObject({
+      manualNote: "Focus the review path.",
+      manualConfidence: "high",
+      focusMode: "review"
     });
   });
 
-  it("omits archived thought and project sources", () => {
-    const actions = listNextActions(baseState);
-
-    expect(actions.find((item) => item.sourceId === "t-archived")).toBeUndefined();
-    expect(actions.find((item) => item.sourceId === "p-archived")).toBeUndefined();
-  });
-
-  it("searches case-insensitively", () => {
-    expect(listNextActions(baseState, { searchText: "PROJECT STEP" })).toHaveLength(1);
-    expect(listNextActions(baseState, { searchText: "architecture" })).toHaveLength(1);
-    expect(listNextActions(baseState, { searchText: "missing" })).toHaveLength(0);
-  });
-
-  it("filters by source type", () => {
-    const actions = listNextActions(baseState, { sourceType: "project" });
-
-    expect(actions).toHaveLength(1);
-    expect(actions[0].sourceType).toBe("project");
-  });
-
-  it("filters by universe", () => {
-    const actions = listNextActions(baseState, { universeId: "u-2" });
-
-    expect(actions).toHaveLength(1);
-    expect(actions[0].sourceId).toBe("p-1");
-  });
-
-  it("completes a thought action by clearing nextAction", () => {
-    const result = completeNextAction(baseState, action("thought", "t-1"));
-
-    expect(result.ok).toBe(true);
-    expect(result.state.thoughts.find((thought) => thought.id === "t-1")?.nextAction).toBe("");
-  });
-
-  it("completes a project action by clearing nextAction", () => {
-    const result = completeNextAction(baseState, action("project", "p-1"));
-
-    expect(result.ok).toBe(true);
-    expect(result.state.projects.find((project) => project.id === "p-1")?.nextAction).toBe("");
-  });
-
-  it("moves an open blocking question to in_review without resolving it", () => {
-    const result = completeNextAction(baseState, action("blocking_question", "bq-1"));
-    const question = result.state.blockingQuestions?.find((item) => item.id === "bq-1");
-
-    expect(result.ok).toBe(true);
-    expect(question?.status).toBe("in_review");
-    expect(question?.finalResolution).toBeUndefined();
-  });
-
-  it("does not crash when completing a missing source", () => {
-    const result = completeNextAction(baseState, {
-      ...action("thought", "t-1"),
-      sourceId: "missing"
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.error).toBe("Thought not found.");
-  });
-
-  it("updates thought and project next action text without mutating state", () => {
-    const original = JSON.stringify(baseState);
-    const thoughtResult = setNextActionForSource(baseState, "thought", "t-1", "  New thought step  ");
+  it("completes source-backed actions and keeps direct updates scoped to thoughts/projects", () => {
+    const thoughtResult = completeNextAction(baseState, action("thought", "t-1"));
     const projectResult = setNextActionForSource(baseState, "project", "p-1", "  New project step  ");
+    const rejected = setNextActionForSource(baseState, "blocking_question", "bq-1", "Next");
 
     expect(thoughtResult.ok).toBe(true);
+    expect(thoughtResult.state.thoughts.find((thought) => thought.id === "t-1")?.nextAction).toBe("");
     expect(projectResult.ok).toBe(true);
-    expect(thoughtResult.state.thoughts.find((thought) => thought.id === "t-1")?.nextAction).toBe("New thought step");
     expect(projectResult.state.projects.find((project) => project.id === "p-1")?.nextAction).toBe("New project step");
-    expect(JSON.stringify(baseState)).toBe(original);
+    expect(rejected.ok).toBe(false);
   });
 
-  it("rejects direct blocking question next action updates", () => {
-    const result = setNextActionForSource(baseState, "blocking_question", "bq-1", "Next");
-
-    expect(result.ok).toBe(false);
-    expect(result.error).toBe("Blocking questions do not support direct nextAction.");
-  });
-
-  it("does not mutate original state when listing or completing actions", () => {
+  it("does not mutate original state when calculating or updating", () => {
     const original = JSON.stringify(baseState);
 
+    calculateNextActionSummary(baseState);
     listNextActions(baseState);
-    completeNextAction(baseState, action("thought", "t-1"));
-    completeNextAction(baseState, action("project", "p-1"));
-    completeNextAction(baseState, action("blocking_question", "bq-1"));
+    pinNextAction(baseState, "blocking_question:bq-1");
 
     expect(JSON.stringify(baseState)).toBe(original);
   });

@@ -48,10 +48,16 @@ import {
   type ProjectDetailsPatch
 } from "./domain/projectActions";
 import {
+  clearDismissedNextActions,
+  clearFocusNextAction,
   completeNextAction,
+  dismissNextAction,
+  pinNextAction,
   setNextActionForSource,
+  updateNextActionState,
   type NextActionItem,
-  type NextActionSourceType
+  type NextActionSourceType,
+  type NextActionStatePatch
 } from "./domain/nextActions";
 import {
   markThoughtTriaged,
@@ -470,6 +476,29 @@ export function App() {
     return { ok: result.ok, error: result.error };
   };
 
+  const applyNextActionResult = (result: { state: AppState; ok: boolean; error?: string }) => {
+    if (result.ok) {
+      save(result.state);
+    }
+
+    return { ok: result.ok, error: result.error };
+  };
+
+  const handleUpdateNextActionState = (patch: NextActionStatePatch) =>
+    applyNextActionResult(updateNextActionState(state, patch));
+
+  const handlePinNextAction = (actionId: string) =>
+    applyNextActionResult(pinNextAction(state, actionId));
+
+  const handleDismissNextAction = (actionId: string) =>
+    applyNextActionResult(dismissNextAction(state, actionId));
+
+  const handleClearDismissedNextActions = () =>
+    applyNextActionResult(clearDismissedNextActions(state));
+
+  const handleClearFocusNextAction = () =>
+    applyNextActionResult(clearFocusNextAction(state));
+
   const handleUpdateThoughtTriage = (thoughtId: string, patch: ThoughtTriagePatch) =>
     applyThoughtTriageResult(updateThoughtTriage(state, thoughtId, patch));
 
@@ -489,7 +518,22 @@ export function App() {
       return;
     }
 
-    setScreen("blocking-questions");
+    if (item.sourceType === "blocking_question") {
+      setScreen("blocking-questions");
+      return;
+    }
+
+    if (item.sourceType === "review_queue") {
+      setScreen("review-queue");
+      return;
+    }
+
+    if (item.sourceType === "engineering_readiness") {
+      setScreen("engineering-readiness");
+      return;
+    }
+
+    setScreen("capture");
   };
 
   const archiveThought = (thoughtId: string, nextScreen = "dashboard") => {
@@ -732,7 +776,15 @@ export function App() {
             universes={state.universes}
             onCompleteNextAction={handleCompleteNextAction}
             onSetNextActionForSource={handleSetNextActionForSource}
+            onUpdateNextActionState={handleUpdateNextActionState}
+            onPinNextAction={handlePinNextAction}
+            onDismissNextAction={handleDismissNextAction}
+            onClearDismissedNextActions={handleClearDismissedNextActions}
+            onClearFocusNextAction={handleClearFocusNextAction}
             onViewSource={handleViewNextActionSource}
+            onOpenDecisionCenter={() => setScreen("blocking-questions")}
+            onOpenReviewQueue={() => setScreen("review-queue")}
+            onOpenEngineeringReadiness={() => setScreen("engineering-readiness")}
           />
         )}
 

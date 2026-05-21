@@ -63,6 +63,20 @@ describe("app state transfer", () => {
     });
   });
 
+  it("imports old state without next action data", () => {
+    const { nextActionState, ...oldState } = seed;
+    const result = parseAppStateJson(JSON.stringify(oldState));
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.nextActionState).toMatchObject({
+      savedActionIds: [],
+      dismissedActionIds: [],
+      manualNote: "",
+      manualConfidence: "medium",
+      focusMode: "decide"
+    });
+  });
+
   it("imports state with blocking questions", () => {
     const result = parseAppStateJson(stringifyAppState(seed));
 
@@ -189,6 +203,33 @@ describe("app state transfer", () => {
       note: "Engineering can start after core decisions are stable.",
       manualConfidence: "high",
       targetPhase: "engineering"
+    });
+  });
+
+  it("round trips next action data", () => {
+    const json = stringifyAppState({
+      ...seed,
+      nextActionState: {
+        savedActionIds: ["blocking_question:bq-engineering-readiness"],
+        selectedFocusActionId: "blocking_question:bq-engineering-readiness",
+        dismissedActionIds: ["thought:t-2"],
+        manualNote: "Focus the remaining readiness decision.",
+        manualConfidence: "high",
+        focusMode: "review",
+        lastReviewedAt: "2026-05-21T00:00:00.000Z",
+        updatedAt: "2026-05-21T00:00:00.000Z"
+      }
+    });
+    const result = parseAppStateJson(json);
+
+    expect(json).toContain('"nextActionState"');
+    expect(result.ok).toBe(true);
+    expect(result.state?.nextActionState).toMatchObject({
+      selectedFocusActionId: "blocking_question:bq-engineering-readiness",
+      dismissedActionIds: ["thought:t-2"],
+      manualNote: "Focus the remaining readiness decision.",
+      manualConfidence: "high",
+      focusMode: "review"
     });
   });
 
