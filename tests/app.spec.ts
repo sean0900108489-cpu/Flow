@@ -74,7 +74,7 @@ async function loadAppState(page: Page, state: AppState) {
 
 async function createDecisionRecord(page: Page, title: string, decision = "Keep TodoItem for now.") {
   await page.getByRole("button", { name: "Decision Records", exact: true }).click();
-  const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Decision" }) });
+  const form = page.getByTestId("create-decision-form");
 
   await form.getByLabel("Title").fill(title);
   await form.getByLabel("Decision").fill(decision);

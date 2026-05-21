@@ -288,7 +288,7 @@ export function DecisionRecordsCenter({
         </div>
       </section>
 
-      <section className="panel form">
+      <section className="panel form" data-testid="create-decision-form">
         <h2>Create Decision</h2>
         {error && <div className="warn">{error}</div>}
         {notice && <div className="notice">{notice}</div>}
