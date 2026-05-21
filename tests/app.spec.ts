@@ -45,6 +45,10 @@ function nextActionCard(page: Page, title: string) {
   return page.locator(".next-action-card").filter({ hasText: title });
 }
 
+function triageCard(page: Page, title: string) {
+  return page.locator(".triage-card").filter({ hasText: title });
+}
+
 async function loadAppState(page: Page, state: AppState) {
   await page.evaluate((nextState) => {
     localStorage.setItem("todo-thought-universe:v1", JSON.stringify(nextState));
@@ -317,6 +321,50 @@ test("next action center screen loads", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Next Action Center", level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Focus Mode" })).toBeVisible();
   await expect(page.getByText("Available actions")).toBeVisible();
+});
+
+test("thought triage center screen loads", async ({ page }) => {
+  await page.getByRole("button", { name: "Thought Triage" }).click();
+
+  await expect(page.getByRole("heading", { name: "Thought Triage Center", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Triage Focus" })).toBeVisible();
+  await expect(page.getByText("Inbox thoughts", { exact: true })).toBeVisible();
+});
+
+test("triage thought saves context and moves it to active", async ({ page }) => {
+  await createThought(page, "Triage center thought", "note");
+  await page.getByRole("button", { name: "Thought Triage" }).click();
+
+  const card = triageCard(page, "Triage center thought");
+
+  await expect(card).toBeVisible();
+  await expect(card.getByText("Needs context")).toBeVisible();
+
+  await card.getByLabel("Triage type").selectOption("task");
+  await card.getByLabel("Triage why").fill("This thought should become executable.");
+  await card.getByLabel("Triage outcome").fill("A clear active task.");
+  await card.getByLabel("Triage next action").fill("Start the triaged task.");
+  await card.getByRole("button", { name: "Save Triage" }).click();
+
+  await expect(card.getByText("Ready")).toBeVisible();
+  await card.getByRole("button", { name: "Mark Triaged" }).click();
+
+  await expect(triageCard(page, "Triage center thought")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Thought Detail", exact: true }).click();
+  await expect(page.getByLabel("狀態")).toHaveValue("active");
+  await expect(page.getByLabel("Next Action / 下一步")).toHaveValue("Start the triaged task.");
+});
+
+test("triage center can promote an inbox thought to project", async ({ page }) => {
+  await createThought(page, "Triage promoted project", "task");
+  await page.getByRole("button", { name: "Thought Triage" }).click();
+
+  await triageCard(page, "Triage promoted project").getByRole("button", { name: "Promote to Project" }).click();
+
+  await expect(page.getByRole("heading", { name: "Project Detail", level: 1 })).toBeVisible();
+  const detail = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Project Detail" }) });
+  await expect(detail.getByLabel("Title")).toHaveValue("Triage promoted project");
 });
 
 test("thought next action appears in next action center", async ({ page }) => {

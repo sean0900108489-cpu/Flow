@@ -35,6 +35,12 @@ import {
   type NextActionItem,
   type NextActionSourceType
 } from "./domain/nextActions";
+import {
+  markThoughtTriaged,
+  updateThoughtTriage,
+  type ThoughtTriagePatch,
+  type ThoughtTriageResult
+} from "./domain/thoughtTriage";
 import { id, now } from "./domain/utils";
 import { seed } from "./data/seed";
 import { loadState, saveState } from "./services/storage";
@@ -56,6 +62,7 @@ import {
   Relationships,
   ThoughtDetail,
   ThoughtList,
+  ThoughtTriageCenter,
   Universes,
   title
 } from "./components";
@@ -99,6 +106,14 @@ export function App() {
     }
 
     return { ok: result.ok, error: result.error, projectId: result.projectId };
+  };
+
+  const applyThoughtTriageResult = (result: ThoughtTriageResult) => {
+    if (result.ok) {
+      save(result.state);
+    }
+
+    return { ok: result.ok, error: result.error };
   };
 
   const thought = state.thoughts.find((x) => x.id === selectedThoughtId) ?? state.thoughts[0];
@@ -247,6 +262,12 @@ export function App() {
     return { ok: result.ok, error: result.error };
   };
 
+  const handleUpdateThoughtTriage = (thoughtId: string, patch: ThoughtTriagePatch) =>
+    applyThoughtTriageResult(updateThoughtTriage(state, thoughtId, patch));
+
+  const handleMarkThoughtTriaged = (thoughtId: string) =>
+    applyThoughtTriageResult(markThoughtTriaged(state, thoughtId));
+
   const handleViewNextActionSource = (item: NextActionItem) => {
     if (item.sourceType === "thought") {
       setSelectedThoughtId(item.sourceId);
@@ -263,12 +284,12 @@ export function App() {
     setScreen("blocking-questions");
   };
 
-  const archiveThought = (thoughtId: string) => {
+  const archiveThought = (thoughtId: string, nextScreen = "dashboard") => {
     save({
       ...state,
       thoughts: state.thoughts.map((x) => x.id === thoughtId ? { ...x, status: "archived", updatedAt: now() } : x)
     });
-    setScreen("dashboard");
+    setScreen(nextScreen);
   };
 
   const visibleThoughts = filteredThoughts.filter((x) => x.status !== "archived");
@@ -423,6 +444,21 @@ export function App() {
             showControls
             onSelect={(tid) => {
               setSelectedThoughtId(tid);
+              setScreen("thought");
+            }}
+          />
+        )}
+
+        {screen === "thought-triage" && (
+          <ThoughtTriageCenter
+            state={state}
+            universes={state.universes}
+            onUpdateTriage={handleUpdateThoughtTriage}
+            onMarkTriaged={handleMarkThoughtTriaged}
+            onPromote={handlePromoteThoughtToProject}
+            onArchive={(thoughtId) => archiveThought(thoughtId, "thought-triage")}
+            onViewThought={(thoughtId) => {
+              setSelectedThoughtId(thoughtId);
               setScreen("thought");
             }}
           />
