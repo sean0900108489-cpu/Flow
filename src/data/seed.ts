@@ -51,6 +51,7 @@ export const seed: AppState = {
     {
       id: "p-1",
       sourceThoughtId: "t-1",
+      linkedThoughtIds: ["t-1"],
       universeId: "u-thought",
       status: "active",
       name: "Todo Thought Universe MVP",

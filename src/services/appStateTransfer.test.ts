@@ -49,6 +49,19 @@ describe("app state transfer", () => {
     expect(json).toContain("Universe 是標籤、資料夾，還是獨立物件？");
   });
 
+  it("round trips project linked thought ids", () => {
+    const json = stringifyAppState({
+      ...seed,
+      projects: seed.projects.map((project, index) =>
+        index === 0 ? { ...project, linkedThoughtIds: ["t-1", "t-2"] } : project
+      )
+    });
+    const result = parseAppStateJson(json);
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.projects[0].linkedThoughtIds).toEqual(["t-1", "t-2"]);
+  });
+
   it("round trips archived thought and project statuses", () => {
     const json = stringifyAppState({
       ...seed,

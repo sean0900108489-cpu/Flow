@@ -3,6 +3,7 @@ export { Dashboard } from "./components/screens/Dashboard";
 export { Capture } from "./components/screens/Capture";
 export { ThoughtDetail } from "./components/screens/ThoughtDetail";
 export { ProjectDetail } from "./components/screens/ProjectDetail";
+export { Projects } from "./components/screens/Projects";
 export { AIPanel } from "./components/screens/AIPanel";
 export { Relationships } from "./components/screens/Relationships";
 export { Export } from "./components/screens/Export";

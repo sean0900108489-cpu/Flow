@@ -34,6 +34,7 @@ export interface MarkProjectHandoffReadyResult {
 const unique = (items: string[]) => Array.from(new Set(items));
 
 function linkedThoughts(project: Project, state: AppState) {
+  const linkedThoughtIds = project.linkedThoughtIds ?? [];
   const relatedThoughtIds = state.relationships.flatMap((relationship) => {
     if (relationship.sourceId === project.id) return [relationship.targetId];
     if (relationship.targetId === project.id) return [relationship.sourceId];
@@ -41,6 +42,7 @@ function linkedThoughts(project: Project, state: AppState) {
   });
 
   return state.thoughts.filter((thought) =>
+    linkedThoughtIds.includes(thought.id) ||
     thought.projectId === project.id ||
     thought.id === project.sourceThoughtId ||
     relatedThoughtIds.includes(thought.id)

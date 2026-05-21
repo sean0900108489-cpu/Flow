@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ThoughtItem, ThoughtStatus, Universe } from "../../domain/types";
 import { SelectThoughtType } from "../common/SelectThoughtType";
 import { SelectUniverse } from "../common/SelectUniverse";
@@ -7,7 +8,7 @@ export function ThoughtDetail({
   universes,
   onUpdate,
   onAI,
-  onConvert,
+  onPromote,
   onArchive,
   onDelete
 }: {
@@ -15,10 +16,17 @@ export function ThoughtDetail({
   universes: Universe[];
   onUpdate: (patch: Partial<ThoughtItem>) => void;
   onAI: () => void;
-  onConvert: () => void;
+  onPromote: () => { ok: boolean; error?: string };
   onArchive: () => void;
   onDelete: () => void;
 }) {
+  const [error, setError] = useState("");
+
+  const promote = () => {
+    const result = onPromote();
+    setError(result.ok ? "" : result.error ?? "Could not promote thought.");
+  };
+
   return (
     <section className="panel form">
       <div className="head">
@@ -27,9 +35,11 @@ export function ThoughtDetail({
           <button className="ghost" onClick={onAI}>AI 建議</button>
           {thought.status !== "archived" && <button className="ghost" onClick={onArchive}>Archive Thought</button>}
           <button className="danger" onClick={onDelete}>Delete Thought</button>
-          <button onClick={onConvert}>升級為 Project</button>
+          <button onClick={promote}>Promote to Project</button>
         </div>
       </div>
+      {error && <div className="warn">{error}</div>}
+      {thought.projectId && <div className="notice">Linked to project: {thought.projectId}</div>}
       <label>標題<input value={thought.title} onChange={(e) => onUpdate({ title: e.target.value })} /></label>
       <label>內容<textarea value={thought.content} onChange={(e) => onUpdate({ content: e.target.value })} /></label>
       <div className="row">

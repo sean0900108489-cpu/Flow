@@ -37,6 +37,10 @@ function blockingQuestionCard(page: Page, question: string) {
   return page.locator(".blocking-question-card").filter({ hasText: question });
 }
 
+function projectCard(page: Page, title: string) {
+  return page.locator(".project-card").filter({ hasText: title });
+}
+
 async function loadAppState(page: Page, state: AppState) {
   await page.evaluate((nextState) => {
     localStorage.setItem("todo-thought-universe:v1", JSON.stringify(nextState));
@@ -187,6 +191,120 @@ test("project delete removes project without deleting linked thought", async ({ 
   const projectsPanel = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Projects" }) });
   await expect(projectsPanel.getByText("Todo Thought Universe MVP")).toHaveCount(0);
   await expect(page.locator("strong", { hasText: "做一個不是普通 todo list 的思想宇宙網站" }).first()).toBeVisible();
+});
+
+test("promote thought to project creates a linked project", async ({ page }) => {
+  await createThought(page, "Promote me into project", "task");
+
+  await page.getByLabel("Next Action / 下一步").fill("Define first project milestone");
+  await page.getByRole("button", { name: "Promote to Project" }).click();
+
+  await expect(page.getByRole("heading", { name: "Project Detail", level: 1 })).toBeVisible();
+  const detail = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Project Detail" }) });
+
+  await expect(detail.getByLabel("Title")).toHaveValue("Promote me into project");
+  await expect(detail.locator(".mini-list").filter({ hasText: "Linked Thoughts" }).getByText("Promote me into project")).toBeVisible();
+});
+
+test("create project from projects screen", async ({ page }) => {
+  await page.getByRole("button", { name: "Projects", exact: true }).click();
+  const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Project" }) });
+
+  await form.getByLabel("Title").fill("New independent project");
+  await form.getByLabel("Description").fill("Project created without initial thought");
+  await form.getByLabel("Next Action").fill("Write implementation outline");
+  await form.getByRole("button", { name: "Create Project" }).click();
+
+  const card = projectCard(page, "New independent project");
+
+  await expect(card).toBeVisible();
+  await expect(card.getByText("Write implementation outline")).toBeVisible();
+
+  await card.getByRole("button", { name: "View Project" }).click();
+
+  const detail = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Project Detail" }) });
+  await expect(detail.getByLabel("Title")).toHaveValue("New independent project");
+  await expect(detail.getByLabel("Description")).toHaveValue("Project created without initial thought");
+  await expect(detail.getByLabel("Next Action")).toHaveValue("Write implementation outline");
+});
+
+test("edit project details with save", async ({ page }) => {
+  await page.getByRole("button", { name: "Project Detail", exact: true }).click();
+  const detail = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Project Detail" }) });
+
+  await detail.getByLabel("Title").fill("Updated project title");
+  await detail.getByLabel("Next Action").fill("Updated project next action");
+  await detail.getByRole("button", { name: "Save Project" }).click();
+
+  await expect(page.getByText("Project saved.")).toBeVisible();
+  await expect(detail.getByLabel("Title")).toHaveValue("Updated project title");
+  await expect(detail.getByLabel("Next Action")).toHaveValue("Updated project next action");
+});
+
+test("promoted project appears in engineering handoff", async ({ page }) => {
+  await createThought(page, "Handoff promoted project", "task");
+  await page.getByRole("button", { name: "Promote to Project" }).click();
+  await page.getByRole("button", { name: "Engineering Handoff" }).click();
+
+  await expect(page.locator(".handoff-card").filter({ hasText: "Handoff promoted project" })).toBeVisible();
+});
+
+test("project detail shows linked thoughts imported with app state", async ({ page }) => {
+  await loadAppState(page, {
+    universes: [
+      {
+        id: "u-linked",
+        name: "Linked Import Universe",
+        description: "Imported universe",
+        purpose: "Validate linked project import",
+        focus: "main"
+      }
+    ],
+    thoughts: [
+      {
+        id: "t-linked",
+        title: "Linked imported thought",
+        content: "Thought imported with project link.",
+        type: "project",
+        status: "active",
+        universeId: "u-linked",
+        why: "Validate linkedThoughtIds",
+        outcome: "Project detail shows the link",
+        nextAction: "Open project detail",
+        projectId: "p-linked",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    projects: [
+      {
+        id: "p-linked",
+        linkedThoughtIds: ["t-linked"],
+        universeId: "u-linked",
+        status: "active",
+        name: "Imported linked project",
+        intent: "Project imported with linked thoughts.",
+        users: ["Tester"],
+        features: ["Linked import"],
+        screens: ["Project Detail"],
+        dataObjects: ["Project", "ThoughtItem"],
+        flowSteps: ["Import", "View project"],
+        unknowns: [],
+        nextAction: "Verify linked thought display",
+        readiness: "ready_for_engineering",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    relationships: [],
+    aiInsights: []
+  });
+
+  await page.getByRole("button", { name: "Project Detail", exact: true }).click();
+  const detail = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Project Detail" }) });
+
+  await expect(detail.getByLabel("Title")).toHaveValue("Imported linked project");
+  await expect(detail.locator(".mini-list").filter({ hasText: "Linked Thoughts" }).getByText("Linked imported thought")).toBeVisible();
 });
 
 test("engineering handoff screen loads", async ({ page }) => {

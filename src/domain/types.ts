@@ -33,6 +33,7 @@ export interface ThoughtItem {
 export interface Project {
   id: string;
   sourceThoughtId?: string;
+  linkedThoughtIds?: string[];
   universeId: string;
   status: ProjectStatus;
   lifecycleStatus?: ProjectLifecycleStatus;

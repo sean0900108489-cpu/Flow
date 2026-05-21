@@ -21,8 +21,15 @@ import {
   type UniverseActionResult
 } from "./domain/universeActions";
 import { markProjectHandoffReady } from "./domain/engineeringHandoff";
+import {
+  createProject,
+  promoteThoughtToProject,
+  unlinkThoughtFromProject,
+  updateProjectDetails,
+  type ProjectActionResult,
+  type ProjectDetailsPatch
+} from "./domain/projectActions";
 import { id, now } from "./domain/utils";
-import { readiness } from "./domain/readiness";
 import { seed } from "./data/seed";
 import { loadState, saveState } from "./services/storage";
 import { applyAiInsightPatch } from "./services/applyAiPatch";
@@ -38,6 +45,7 @@ import {
   Export,
   Nav,
   ProjectDetail,
+  Projects,
   Relationships,
   ThoughtDetail,
   ThoughtList,
@@ -78,6 +86,14 @@ export function App() {
     return { ok: result.ok, error: result.error };
   };
 
+  const applyProjectResult = (result: ProjectActionResult) => {
+    if (result.ok) {
+      save(result.state);
+    }
+
+    return { ok: result.ok, error: result.error, projectId: result.projectId };
+  };
+
   const thought = state.thoughts.find((x) => x.id === selectedThoughtId) ?? state.thoughts[0];
   const project = state.projects.find((x) => x.id === selectedProjectId) ?? state.projects[0];
   const activeProjects = state.projects.filter((x) => x.status !== "archived");
@@ -96,16 +112,8 @@ export function App() {
     });
   };
 
-  const updateProject = (projectId: string, patch: Partial<Project>) => {
-    save({
-      ...state,
-      projects: state.projects.map((x) => {
-        if (x.id !== projectId) return x;
-        const next = { ...x, ...patch, updatedAt: now() };
-        return { ...next, readiness: readiness(next).value };
-      })
-    });
-  };
+  const updateProject = (projectId: string, patch: ProjectDetailsPatch) =>
+    applyProjectResult(updateProjectDetails(state, projectId, patch));
 
   const handleCreateUniverse = (input: { name: string; description?: string }) =>
     applyUniverseResult(createUniverse(state, input));
@@ -176,36 +184,37 @@ export function App() {
     setScreen("thought");
   };
 
-  const convertToProject = () => {
-    if (!thought) return;
-    const p: Project = {
-      id: id("project"),
-      sourceThoughtId: thought.id,
-      universeId: thought.universeId,
-      status: "active",
-      name: thought.title,
-      intent: thought.content || thought.outcome,
-      users: ["Sean / 創作者本人"],
-      features: thought.nextAction ? [thought.nextAction] : [],
-      screens: [],
-      dataObjects: ["ThoughtItem", "Universe", "Project"],
-      flowSteps: ["確認目標", "整理核心功能", "定義資料模型", "產生工程輸入"],
-      unknowns: [],
-      nextAction: thought.nextAction || "補上專案下一步。",
-      readiness: "needs_clarification",
-      createdAt: now(),
-      updatedAt: now()
-    };
-    p.readiness = readiness(p).value;
-    save({
-      ...state,
-      thoughts: state.thoughts.map((x) => x.id === thought.id ? { ...x, type: "project", status: "active", projectId: p.id, updatedAt: now() } : x),
-      projects: [p, ...state.projects],
-      relationships: [{ id: id("rel"), sourceId: thought.id, targetId: p.id, type: "evolves_into", description: "ThoughtItem 升級為 Project。" }, ...state.relationships]
-    });
-    setSelectedProjectId(p.id);
-    setScreen("project");
+  const handleCreateProject = (input: {
+    title: string;
+    description?: string;
+    universeId?: string;
+    nextAction?: string;
+    linkedThoughtIds?: string[];
+  }) => {
+    const result = createProject(state, input);
+    const applied = applyProjectResult(result);
+
+    if (applied.ok && applied.projectId) {
+      setSelectedProjectId(applied.projectId);
+    }
+
+    return applied;
   };
+
+  const handlePromoteThoughtToProject = (thoughtId: string) => {
+    const result = promoteThoughtToProject(state, thoughtId);
+    const applied = applyProjectResult(result);
+
+    if (applied.ok && applied.projectId) {
+      setSelectedProjectId(applied.projectId);
+      setScreen("project");
+    }
+
+    return applied;
+  };
+
+  const handleUnlinkThoughtFromProject = (projectId: string, thoughtId: string) =>
+    applyProjectResult(unlinkThoughtFromProject(state, projectId, thoughtId));
 
   const archiveThought = (thoughtId: string) => {
     save({
@@ -238,7 +247,16 @@ export function App() {
     save({
       ...state,
       thoughts: state.thoughts.filter((x) => x.id !== thoughtId),
-      projects: state.projects.map((x) => x.sourceThoughtId === thoughtId ? { ...x, sourceThoughtId: undefined, updatedAt: now() } : x),
+      projects: state.projects.map((x) =>
+        x.sourceThoughtId === thoughtId || x.linkedThoughtIds?.includes(thoughtId)
+          ? {
+              ...x,
+              sourceThoughtId: x.sourceThoughtId === thoughtId ? undefined : x.sourceThoughtId,
+              linkedThoughtIds: x.linkedThoughtIds?.filter((id) => id !== thoughtId),
+              updatedAt: now()
+            }
+          : x
+      ),
       relationships: state.relationships.filter((x) => x.sourceId !== thoughtId && x.targetId !== thoughtId),
       aiInsights: state.aiInsights.filter((x) => x.targetId !== thoughtId)
     });
@@ -369,9 +387,21 @@ export function App() {
             universes={thoughtUniverseOptions}
             onUpdate={(patch) => updateThought(thought.id, patch)}
             onAI={() => ai(thought.id)}
-            onConvert={convertToProject}
+            onPromote={() => handlePromoteThoughtToProject(thought.id)}
             onArchive={() => archiveThought(thought.id)}
             onDelete={() => deleteThought(thought.id)}
+          />
+        )}
+
+        {screen === "projects" && (
+          <Projects
+            projects={activeProjects}
+            universes={activeUniverses}
+            onCreate={handleCreateProject}
+            onViewProject={(projectId) => {
+              setSelectedProjectId(projectId);
+              setScreen("project");
+            }}
           />
         )}
 
@@ -379,10 +409,16 @@ export function App() {
           <ProjectDetail
             project={project}
             universes={projectUniverseOptions}
+            thoughts={state.thoughts}
             onUpdate={(patch) => updateProject(project.id, patch)}
             onAI={() => ai(project.id)}
             onArchive={() => archiveProject(project.id)}
             onDelete={() => deleteProject(project.id)}
+            onViewThought={(thoughtId) => {
+              setSelectedThoughtId(thoughtId);
+              setScreen("thought");
+            }}
+            onUnlinkThought={(thoughtId) => handleUnlinkThoughtFromProject(project.id, thoughtId)}
           />
         )}
 
