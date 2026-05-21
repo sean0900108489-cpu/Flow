@@ -1,10 +1,18 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
 });
+
+async function createThought(page: Page, title: string, type = "note") {
+  await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
+  await page.getByLabel("標題").fill(title);
+  await page.getByLabel("內容").fill(`${title} content`);
+  await page.getByLabel("類型").selectOption(type);
+  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+}
 
 test("dashboard renders core product areas", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Universe Dashboard" })).toBeVisible();
@@ -149,6 +157,60 @@ test("archived thought can be deleted from archived items", async ({ page }) => 
 
   await expect(page.getByText("Delete archived thought")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Archived Items", level: 1 })).toBeVisible();
+});
+
+test("thought search filters the idea inbox", async ({ page }) => {
+  await createThought(page, "Alpha search thought", "note");
+  await createThought(page, "Beta search thought", "note");
+
+  await page.getByRole("button", { name: "Idea Inbox" }).click();
+  const inbox = page.locator("main > div.panel").first();
+
+  await inbox.getByLabel("Search").fill("Alpha");
+
+  await expect(inbox.locator(".item strong", { hasText: "Alpha search thought" })).toBeVisible();
+  await expect(inbox.locator(".item strong", { hasText: "Beta search thought" })).toHaveCount(0);
+});
+
+test("thought type filter narrows the idea inbox", async ({ page }) => {
+  await createThought(page, "Task type filter thought", "task");
+  await createThought(page, "Note type filter thought", "note");
+
+  await page.getByRole("button", { name: "Idea Inbox" }).click();
+  const inbox = page.locator("main > div.panel").first();
+
+  await inbox.getByLabel("Search").fill("type filter");
+  await inbox.getByLabel("Type").selectOption("task");
+
+  await expect(inbox.locator(".item strong", { hasText: "Task type filter thought" })).toBeVisible();
+  await expect(inbox.locator(".item strong", { hasText: "Note type filter thought" })).toHaveCount(0);
+});
+
+test("thought sort title ascending orders visible results", async ({ page }) => {
+  await createThought(page, "Zebra sort thought", "note");
+  await createThought(page, "Apple sort thought", "note");
+
+  await page.getByRole("button", { name: "Idea Inbox" }).click();
+  const inbox = page.locator("main > div.panel").first();
+
+  await inbox.getByLabel("Search").fill("sort thought");
+  await inbox.getByLabel("Sort").selectOption("title_asc");
+
+  await expect(inbox.locator(".item strong").first()).toHaveText("Apple sort thought");
+});
+
+test("archived items search filters archived thoughts", async ({ page }) => {
+  await createThought(page, "Archived searchable thought", "note");
+  await page.getByRole("button", { name: "Archive Thought" }).click();
+
+  await page.getByRole("button", { name: "Archived Items" }).click();
+  const archivedThoughts = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Archived Thoughts" }) });
+
+  await archivedThoughts.getByLabel("Search").fill("archived searchable");
+  await expect(archivedThoughts.getByText("Archived searchable thought")).toBeVisible();
+
+  await archivedThoughts.getByLabel("Search").fill("nonsense");
+  await expect(archivedThoughts.getByText("Archived searchable thought")).toHaveCount(0);
 });
 
 test("mock AI creates draft insight and can accept it", async ({ page }) => {

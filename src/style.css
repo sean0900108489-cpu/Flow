@@ -286,6 +286,17 @@ header p,
   border: 1px solid rgba(255,255,255,0.095);
 }
 
+.list-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.7rem;
+  margin-bottom: 0.8rem;
+  padding: 0.8rem;
+  border-radius: 1rem;
+  background: rgba(255,255,255,0.045);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
 .row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

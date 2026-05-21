@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Brain, Search } from "lucide-react";
 import type { AppState, Project, ThoughtItem } from "./domain/types";
-import { typeLabel } from "./domain/labels";
+import { filterThoughts } from "./domain/listQuery";
 import { id, now } from "./domain/utils";
 import { readiness } from "./domain/readiness";
 import { seed } from "./data/seed";
@@ -44,11 +44,7 @@ export function App() {
   const archivedProjects = state.projects.filter((x) => x.status === "archived");
 
   const filteredThoughts = useMemo(() => {
-    const q = query.toLowerCase().trim();
-    if (!q) return state.thoughts;
-    return state.thoughts.filter((x) =>
-      `${x.title} ${x.content} ${x.nextAction} ${typeLabel[x.type]}`.toLowerCase().includes(q)
-    );
+    return filterThoughts(state.thoughts, { searchText: query });
   }, [query, state.thoughts]);
 
   const updateThought = (thoughtId: string, patch: Partial<ThoughtItem>) => {
@@ -261,6 +257,7 @@ export function App() {
           <ThoughtList
             thoughts={filteredThoughts.filter((x) => x.status === "inbox")}
             universes={state.universes}
+            showControls
             onSelect={(tid) => {
               setSelectedThoughtId(tid);
               setScreen("thought");
