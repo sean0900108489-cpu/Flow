@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Brain, Search } from "lucide-react";
 import type { AppState, BlockingQuestion, Project, ThoughtItem } from "./domain/types";
+import type { GlobalSearchResult } from "./domain/globalSearch";
 import { filterThoughts } from "./domain/listQuery";
 import {
   archiveBlockingQuestion,
@@ -74,6 +75,7 @@ import {
   DecisionRecordsCenter,
   EngineeringHandoffCenter,
   Export,
+  GlobalSearchCenter,
   Nav,
   NextActionCenter,
   ProjectDetail,
@@ -284,6 +286,62 @@ export function App() {
     }
 
     setScreen("decision-records");
+  };
+
+  const handleOpenGlobalSearchResult = (result: GlobalSearchResult) => {
+    if (result.type === "command" && result.targetId) {
+      setScreen(result.targetId);
+      return;
+    }
+
+    if (result.type === "thought" && result.targetId) {
+      setSelectedThoughtId(result.targetId);
+      setScreen("thought");
+      return;
+    }
+
+    if (result.type === "project" && result.targetId) {
+      setSelectedProjectId(result.targetId);
+      setScreen("project");
+      return;
+    }
+
+    if (result.type === "universe" && result.targetId) {
+      setSelectedUniverseId(result.targetId);
+      setScreen("universe-detail");
+      return;
+    }
+
+    if (result.type === "blocking_question") {
+      setScreen("blocking-questions");
+      return;
+    }
+
+    if (result.type === "decision_record") {
+      setScreen("decision-records");
+      return;
+    }
+
+    if (result.type === "relationship") {
+      setScreen("relationship-explorer");
+      return;
+    }
+
+    if (result.type === "next_action") {
+      if (result.targetType === "thought" && result.targetId) {
+        setSelectedThoughtId(result.targetId);
+        setScreen("thought");
+        return;
+      }
+
+      if (result.targetType === "project" && result.targetId) {
+        setSelectedProjectId(result.targetId);
+        setScreen("project");
+        return;
+      }
+
+      setScreen("next-actions");
+    }
   };
 
   const addThought = (data: Pick<ThoughtItem, "title" | "content" | "type" | "universeId">) => {
@@ -529,6 +587,13 @@ export function App() {
             setScreen={setScreen}
             selectThought={setSelectedThoughtId}
             selectProject={setSelectedProjectId}
+          />
+        )}
+
+        {screen === "global-search" && (
+          <GlobalSearchCenter
+            state={state}
+            onOpenGlobalSearchResult={handleOpenGlobalSearchResult}
           />
         )}
 

@@ -11,6 +11,7 @@ import {
   Network,
   Plus,
   Rocket,
+  Search,
   ScrollText,
   Wand2
 } from "lucide-react";
@@ -18,6 +19,7 @@ import {
 export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen: string) => void }) {
   const items = [
     ["dashboard", FolderKanban, "Dashboard"],
+    ["global-search", Search, "Global Search"],
     ["capture", Plus, "Quick Capture"],
     ["inbox", Inbox, "Idea Inbox"],
     ["thought-triage", ListChecks, "Thought Triage"],
@@ -52,6 +54,7 @@ export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen:
 export function title(screen: string) {
   return {
     dashboard: "Universe Dashboard",
+    "global-search": "Global Search Center",
     capture: "Quick Capture",
     inbox: "Idea Inbox",
     "thought-triage": "Thought Triage Center",

@@ -57,6 +57,10 @@ function triageCard(page: Page, title: string) {
   return page.locator(".triage-card").filter({ hasText: title });
 }
 
+function globalSearchResultCard(page: Page, title: string) {
+  return page.locator(".global-search-result-card").filter({ hasText: title });
+}
+
 async function loadAppState(page: Page, state: AppState) {
   await page.evaluate((nextState) => {
     localStorage.setItem("todo-thought-universe:v1", JSON.stringify(nextState));
@@ -75,13 +79,18 @@ async function createDecisionRecord(page: Page, title: string, decision = "Keep 
   await form.getByRole("button", { name: "Create Decision Record" }).click();
 }
 
-async function createProject(page: Page, title: string, description = "Project created for relationship explorer") {
+async function createProject(
+  page: Page,
+  title: string,
+  description = "Project created for relationship explorer",
+  nextAction = `Start ${title}`
+) {
   await page.getByRole("button", { name: "Projects", exact: true }).click();
   const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Project" }) });
 
   await form.getByLabel("Title").fill(title);
   await form.getByLabel("Description").fill(description);
-  await form.getByLabel("Next Action").fill(`Start ${title}`);
+  await form.getByLabel("Next Action").fill(nextAction);
   await form.getByRole("button", { name: "Create Project" }).click();
 }
 
@@ -1282,6 +1291,124 @@ test("relationship explorer view source and target navigate to details", async (
 
   await expect(page.getByRole("heading", { name: "Project Detail", level: 1 })).toBeVisible();
   await expect(page.getByLabel("Title")).toHaveValue("View target relationship project");
+});
+
+test("global search screen loads", async ({ page }) => {
+  await page.getByRole("button", { name: "Global Search", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "Global Search Center", level: 1 })).toBeVisible();
+  await expect(page.getByPlaceholder("Search everything")).toBeVisible();
+  await expect(page.getByText("Total results")).toBeVisible();
+});
+
+test("global search opens a thought result", async ({ page }) => {
+  await createThought(page, "Global searchable thought", "note");
+  await page.getByRole("button", { name: "Global Search", exact: true }).click();
+
+  await page.getByPlaceholder("Search everything").fill("Global searchable");
+
+  const card = globalSearchResultCard(page, "Global searchable thought");
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Open" }).click();
+
+  await expect(page.getByRole("heading", { name: "Thought Detail", level: 1 })).toBeVisible();
+  await expect(page.getByLabel("標題")).toHaveValue("Global searchable thought");
+});
+
+test("global search opens a project result", async ({ page }) => {
+  await createProject(
+    page,
+    "Global searchable project",
+    "Project visible through global search",
+    "Search project next step"
+  );
+  await page.getByRole("button", { name: "Global Search", exact: true }).click();
+
+  await page.getByPlaceholder("Search everything").fill("visible through global search");
+
+  const card = globalSearchResultCard(page, "Global searchable project");
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Open" }).click();
+
+  await expect(page.getByRole("heading", { name: "Project Detail", level: 1 })).toBeVisible();
+  await expect(page.getByLabel("Title")).toHaveValue("Global searchable project");
+});
+
+test("global search opens a universe result", async ({ page }) => {
+  await createUniverse(page, "Global searchable universe", "Universe visible in global finder");
+  await page.getByRole("button", { name: "Global Search", exact: true }).click();
+
+  await page.getByPlaceholder("Search everything").fill("global finder");
+
+  const card = globalSearchResultCard(page, "Global searchable universe");
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Open" }).click();
+
+  await expect(page.getByRole("heading", { name: "Universe Detail Center", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Global searchable universe" })).toBeVisible();
+});
+
+test("global search opens a decision record result", async ({ page }) => {
+  await createDecisionRecord(
+    page,
+    "Global searchable decision",
+    "This decision should appear in global search."
+  );
+  await page.getByRole("button", { name: "Global Search", exact: true }).click();
+
+  await page.getByPlaceholder("Search everything").fill("should appear in global search");
+
+  const card = globalSearchResultCard(page, "Global searchable decision");
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Open" }).click();
+
+  await expect(page.getByRole("heading", { name: "Decision Records Center", level: 1 })).toBeVisible();
+  await expect(decisionRecordCard(page, "Global searchable decision")).toBeVisible();
+});
+
+test("global search opens a command result", async ({ page }) => {
+  await page.getByRole("button", { name: "Global Search", exact: true }).click();
+
+  await page.getByPlaceholder("Search everything").fill("Open Next Action Center");
+
+  const card = globalSearchResultCard(page, "Open Next Action Center");
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Open" }).click();
+
+  await expect(page.getByRole("heading", { name: "Next Action Center", level: 1 })).toBeVisible();
+});
+
+test("global search type filter narrows results", async ({ page }) => {
+  await createThought(page, "Global filter thought", "note");
+  await createProject(page, "Global filter project", "Project for global type filter");
+  await page.getByRole("button", { name: "Global Search", exact: true }).click();
+
+  await page.getByPlaceholder("Search everything").fill("Global filter");
+  await page.getByLabel("Type filter").selectOption("project");
+
+  await expect(globalSearchResultCard(page, "Global filter project")).toBeVisible();
+  await expect(globalSearchResultCard(page, "Global filter thought")).toHaveCount(0);
+});
+
+test("global search universe filter narrows results", async ({ page }) => {
+  await createUniverse(page, "Search Filter Universe");
+  await createThought(page, "Universe filtered thought", "note", "Search Filter Universe");
+  await page.getByRole("button", { name: "Global Search", exact: true }).click();
+
+  await page.getByLabel("Universe filter").selectOption({ label: "Search Filter Universe" });
+
+  await expect(globalSearchResultCard(page, "Universe filtered thought")).toBeVisible();
+});
+
+test("dashboard links to global search", async ({ page }) => {
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+
+  const panel = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Global Search", exact: true }) });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Open Global Search" })).toBeVisible();
+
+  await panel.getByRole("button", { name: "Open Global Search" }).click();
+  await expect(page.getByRole("heading", { name: "Global Search Center", level: 1 })).toBeVisible();
 });
 
 test("app state transfer exports and imports full local state", async ({ page }) => {

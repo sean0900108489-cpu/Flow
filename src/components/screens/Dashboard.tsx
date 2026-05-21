@@ -72,6 +72,18 @@ export function Dashboard({
       <div className="panel">
         <div className="head">
           <div>
+            <h2>Global Search</h2>
+            <p className="muted">Open any thought, project, universe, decision, blocker, relationship, action, or command.</p>
+          </div>
+        </div>
+        <div className="actions">
+          <button className="ghost" onClick={() => setScreen("global-search")}>Open Global Search</button>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="head">
+          <div>
             <h2>Next Actions</h2>
             <p className="muted">{availableNextActions.length} available actions</p>
           </div>
