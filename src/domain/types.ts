@@ -4,6 +4,7 @@ export type ProjectStatus = "active" | "archived";
 export type ProjectLifecycleStatus = "planning" | "handoff_ready" | "blocked";
 export type UniverseStatus = "active" | "archived";
 export type Readiness = "not_ready" | "needs_clarification" | "draftable" | "ready_for_engineering";
+export type BlockingQuestionStatus = "open" | "in_review" | "resolved" | "archived";
 
 export interface Universe {
   id: string;
@@ -57,6 +58,20 @@ export interface Relationship {
   description: string;
 }
 
+export interface BlockingQuestion {
+  id: string;
+  question: string;
+  context?: string;
+  proposedResolution?: string;
+  finalResolution?: string;
+  status: BlockingQuestionStatus;
+  linkedThoughtIds?: string[];
+  linkedProjectIds?: string[];
+  linkedUniverseIds?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type AIInsightPatchOperation =
   | {
       type: "updateThought";
@@ -91,4 +106,5 @@ export interface AppState {
   projects: Project[];
   relationships: Relationship[];
   aiInsights: AIInsight[];
+  blockingQuestions?: BlockingQuestion[];
 }

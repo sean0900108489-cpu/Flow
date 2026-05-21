@@ -76,5 +76,45 @@ export const seed: AppState = {
       description: "AI 整理建議支援思想宇宙系統的核心體驗。"
     }
   ],
-  aiInsights: []
+  aiInsights: [],
+  blockingQuestions: [
+    {
+      id: "bq-thought-todo",
+      question: "ThoughtItem 和 TodoItem 是否應該分開？",
+      context: "目前 MVP 採用 TodoItem 不獨立，task 是 ThoughtItem 的一種 type。",
+      proposedResolution: "Keep TodoItem as ThoughtItem with type = task until task-specific workflow becomes complex.",
+      finalResolution: "TodoItem 不獨立，task 暫時維持為 ThoughtItem 的一種 type。",
+      status: "resolved",
+      linkedThoughtIds: ["t-1"],
+      linkedProjectIds: ["p-1"],
+      linkedUniverseIds: ["u-thought"],
+      createdAt: now(),
+      updatedAt: now()
+    },
+    {
+      id: "bq-universe-model",
+      question: "Universe 是標籤、資料夾，還是獨立物件？",
+      context: "目前 MVP 已將 Universe 實作為可管理的一級物件。",
+      proposedResolution: "Universe is an independent object that can group thoughts, projects, and relationships.",
+      finalResolution: "Universe 是可建立、編輯、封存、刪除的一級物件。",
+      status: "resolved",
+      linkedThoughtIds: ["t-1", "t-2"],
+      linkedProjectIds: ["p-1"],
+      linkedUniverseIds: ["u-thought", "u-ai"],
+      createdAt: now(),
+      updatedAt: now()
+    },
+    {
+      id: "bq-engineering-readiness",
+      question: "專案什麼時候可以進入工程階段？",
+      context: "目前 MVP 新增 Engineering Handoff Center，用 readiness 判斷 project 是否可交接。",
+      proposedResolution: "A project can enter engineering handoff when required fields, next action, universe context, and blockers are resolved.",
+      status: "in_review",
+      linkedThoughtIds: ["t-1"],
+      linkedProjectIds: ["p-1"],
+      linkedUniverseIds: ["u-thought"],
+      createdAt: now(),
+      updatedAt: now()
+    }
+  ]
 };

@@ -7,6 +7,7 @@ export { AIPanel } from "./components/screens/AIPanel";
 export { Relationships } from "./components/screens/Relationships";
 export { Export } from "./components/screens/Export";
 export { EngineeringHandoffCenter } from "./components/screens/EngineeringHandoffCenter";
+export { BlockingQuestionsCenter } from "./components/screens/BlockingQuestionsCenter";
 export { Universes } from "./components/screens/Universes";
 export { AppStateTransfer } from "./components/screens/AppStateTransfer";
 export { ArchivedItems } from "./components/screens/ArchivedItems";

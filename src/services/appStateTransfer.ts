@@ -23,6 +23,10 @@ export function validateAppState(value: unknown): AppStateImportResult {
     }
   }
 
+  if ("blockingQuestions" in value && value.blockingQuestions !== undefined && !Array.isArray(value.blockingQuestions)) {
+    return { ok: false, error: "Invalid array: blockingQuestions" };
+  }
+
   return { ok: true, state: value as unknown as AppState };
 }
 

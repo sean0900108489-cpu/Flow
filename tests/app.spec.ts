@@ -33,6 +33,10 @@ function universeCard(page: Page, name: string) {
   return page.locator(".card").filter({ has: page.locator("strong", { hasText: name }) });
 }
 
+function blockingQuestionCard(page: Page, question: string) {
+  return page.locator(".blocking-question-card").filter({ hasText: question });
+}
+
 async function loadAppState(page: Page, state: AppState) {
   await page.evaluate((nextState) => {
     localStorage.setItem("todo-thought-universe:v1", JSON.stringify(nextState));
@@ -250,6 +254,75 @@ test("blocking relationship makes project blocked", async ({ page }) => {
 
   await expect(blocked.locator(".handoff-card").filter({ hasText: "Ready Handoff Project" })).toBeVisible();
   await expect(blocked.getByText("blocked", { exact: true })).toBeVisible();
+});
+
+test("blocking questions screen loads with seed questions", async ({ page }) => {
+  await page.getByRole("button", { name: "Blocking Questions" }).click();
+
+  await expect(page.getByRole("heading", { name: "Blocking Questions Center", level: 1 })).toBeVisible();
+  await expect(page.getByText("ThoughtItem 和 TodoItem 是否應該分開？")).toBeVisible();
+  await expect(page.getByText("Universe 是標籤、資料夾，還是獨立物件？")).toBeVisible();
+  await expect(page.getByText("專案什麼時候可以進入工程階段？")).toBeVisible();
+});
+
+test("create blocking question adds an open question", async ({ page }) => {
+  await page.getByRole("button", { name: "Blocking Questions" }).click();
+  const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Blocking Question" }) });
+
+  await form.getByLabel("Question").fill("Should habits become a first-class object?");
+  await form.getByLabel("Context").fill("Habits may require recurring workflows.");
+  await form.getByRole("button", { name: "Create Blocking Question" }).click();
+
+  const card = blockingQuestionCard(page, "Should habits become a first-class object?");
+  await expect(card).toBeVisible();
+  await expect(card.locator(".badge", { hasText: "open" })).toBeVisible();
+});
+
+test("blocking questions search and filter", async ({ page }) => {
+  await page.getByRole("button", { name: "Blocking Questions" }).click();
+
+  await page.getByLabel("Search blocking questions").fill("Universe");
+
+  await expect(blockingQuestionCard(page, "Universe 是標籤、資料夾，還是獨立物件？")).toBeVisible();
+  await expect(blockingQuestionCard(page, "ThoughtItem 和 TodoItem 是否應該分開？")).toHaveCount(0);
+
+  await page.getByLabel("Status filter").selectOption("resolved");
+
+  await expect(blockingQuestionCard(page, "Universe 是標籤、資料夾，還是獨立物件？")).toBeVisible();
+});
+
+test("resolve blocking question records final resolution", async ({ page }) => {
+  await page.getByRole("button", { name: "Blocking Questions" }).click();
+  const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Blocking Question" }) });
+
+  await form.getByLabel("Question").fill("Should habits stay as thoughts?");
+  await form.getByLabel("Context").fill("Habits may require recurring workflows.");
+  await form.getByRole("button", { name: "Create Blocking Question" }).click();
+
+  const card = blockingQuestionCard(page, "Should habits stay as thoughts?");
+  await card.getByLabel("Final resolution").fill("Keep it as a thought subtype for now.");
+  await card.getByRole("button", { name: "Resolve" }).click();
+
+  await expect(card.locator(".badge", { hasText: "resolved" })).toBeVisible();
+  await expect(card.locator(".mini-list p", { hasText: "Keep it as a thought subtype for now." })).toBeVisible();
+});
+
+test("archive and delete blocking question", async ({ page }) => {
+  await page.getByRole("button", { name: "Blocking Questions" }).click();
+  const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Blocking Question" }) });
+
+  await form.getByLabel("Question").fill("Temporary blocking question");
+  await form.getByLabel("Context").fill("This question should be archived and deleted.");
+  await form.getByRole("button", { name: "Create Blocking Question" }).click();
+
+  const card = blockingQuestionCard(page, "Temporary blocking question");
+  await card.getByRole("button", { name: "Archive" }).click();
+  await expect(card.locator(".badge", { hasText: "archived" })).toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await card.getByRole("button", { name: "Delete" }).click();
+
+  await expect(blockingQuestionCard(page, "Temporary blocking question")).toHaveCount(0);
 });
 
 test("archived thought can be restored to inbox", async ({ page }) => {

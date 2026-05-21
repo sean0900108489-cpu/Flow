@@ -1,7 +1,15 @@
 import React, { useMemo, useState } from "react";
 import { Brain, Search } from "lucide-react";
-import type { AppState, Project, ThoughtItem } from "./domain/types";
+import type { AppState, BlockingQuestion, Project, ThoughtItem } from "./domain/types";
 import { filterThoughts } from "./domain/listQuery";
+import {
+  archiveBlockingQuestion,
+  createBlockingQuestion,
+  deleteBlockingQuestion,
+  resolveBlockingQuestion,
+  updateBlockingQuestion,
+  type BlockingQuestionActionResult
+} from "./domain/blockingQuestions";
 import {
   archiveUniverse,
   createUniverse,
@@ -23,6 +31,7 @@ import {
   AIPanel,
   AppStateTransfer,
   ArchivedItems,
+  BlockingQuestionsCenter,
   Capture,
   Dashboard,
   EngineeringHandoffCenter,
@@ -59,6 +68,14 @@ export function App() {
     setUniverseError("");
     save(result.state);
     return true;
+  };
+
+  const applyBlockingQuestionResult = (result: BlockingQuestionActionResult) => {
+    if (result.ok) {
+      save(result.state);
+    }
+
+    return { ok: result.ok, error: result.error };
   };
 
   const thought = state.thoughts.find((x) => x.id === selectedThoughtId) ?? state.thoughts[0];
@@ -124,6 +141,21 @@ export function App() {
 
     return { ok: result.ok, error: result.error };
   };
+
+  const handleCreateBlockingQuestion = (input: { question: string; context?: string }) =>
+    applyBlockingQuestionResult(createBlockingQuestion(state, input));
+
+  const handleUpdateBlockingQuestion = (questionId: string, patch: Partial<BlockingQuestion>) =>
+    applyBlockingQuestionResult(updateBlockingQuestion(state, questionId, patch));
+
+  const handleResolveBlockingQuestion = (questionId: string, finalResolution: string) =>
+    applyBlockingQuestionResult(resolveBlockingQuestion(state, questionId, finalResolution));
+
+  const handleArchiveBlockingQuestion = (questionId: string) =>
+    applyBlockingQuestionResult(archiveBlockingQuestion(state, questionId));
+
+  const handleDeleteBlockingQuestion = (questionId: string) =>
+    applyBlockingQuestionResult(deleteBlockingQuestion(state, questionId));
 
   const addThought = (data: Pick<ThoughtItem, "title" | "content" | "type" | "universeId">) => {
     const item: ThoughtItem = {
@@ -387,6 +419,17 @@ export function App() {
               setScreen("project");
             }}
             onMarkProjectHandoffReady={handleMarkProjectHandoffReady}
+          />
+        )}
+
+        {screen === "blocking-questions" && (
+          <BlockingQuestionsCenter
+            state={state}
+            onCreate={handleCreateBlockingQuestion}
+            onUpdate={handleUpdateBlockingQuestion}
+            onResolve={handleResolveBlockingQuestion}
+            onArchive={handleArchiveBlockingQuestion}
+            onDelete={handleDeleteBlockingQuestion}
           />
         )}
 

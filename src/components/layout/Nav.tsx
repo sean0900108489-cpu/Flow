@@ -1,6 +1,7 @@
 import {
   Archive,
   Brain,
+  CircleHelp,
   Download,
   FolderKanban,
   GitBranch,
@@ -21,6 +22,7 @@ export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen:
     ["ai", Wand2, "AI Planning Panel"],
     ["relationships", GitBranch, "Relationships"],
     ["engineering-handoff", Rocket, "Engineering Handoff"],
+    ["blocking-questions", CircleHelp, "Blocking Questions"],
     ["export", Download, "Engineering Export"],
     ["transfer", Download, "App State Transfer"],
     ["universes", FolderKanban, "Universes"]
@@ -49,6 +51,7 @@ export function title(screen: string) {
     ai: "AI Planning Panel",
     relationships: "Relationship Map",
     "engineering-handoff": "Engineering Handoff Center",
+    "blocking-questions": "Blocking Questions Center",
     export: "Engineering Handoff Export",
     transfer: "App State Transfer",
     universes: "Universe Management"

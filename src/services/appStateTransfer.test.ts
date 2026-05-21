@@ -24,6 +24,29 @@ describe("app state transfer", () => {
     expect(result.ok).toBe(true);
     expect(result.state?.projects[0].name).toBe("Todo Thought Universe MVP");
     expect(result.state?.projects[0].status).toBe("active");
+    expect(result.state?.blockingQuestions?.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("imports old state without blocking questions", () => {
+    const { blockingQuestions, ...oldState } = seed;
+    const result = parseAppStateJson(JSON.stringify(oldState));
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.blockingQuestions).toBeUndefined();
+  });
+
+  it("imports state with blocking questions", () => {
+    const result = parseAppStateJson(stringifyAppState(seed));
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.blockingQuestions?.[0].question).toContain("ThoughtItem");
+  });
+
+  it("exports blocking questions when present", () => {
+    const json = stringifyAppState(seed);
+
+    expect(json).toContain('"blockingQuestions"');
+    expect(json).toContain("Universe 是標籤、資料夾，還是獨立物件？");
   });
 
   it("round trips archived thought and project statuses", () => {
