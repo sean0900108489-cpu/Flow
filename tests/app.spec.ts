@@ -758,6 +758,118 @@ test("delete in-use universe is blocked", async ({ page }) => {
   await expect(card).toBeVisible();
 });
 
+test("view universe opens the universe detail center", async ({ page }) => {
+  await createUniverse(page, "Writing Universe");
+
+  await universeCard(page, "Writing Universe").getByRole("button", { name: "View Universe" }).click();
+
+  await expect(page.getByRole("heading", { name: "Universe Detail Center", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Writing Universe" })).toBeVisible();
+  await expect(page.getByText("Health score")).toBeVisible();
+});
+
+test("universe detail shows thoughts in the selected universe", async ({ page }) => {
+  await createUniverse(page, "Research Universe");
+  await createThought(page, "Research universe thought", "note", "Research Universe");
+
+  await page.getByRole("button", { name: "Universes" }).click();
+  await universeCard(page, "Research Universe").getByRole("button", { name: "View Universe" }).click();
+
+  const thoughts = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Thoughts in this universe" }) });
+
+  await expect(thoughts.locator(".universe-thought-card", { hasText: "Research universe thought" })).toBeVisible();
+});
+
+test("universe detail shows projects in the selected universe", async ({ page }) => {
+  await createUniverse(page, "Build Universe");
+  await page.getByRole("button", { name: "Projects", exact: true }).click();
+  const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Project" }) });
+
+  await form.getByLabel("Title").fill("Build universe project");
+  await form.getByLabel("Universe").selectOption({ label: "Build Universe" });
+  await form.getByLabel("Next Action").fill("Plan build kickoff");
+  await form.getByRole("button", { name: "Create Project" }).click();
+  await page.getByRole("button", { name: "Universes" }).click();
+  await universeCard(page, "Build Universe").getByRole("button", { name: "View Universe" }).click();
+
+  const projects = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Projects in this universe" }) });
+
+  await expect(projects.locator(".universe-project-card", { hasText: "Build universe project" })).toBeVisible();
+  await expect(projects.getByText("Plan build kickoff")).toBeVisible();
+});
+
+test("universe detail shows next actions in the selected universe", async ({ page }) => {
+  await createUniverse(page, "Action Universe");
+  await createThought(page, "Action universe thought", "task", "Action Universe");
+
+  await page.getByLabel("Next Action / 下一步").fill("Run the universe action");
+  await page.getByRole("button", { name: "Universes" }).click();
+  await universeCard(page, "Action Universe").getByRole("button", { name: "View Universe" }).click();
+
+  const actions = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Next actions in this universe" }) });
+
+  await expect(actions.locator(".universe-next-action-card", { hasText: "Action universe thought" })).toBeVisible();
+  await expect(actions.getByText("Run the universe action")).toBeVisible();
+});
+
+test("universe detail shows blocking questions linked to the universe", async ({ page }) => {
+  await loadAppState(page, {
+    universes: [
+      {
+        id: "u-blocked",
+        name: "Blocked Universe",
+        description: "Imported blocker universe",
+        purpose: "Test linked blockers",
+        focus: "main"
+      }
+    ],
+    thoughts: [],
+    projects: [],
+    relationships: [],
+    aiInsights: [],
+    blockingQuestions: [
+      {
+        id: "bq-blocked",
+        question: "What decision blocks this universe?",
+        status: "open",
+        linkedUniverseIds: ["u-blocked"],
+        proposedResolution: "Pick a direction.",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z"
+      }
+    ]
+  });
+
+  await page.getByRole("button", { name: "Universes" }).click();
+  await universeCard(page, "Blocked Universe").getByRole("button", { name: "View Universe" }).click();
+
+  const blockers = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Blocking questions in this universe" }) });
+
+  await expect(blockers.locator(".universe-blocking-question-card", { hasText: "What decision blocks this universe?" })).toBeVisible();
+  await expect(blockers.getByText("Pick a direction.")).toBeVisible();
+});
+
+test("universe detail copies universe JSON and shows package preview", async ({ page }) => {
+  await createUniverse(page, "Export Universe");
+
+  await universeCard(page, "Export Universe").getByRole("button", { name: "View Universe" }).click();
+  await page.getByRole("button", { name: "Copy Universe JSON" }).click();
+
+  await expect(page.getByText("Universe JSON copied")).toBeVisible();
+  await expect(page.locator("pre.json").first()).toContainText("UniversePackage");
+});
+
+test("universe detail shows empty states for an empty universe", async ({ page }) => {
+  await createUniverse(page, "Empty Universe");
+
+  await universeCard(page, "Empty Universe").getByRole("button", { name: "View Universe" }).click();
+
+  await expect(page.getByText("No thoughts in this universe.")).toBeVisible();
+  await expect(page.getByText("No projects in this universe.")).toBeVisible();
+  await expect(page.getByText("No next actions in this universe.")).toBeVisible();
+  await expect(page.getByText("No relationships in this universe.")).toBeVisible();
+});
+
 test("detach and delete in-use universe clears linked thought universe", async ({ page }) => {
   await createUniverse(page, "Detach Delete Universe");
   await createThought(page, "Thought linked to detachable universe", "note", "Detach Delete Universe");

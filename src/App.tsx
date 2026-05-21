@@ -63,6 +63,7 @@ import {
   ThoughtDetail,
   ThoughtList,
   ThoughtTriageCenter,
+  UniverseDetailCenter,
   Universes,
   title
 } from "./components";
@@ -73,6 +74,7 @@ export function App() {
   const [screen, setScreen] = useState("dashboard");
   const [selectedThoughtId, setSelectedThoughtId] = useState("t-1");
   const [selectedProjectId, setSelectedProjectId] = useState("p-1");
+  const [selectedUniverseId, setSelectedUniverseId] = useState("u-thought");
   const [query, setQuery] = useState("");
   const [universeError, setUniverseError] = useState("");
 
@@ -118,6 +120,7 @@ export function App() {
 
   const thought = state.thoughts.find((x) => x.id === selectedThoughtId) ?? state.thoughts[0];
   const project = state.projects.find((x) => x.id === selectedProjectId) ?? state.projects[0];
+  const selectedUniverse = state.universes.find((x) => x.id === selectedUniverseId) ?? state.universes[0];
   const activeProjects = state.projects.filter((x) => x.status !== "archived");
   const archivedThoughts = state.thoughts.filter((x) => x.status === "archived");
   const archivedProjects = state.projects.filter((x) => x.status === "archived");
@@ -160,6 +163,11 @@ export function App() {
   const handleDetachDeleteUniverse = (universeId: string) => {
     if (!window.confirm("Detach linked items and delete this universe?")) return;
     applyUniverseResult(deleteUniverse(state, universeId, "detach"));
+  };
+
+  const handleViewUniverse = (universeId: string) => {
+    setSelectedUniverseId(universeId);
+    setScreen("universe-detail");
   };
 
   const handleMarkProjectHandoffReady = (projectId: string) => {
@@ -540,6 +548,23 @@ export function App() {
           <Relationships state={state} />
         )}
 
+        {screen === "universe-detail" && (
+          <UniverseDetailCenter
+            state={state}
+            universeId={selectedUniverse?.id ?? ""}
+            onViewThought={(thoughtId) => {
+              setSelectedThoughtId(thoughtId);
+              setScreen("thought");
+            }}
+            onViewProject={(projectId) => {
+              setSelectedProjectId(projectId);
+              setScreen("project");
+            }}
+            onOpenNextActionCenter={() => setScreen("next-actions")}
+            onOpenBlockingQuestions={() => setScreen("blocking-questions")}
+          />
+        )}
+
         {screen === "engineering-handoff" && (
           <EngineeringHandoffCenter
             state={state}
@@ -573,6 +598,7 @@ export function App() {
               save(nextState);
               setSelectedThoughtId(nextState.thoughts[0]?.id ?? "");
               setSelectedProjectId(nextState.projects[0]?.id ?? "");
+              setSelectedUniverseId(nextState.universes[0]?.id ?? "");
               setScreen("dashboard");
             }}
           />
@@ -590,6 +616,7 @@ export function App() {
             onRestore={handleRestoreUniverse}
             onDelete={handleDeleteUniverse}
             onDetachDelete={handleDetachDeleteUniverse}
+            onViewUniverse={handleViewUniverse}
           />
         )}
 

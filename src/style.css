@@ -270,6 +270,10 @@ header p,
   margin-top: 0;
 }
 
+.universe-detail-metrics {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 .metric strong {
   display: block;
   font-size: 1.6rem;
@@ -459,6 +463,43 @@ header p,
   gap: 0.75rem;
 }
 
+.universe-title-line {
+  justify-content: flex-start;
+  margin-top: 0.5rem;
+}
+
+.universe-title-line h3 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.universe-health-card {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.universe-thought-card,
+.universe-project-card,
+.universe-next-action-card,
+.universe-blocking-question-card,
+.universe-relationship-card {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.universe-health-healthy {
+  background: rgba(34,197,94,0.22);
+}
+
+.universe-health-needs_attention {
+  background: rgba(245,158,11,0.22);
+}
+
+.universe-health-blocked {
+  background: rgba(239,68,68,0.22);
+}
+
 .question-status-open {
   background: rgba(59,130,246,0.22);
 }
@@ -591,6 +632,7 @@ header p,
   .metrics,
   .next-action-metrics,
   .triage-metrics,
+  .universe-detail-metrics,
   .triage-grid,
   .cards {
     grid-template-columns: 1fr;

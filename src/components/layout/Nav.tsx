@@ -56,6 +56,7 @@ export function title(screen: string) {
     thought: "Thought Detail",
     projects: "Projects",
     project: "Project Detail",
+    "universe-detail": "Universe Detail Center",
     ai: "AI Planning Panel",
     relationships: "Relationship Map",
     "engineering-handoff": "Engineering Handoff Center",

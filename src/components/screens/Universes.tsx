@@ -18,7 +18,8 @@ export function Universes({
   onArchive,
   onRestore,
   onDelete,
-  onDetachDelete
+  onDetachDelete,
+  onViewUniverse
 }: {
   universes: Universe[];
   thoughts: ThoughtItem[];
@@ -30,6 +31,7 @@ export function Universes({
   onRestore: (id: string) => void;
   onDelete: (id: string) => void;
   onDetachDelete: (id: string) => void;
+  onViewUniverse: (id: string) => void;
 }) {
   const [createName, setCreateName] = useState("");
   const [createDescription, setCreateDescription] = useState("");
@@ -110,6 +112,7 @@ export function Universes({
               </div>
 
               <div className="actions">
+                <button className="ghost" onClick={() => onViewUniverse(universe.id)}>View Universe</button>
                 <button className="ghost" onClick={() => onUpdate(universe.id, draft)}>Save</button>
                 {status === "active" ? (
                   <button className="ghost" onClick={() => onArchive(universe.id)}>Archive</button>
