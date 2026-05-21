@@ -29,6 +29,12 @@ import {
   type ProjectActionResult,
   type ProjectDetailsPatch
 } from "./domain/projectActions";
+import {
+  completeNextAction,
+  setNextActionForSource,
+  type NextActionItem,
+  type NextActionSourceType
+} from "./domain/nextActions";
 import { id, now } from "./domain/utils";
 import { seed } from "./data/seed";
 import { loadState, saveState } from "./services/storage";
@@ -44,6 +50,7 @@ import {
   EngineeringHandoffCenter,
   Export,
   Nav,
+  NextActionCenter,
   ProjectDetail,
   Projects,
   Relationships,
@@ -215,6 +222,46 @@ export function App() {
 
   const handleUnlinkThoughtFromProject = (projectId: string, thoughtId: string) =>
     applyProjectResult(unlinkThoughtFromProject(state, projectId, thoughtId));
+
+  const handleCompleteNextAction = (item: NextActionItem) => {
+    const result = completeNextAction(state, item);
+
+    if (result.ok) {
+      save(result.state);
+    }
+
+    return { ok: result.ok, error: result.error };
+  };
+
+  const handleSetNextActionForSource = (
+    sourceType: NextActionSourceType,
+    sourceId: string,
+    nextAction: string
+  ) => {
+    const result = setNextActionForSource(state, sourceType, sourceId, nextAction);
+
+    if (result.ok) {
+      save(result.state);
+    }
+
+    return { ok: result.ok, error: result.error };
+  };
+
+  const handleViewNextActionSource = (item: NextActionItem) => {
+    if (item.sourceType === "thought") {
+      setSelectedThoughtId(item.sourceId);
+      setScreen("thought");
+      return;
+    }
+
+    if (item.sourceType === "project") {
+      setSelectedProjectId(item.sourceId);
+      setScreen("project");
+      return;
+    }
+
+    setScreen("blocking-questions");
+  };
 
   const archiveThought = (thoughtId: string) => {
     save({
@@ -402,6 +449,16 @@ export function App() {
               setSelectedProjectId(projectId);
               setScreen("project");
             }}
+          />
+        )}
+
+        {screen === "next-actions" && (
+          <NextActionCenter
+            state={state}
+            universes={state.universes}
+            onCompleteNextAction={handleCompleteNextAction}
+            onSetNextActionForSource={handleSetNextActionForSource}
+            onViewSource={handleViewNextActionSource}
           />
         )}
 

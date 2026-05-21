@@ -6,6 +6,7 @@ import {
   FolderKanban,
   GitBranch,
   Inbox,
+  ListTodo,
   Plus,
   Rocket,
   Wand2
@@ -16,6 +17,7 @@ export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen:
     ["dashboard", FolderKanban, "Dashboard"],
     ["capture", Plus, "Quick Capture"],
     ["inbox", Inbox, "Idea Inbox"],
+    ["next-actions", ListTodo, "Next Actions"],
     ["archived", Archive, "Archived Items"],
     ["thought", Brain, "Thought Detail"],
     ["projects", FolderKanban, "Projects"],
@@ -46,6 +48,7 @@ export function title(screen: string) {
     dashboard: "Universe Dashboard",
     capture: "Quick Capture",
     inbox: "Idea Inbox",
+    "next-actions": "Next Action Center",
     archived: "Archived Items",
     thought: "Thought Detail",
     projects: "Projects",

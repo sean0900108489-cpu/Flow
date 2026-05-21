@@ -41,6 +41,10 @@ function projectCard(page: Page, title: string) {
   return page.locator(".project-card").filter({ hasText: title });
 }
 
+function nextActionCard(page: Page, title: string) {
+  return page.locator(".next-action-card").filter({ hasText: title });
+}
+
 async function loadAppState(page: Page, state: AppState) {
   await page.evaluate((nextState) => {
     localStorage.setItem("todo-thought-universe:v1", JSON.stringify(nextState));
@@ -109,7 +113,7 @@ test("dashboard renders core product areas", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Universe Dashboard" })).toBeVisible();
   await expect(page.getByText("我現在想做什麼？")).toBeVisible();
   await expect(page.locator("strong").filter({ hasText: "思想管理系統宇宙" })).toBeVisible();
-  await expect(page.getByText("Todo Thought Universe MVP")).toBeVisible();
+  await expect(page.getByText("Todo Thought Universe MVP").first()).toBeVisible();
 });
 
 test("quick capture creates a thought and redirects to Thought Detail", async ({ page }) => {
@@ -305,6 +309,105 @@ test("project detail shows linked thoughts imported with app state", async ({ pa
 
   await expect(detail.getByLabel("Title")).toHaveValue("Imported linked project");
   await expect(detail.locator(".mini-list").filter({ hasText: "Linked Thoughts" }).getByText("Linked imported thought")).toBeVisible();
+});
+
+test("next action center screen loads", async ({ page }) => {
+  await page.getByRole("button", { name: "Next Actions" }).click();
+
+  await expect(page.getByRole("heading", { name: "Next Action Center", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Focus Mode" })).toBeVisible();
+  await expect(page.getByText("Available actions")).toBeVisible();
+});
+
+test("thought next action appears in next action center", async ({ page }) => {
+  await createThought(page, "Thought with next action", "task");
+  await page.getByLabel("Next Action / 下一步").fill("Do the first thought step");
+  await page.getByRole("button", { name: "Next Actions" }).click();
+
+  const card = nextActionCard(page, "Thought with next action");
+
+  await expect(card).toBeVisible();
+  await expect(card.getByText("Do the first thought step")).toBeVisible();
+});
+
+test("complete thought next action clears the source action", async ({ page }) => {
+  await createThought(page, "Complete thought next action", "task");
+  await page.getByLabel("Next Action / 下一步").fill("Clear this thought action");
+  await page.getByRole("button", { name: "Next Actions" }).click();
+
+  const card = nextActionCard(page, "Complete thought next action");
+  page.once("dialog", (dialog) => dialog.accept());
+  await card.getByRole("button", { name: "Complete Action" }).click();
+
+  await expect(nextActionCard(page, "Complete thought next action")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Thought Detail", exact: true }).click();
+  await expect(page.getByLabel("Next Action / 下一步")).toHaveValue("");
+});
+
+test("project next action appears in next action center", async ({ page }) => {
+  await page.getByRole("button", { name: "Projects", exact: true }).click();
+  const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Project" }) });
+
+  await form.getByLabel("Title").fill("Project with next action");
+  await form.getByLabel("Next Action").fill("Do the first project step");
+  await form.getByRole("button", { name: "Create Project" }).click();
+  await page.getByRole("button", { name: "Next Actions" }).click();
+
+  const card = nextActionCard(page, "Project with next action");
+
+  await expect(card).toBeVisible();
+  await expect(card.getByText("Do the first project step")).toBeVisible();
+});
+
+test("blocking question appears in next action center", async ({ page }) => {
+  await page.getByRole("button", { name: "Blocking Questions" }).click();
+  const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Blocking Question" }) });
+
+  await form.getByLabel("Question").fill("What should block next execution?");
+  await form.getByLabel("Context").fill("Need a decision before building.");
+  await form.getByRole("button", { name: "Create Blocking Question" }).click();
+  await page.getByRole("button", { name: "Next Actions" }).click();
+
+  const card = nextActionCard(page, "What should block next execution?");
+
+  await expect(card).toBeVisible();
+  await expect(card.getByText("Resolve blocking question")).toBeVisible();
+});
+
+test("next action search and source filter", async ({ page }) => {
+  await createThought(page, "Thought source action", "task");
+  await page.getByLabel("Next Action / 下一步").fill("Do thought-only step");
+
+  await page.getByRole("button", { name: "Projects", exact: true }).click();
+  const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Project" }) });
+
+  await form.getByLabel("Title").fill("Project source action");
+  await form.getByLabel("Next Action").fill("Do project-only step");
+  await form.getByRole("button", { name: "Create Project" }).click();
+  await page.getByRole("button", { name: "Next Actions" }).click();
+
+  await page.getByLabel("Search next actions").fill("project");
+
+  await expect(nextActionCard(page, "Project source action")).toBeVisible();
+  await expect(nextActionCard(page, "Thought source action")).toHaveCount(0);
+
+  await page.getByLabel("Search next actions").fill("");
+  await page.getByLabel("Source filter").selectOption("project");
+
+  await expect(nextActionCard(page, "Project source action")).toBeVisible();
+  await expect(nextActionCard(page, "Thought source action")).toHaveCount(0);
+});
+
+test("dashboard shows next action summary", async ({ page }) => {
+  await createThought(page, "Dashboard next action thought", "task");
+  await page.getByLabel("Next Action / 下一步").fill("Start from dashboard summary");
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+
+  const panel = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Next Actions" }) });
+
+  await expect(panel.getByText("Dashboard next action thought")).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Open Next Action Center" })).toBeVisible();
 });
 
 test("engineering handoff screen loads", async ({ page }) => {
@@ -756,6 +859,6 @@ test("app state transfer exports and imports full local state", async ({ page })
 
   await expect(page.getByRole("heading", { name: "Universe Dashboard" })).toBeVisible();
   await expect(page.locator(".card strong", { hasText: "匯入宇宙" })).toBeVisible();
-  await expect(page.locator(".item strong", { hasText: "匯入專案" })).toBeVisible();
+  await expect(page.locator(".item strong", { hasText: "匯入專案" }).first()).toBeVisible();
   await expect(page.locator(".item strong", { hasText: "匯入想法" }).first()).toBeVisible();
 });

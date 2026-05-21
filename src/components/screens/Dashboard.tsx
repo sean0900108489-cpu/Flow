@@ -4,6 +4,7 @@ import { readiness } from "../../domain/readiness";
 import { readinessLabel } from "../../domain/labels";
 import type { ListSortBy } from "../../domain/listQuery";
 import { filterProjects, filterThoughts, sortProjects, sortThoughts } from "../../domain/listQuery";
+import { listNextActions } from "../../domain/nextActions";
 import { isUniverseActive, universeOptionsForItemUniverseIds } from "../../domain/universeActions";
 import { ListControls } from "../common/ListControls";
 import { Metric } from "../common/Metric";
@@ -32,6 +33,9 @@ export function Dashboard({
   const active = state.thoughts.filter((x) => x.status === "active");
   const inbox = state.thoughts.filter((x) => x.status === "inbox");
   const activeUniverses = state.universes.filter(isUniverseActive);
+  const nextActions = listNextActions(state);
+  const availableNextActions = nextActions.filter((action) => action.status === "available");
+  const firstAvailableAction = availableNextActions[0];
   const thoughtUniverseOptions = universeOptionsForItemUniverseIds(state.universes, active.map((thought) => thought.universeId));
   const projectUniverseOptions = universeOptionsForItemUniverseIds(state.universes, activeProjects.map((project) => project.universeId));
   const visibleActive = sortThoughts(
@@ -62,6 +66,26 @@ export function Dashboard({
           <Metric label="Active" value={active.length} />
           <Metric label="Universes" value={activeUniverses.length} />
           <Metric label="Projects" value={activeProjects.length} />
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="head">
+          <div>
+            <h2>Next Actions</h2>
+            <p className="muted">{availableNextActions.length} available actions</p>
+          </div>
+        </div>
+        {firstAvailableAction ? (
+          <button className="item" onClick={() => setScreen("next-actions")}>
+            <strong>{firstAvailableAction.title}</strong>
+            <span>{firstAvailableAction.actionText}</span>
+          </button>
+        ) : (
+          <div className="notice">No available next action.</div>
+        )}
+        <div className="actions">
+          <button className="ghost" onClick={() => setScreen("next-actions")}>Open Next Action Center</button>
         </div>
       </div>
 
