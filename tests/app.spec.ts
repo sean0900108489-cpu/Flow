@@ -61,6 +61,10 @@ function globalSearchResultCard(page: Page, title: string) {
   return page.locator(".global-search-result-card").filter({ hasText: title });
 }
 
+function reviewQueueCard(page: Page, title: string) {
+  return page.locator(".review-queue-card").filter({ hasText: title });
+}
+
 async function loadAppState(page: Page, state: AppState) {
   await page.evaluate((nextState) => {
     localStorage.setItem("todo-thought-universe:v1", JSON.stringify(nextState));
@@ -1409,6 +1413,114 @@ test("dashboard links to global search", async ({ page }) => {
 
   await panel.getByRole("button", { name: "Open Global Search" }).click();
   await expect(page.getByRole("heading", { name: "Global Search Center", level: 1 })).toBeVisible();
+});
+
+test("review queue screen loads", async ({ page }) => {
+  await page.getByRole("button", { name: "Review Queue", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "Review Queue Center", level: 1 })).toBeVisible();
+  await expect(page.getByPlaceholder("Search review queue")).toBeVisible();
+  await expect(page.getByText("Total pending")).toBeVisible();
+});
+
+test("review queue accepts an AI draft and applies its patch", async ({ page }) => {
+  await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
+
+  await page.getByLabel("標題").fill("Review queue AI idea");
+  await page.getByLabel("內容").fill("Build a structured planning app from an idea.");
+  await page.getByLabel("類型").selectOption("inspiration");
+  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+
+  await page.getByRole("button", { name: /AI Planning Panel/ }).click();
+  await page.getByRole("button", { name: "分析目前 Thought" }).click();
+
+  await page.getByRole("button", { name: "Review Queue", exact: true }).click();
+  const card = reviewQueueCard(page, "Review queue AI idea");
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Accept" }).click();
+  await expect(page.getByText("AI draft accepted.")).toBeVisible();
+  await expect(card).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Thought Detail", exact: true }).click();
+  await expect(page.getByLabel("Next Action / 下一步")).toHaveValue("Define the first concrete engineering step.");
+});
+
+test("review queue accepts and rejects proposed decisions with scoped card actions", async ({ page }) => {
+  await createDecisionRecord(page, "Review queue accepted decision", "Accept this proposed decision.");
+  await createDecisionRecord(page, "Review queue rejected decision", "Reject this proposed decision.");
+
+  await page.getByRole("button", { name: "Review Queue", exact: true }).click();
+
+  await reviewQueueCard(page, "Review queue accepted decision").getByRole("button", { name: "Accept" }).click();
+  await expect(reviewQueueCard(page, "Review queue accepted decision")).toHaveCount(0);
+
+  await reviewQueueCard(page, "Review queue rejected decision").getByRole("button", { name: "Reject" }).click();
+  await expect(reviewQueueCard(page, "Review queue rejected decision")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Decision Records", exact: true }).click();
+  await expect(decisionRecordCard(page, "Review queue accepted decision").locator(".badge", { hasText: "accepted" })).toBeVisible();
+  await expect(decisionRecordCard(page, "Review queue rejected decision").locator(".badge", { hasText: "superseded" })).toBeVisible();
+});
+
+test("review queue marks blocking questions reviewed", async ({ page }) => {
+  const state = handoffState({}, []);
+  state.projects = [];
+  state.blockingQuestions = [
+    {
+      id: "bq-review-queue",
+      question: "Review queue blocker?",
+      context: "This blocker is waiting for human review.",
+      proposedResolution: "Resolve it through the review queue.",
+      status: "in_review",
+      linkedUniverseIds: ["u-handoff"],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }
+  ];
+  state.decisionRecords = [];
+  await loadAppState(page, state);
+
+  await page.getByRole("button", { name: "Review Queue", exact: true }).click();
+
+  const card = reviewQueueCard(page, "Review queue blocker?");
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Mark Reviewed" }).click();
+  await expect(card).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Blocking Questions" }).click();
+  await expect(blockingQuestionCard(page, "Review queue blocker?").locator(".badge", { hasText: "resolved" })).toBeVisible();
+});
+
+test("review queue marks handoff candidates reviewed", async ({ page }) => {
+  await loadAppState(page, handoffState({}, []));
+
+  await page.getByRole("button", { name: "Review Queue", exact: true }).click();
+
+  const card = reviewQueueCard(page, "Ready Handoff Project");
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Mark Reviewed" }).click();
+  await expect(card).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Project Detail", exact: true }).click();
+  await expect(page.getByLabel("Lifecycle")).toHaveValue("handoff_ready");
+});
+
+test("review queue filters, dashboard link, and global search command work", async ({ page }) => {
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+  const dashboardPanel = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Review Queue", exact: true }) });
+  await expect(dashboardPanel.getByRole("button", { name: "Open Review Queue" })).toBeVisible();
+
+  await dashboardPanel.getByRole("button", { name: "Open Review Queue" }).click();
+  await expect(page.getByRole("heading", { name: "Review Queue Center", level: 1 })).toBeVisible();
+  await page.getByLabel("Review type filter").selectOption("blocking_question");
+  await expect(reviewQueueCard(page, "專案什麼時候可以進入工程階段？")).toBeVisible();
+
+  await page.getByRole("button", { name: "Global Search", exact: true }).click();
+  await page.getByPlaceholder("Search everything").fill("Open Review Queue");
+  const command = globalSearchResultCard(page, "Open Review Queue");
+  await expect(command).toBeVisible();
+  await command.getByRole("button", { name: "Open" }).click();
+  await expect(page.getByRole("heading", { name: "Review Queue Center", level: 1 })).toBeVisible();
 });
 
 test("app state transfer exports and imports full local state", async ({ page }) => {

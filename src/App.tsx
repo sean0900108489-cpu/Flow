@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Brain, Search } from "lucide-react";
 import type { AppState, BlockingQuestion, Project, ThoughtItem } from "./domain/types";
 import type { GlobalSearchResult } from "./domain/globalSearch";
+import type { ReviewQueueItem } from "./domain/reviewQueue";
 import { filterThoughts } from "./domain/listQuery";
 import {
   archiveBlockingQuestion,
@@ -81,6 +82,7 @@ import {
   ProjectDetail,
   Projects,
   RelationshipExplorer,
+  ReviewQueueCenter,
   Relationships,
   ThoughtDetail,
   ThoughtList,
@@ -344,6 +346,40 @@ export function App() {
     }
   };
 
+  const handleOpenReviewQueueItem = (item: ReviewQueueItem) => {
+    if (item.type === "ai_insight") {
+      if (item.targetType === "thought" && item.targetId) {
+        setSelectedThoughtId(item.targetId);
+        setScreen("thought");
+        return;
+      }
+
+      if (item.targetType === "project" && item.targetId) {
+        setSelectedProjectId(item.targetId);
+        setScreen("project");
+        return;
+      }
+
+      setScreen("ai");
+      return;
+    }
+
+    if (item.type === "decision_record") {
+      setScreen("decision-records");
+      return;
+    }
+
+    if (item.type === "blocking_question") {
+      setScreen("blocking-questions");
+      return;
+    }
+
+    if (item.type === "handoff_candidate") {
+      setSelectedProjectId(item.sourceId);
+      setScreen("project");
+    }
+  };
+
   const addThought = (data: Pick<ThoughtItem, "title" | "content" | "type" | "universeId">) => {
     const item: ThoughtItem = {
       id: id("thought"),
@@ -594,6 +630,19 @@ export function App() {
           <GlobalSearchCenter
             state={state}
             onOpenGlobalSearchResult={handleOpenGlobalSearchResult}
+          />
+        )}
+
+        {screen === "review-queue" && (
+          <ReviewQueueCenter
+            state={state}
+            onSetAiInsight={acceptAI}
+            onAcceptDecisionRecord={handleAcceptDecisionRecord}
+            onRejectDecisionRecord={handleSupersedeDecisionRecord}
+            onResolveBlockingQuestion={handleResolveBlockingQuestion}
+            onUpdateBlockingQuestion={handleUpdateBlockingQuestion}
+            onMarkProjectHandoffReady={handleMarkProjectHandoffReady}
+            onOpenReviewItem={handleOpenReviewQueueItem}
           />
         )}
 

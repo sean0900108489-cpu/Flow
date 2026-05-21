@@ -6,6 +6,7 @@ export { ProjectDetail } from "./components/screens/ProjectDetail";
 export { Projects } from "./components/screens/Projects";
 export { NextActionCenter } from "./components/screens/NextActionCenter";
 export { GlobalSearchCenter } from "./components/screens/GlobalSearchCenter";
+export { ReviewQueueCenter } from "./components/screens/ReviewQueueCenter";
 export { ThoughtTriageCenter } from "./components/screens/ThoughtTriageCenter";
 export { UniverseDetailCenter } from "./components/screens/UniverseDetailCenter";
 export { AIPanel } from "./components/screens/AIPanel";

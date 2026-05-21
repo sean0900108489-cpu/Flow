@@ -48,6 +48,7 @@ export type GlobalSearchResultCounts = {
 const commands: Array<{ id: string; title: string; screen: string; subtitle: string }> = [
   { id: "command:dashboard", title: "Open Dashboard", screen: "dashboard", subtitle: "Go to Universe Dashboard" },
   { id: "command:capture", title: "Open Quick Capture", screen: "capture", subtitle: "Capture a new thought" },
+  { id: "command:review-queue", title: "Open Review Queue", screen: "review-queue", subtitle: "Review drafts and pending decisions" },
   { id: "command:thought-triage", title: "Open Thought Triage", screen: "thought-triage", subtitle: "Review inbox thoughts" },
   { id: "command:next-actions", title: "Open Next Action Center", screen: "next-actions", subtitle: "Choose the next action" },
   { id: "command:projects", title: "Open Projects", screen: "projects", subtitle: "Manage projects" },

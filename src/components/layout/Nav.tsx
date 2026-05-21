@@ -2,6 +2,7 @@ import {
   Archive,
   Brain,
   CircleHelp,
+  ClipboardCheck,
   Download,
   FolderKanban,
   GitBranch,
@@ -20,6 +21,7 @@ export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen:
   const items = [
     ["dashboard", FolderKanban, "Dashboard"],
     ["global-search", Search, "Global Search"],
+    ["review-queue", ClipboardCheck, "Review Queue"],
     ["capture", Plus, "Quick Capture"],
     ["inbox", Inbox, "Idea Inbox"],
     ["thought-triage", ListChecks, "Thought Triage"],
@@ -55,6 +57,7 @@ export function title(screen: string) {
   return {
     dashboard: "Universe Dashboard",
     "global-search": "Global Search Center",
+    "review-queue": "Review Queue Center",
     capture: "Quick Capture",
     inbox: "Idea Inbox",
     "thought-triage": "Thought Triage Center",

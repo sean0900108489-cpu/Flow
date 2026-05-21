@@ -5,6 +5,7 @@ import { readinessLabel } from "../../domain/labels";
 import type { ListSortBy } from "../../domain/listQuery";
 import { filterProjects, filterThoughts, sortProjects, sortThoughts } from "../../domain/listQuery";
 import { listNextActions } from "../../domain/nextActions";
+import { buildReviewQueue } from "../../domain/reviewQueue";
 import { isUniverseActive, universeOptionsForItemUniverseIds } from "../../domain/universeActions";
 import { ListControls } from "../common/ListControls";
 import { Metric } from "../common/Metric";
@@ -36,6 +37,8 @@ export function Dashboard({
   const nextActions = listNextActions(state);
   const availableNextActions = nextActions.filter((action) => action.status === "available");
   const firstAvailableAction = availableNextActions[0];
+  const reviewQueue = buildReviewQueue(state);
+  const firstReviewItem = reviewQueue[0];
   const thoughtUniverseOptions = universeOptionsForItemUniverseIds(state.universes, active.map((thought) => thought.universeId));
   const projectUniverseOptions = universeOptionsForItemUniverseIds(state.universes, activeProjects.map((project) => project.universeId));
   const visibleActive = sortThoughts(
@@ -78,6 +81,26 @@ export function Dashboard({
         </div>
         <div className="actions">
           <button className="ghost" onClick={() => setScreen("global-search")}>Open Global Search</button>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="head">
+          <div>
+            <h2>Review Queue</h2>
+            <p className="muted">{reviewQueue.length} drafts, decisions, blockers, or handoffs need review</p>
+          </div>
+        </div>
+        {firstReviewItem ? (
+          <button className="item" onClick={() => setScreen("review-queue")}>
+            <strong>{firstReviewItem.title}</strong>
+            <span>{firstReviewItem.subtitle}</span>
+          </button>
+        ) : (
+          <div className="notice">No pending review items.</div>
+        )}
+        <div className="actions">
+          <button className="ghost" onClick={() => setScreen("review-queue")}>Open Review Queue</button>
         </div>
       </div>
 
