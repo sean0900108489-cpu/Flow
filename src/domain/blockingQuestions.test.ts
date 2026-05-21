@@ -4,7 +4,9 @@ import {
   archiveBlockingQuestion,
   createBlockingQuestion,
   deleteBlockingQuestion,
+  getBlockingQuestionSummary,
   listBlockingQuestions,
+  normalizeAppState,
   resolveBlockingQuestion,
   updateBlockingQuestion
 } from "./blockingQuestions";
@@ -86,6 +88,19 @@ describe("blocking questions", () => {
     expect(listBlockingQuestions(emptyState)).toEqual([]);
   });
 
+  it("initializes default core decision center questions for legacy state", () => {
+    const normalized = normalizeAppState(emptyState);
+
+    expect(normalized.blockingQuestions).toHaveLength(3);
+    expect(normalized.blockingQuestions?.map((question) => question.id)).toEqual([
+      "bq-thought-todo",
+      "bq-universe-model",
+      "bq-engineering-readiness"
+    ]);
+    expect(normalized.blockingQuestions?.[0].possibleOptions?.length).toBeGreaterThan(0);
+    expect(normalized.blockingQuestions?.[0].impactLevel).toBe("blocking");
+  });
+
   it("creates an open question", () => {
     const result = createBlockingQuestion(emptyState, { question: " Should goals be first-class? " });
 
@@ -112,6 +127,26 @@ describe("blocking questions", () => {
     expect(result.ok).toBe(true);
     expect(result.state.blockingQuestions?.[0].proposedResolution).toBe("Keep it simple.");
     expect(result.state.blockingQuestions?.[0].status).toBe("in_review");
+  });
+
+  it("updates decision note, impact, and preferred option", () => {
+    const state = normalizeAppState(emptyState);
+    const result = updateBlockingQuestion(state, "bq-engineering-readiness", {
+      status: "resolved",
+      impactLevel: "high",
+      decisionNote: "Engineering can start after the review queue has no blocking architecture items.",
+      preferredOptionId: "after-review-queue-confirms-minimum-architecture"
+    });
+
+    const question = result.state.blockingQuestions?.find((item) => item.id === "bq-engineering-readiness");
+
+    expect(result.ok).toBe(true);
+    expect(question).toMatchObject({
+      status: "resolved",
+      impactLevel: "high",
+      decisionNote: "Engineering can start after the review queue has no blocking architecture items.",
+      preferredOptionId: "after-review-queue-confirms-minimum-architecture"
+    });
   });
 
   it("resolves with a final resolution", () => {
@@ -149,6 +184,16 @@ describe("blocking questions", () => {
   it("searches case-insensitively", () => {
     expect(listBlockingQuestions(linkedState, { searchText: "ARCHITECTURE" })).toHaveLength(1);
     expect(listBlockingQuestions(linkedState, { searchText: "missing" })).toHaveLength(0);
+  });
+
+  it("summarizes unresolved blockers and engineering readiness", () => {
+    const summary = getBlockingQuestionSummary(normalizeAppState(emptyState));
+
+    expect(summary.openCount).toBe(1);
+    expect(summary.decidedCount).toBe(2);
+    expect(summary.allCoreDecided).toBe(false);
+    expect(summary.suggestedNextDecision?.id).toBe("bq-engineering-readiness");
+    expect(summary.readinessMessage).toContain("Not fully ready");
   });
 
   it("does not mutate original state", () => {

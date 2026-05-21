@@ -32,7 +32,12 @@ describe("app state transfer", () => {
     const result = parseAppStateJson(JSON.stringify(oldState));
 
     expect(result.ok).toBe(true);
-    expect(result.state?.blockingQuestions).toBeUndefined();
+    expect(result.state?.blockingQuestions?.map((question) => question.id)).toEqual([
+      "bq-thought-todo",
+      "bq-universe-model",
+      "bq-engineering-readiness"
+    ]);
+    expect(result.state?.blockingQuestions?.[0].possibleOptions?.length).toBeGreaterThan(0);
   });
 
   it("imports old state without decision records", () => {
@@ -43,7 +48,7 @@ describe("app state transfer", () => {
     const result = parseAppStateJson(JSON.stringify(oldState));
 
     expect(result.ok).toBe(true);
-    expect(result.state?.decisionRecords).toBeUndefined();
+    expect(result.state?.decisionRecords).toEqual([]);
   });
 
   it("imports state with blocking questions", () => {
@@ -51,6 +56,30 @@ describe("app state transfer", () => {
 
     expect(result.ok).toBe(true);
     expect(result.state?.blockingQuestions?.[0].question).toContain("ThoughtItem");
+    expect(result.state?.blockingQuestions?.[0].impactLevel).toBe("blocking");
+  });
+
+  it("migrates legacy blocking questions with decision center defaults", () => {
+    const result = parseAppStateJson(JSON.stringify({
+      ...seed,
+      blockingQuestions: [
+        {
+          id: "bq-engineering-readiness",
+          question: "專案什麼時候可以進入工程階段？",
+          status: "open",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z"
+        }
+      ]
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.blockingQuestions?.[0]).toMatchObject({
+      id: "bq-engineering-readiness",
+      impactLevel: "blocking",
+      preferredOptionId: "after-review-queue-confirms-minimum-architecture"
+    });
+    expect(result.state?.blockingQuestions?.[0].possibleOptions?.length).toBe(3);
   });
 
   it("imports state with decision records", () => {
@@ -77,6 +106,37 @@ describe("app state transfer", () => {
 
     expect(json).toContain('"blockingQuestions"');
     expect(json).toContain("Universe 是標籤、資料夾，還是獨立物件？");
+    expect(json).toContain('"possibleOptions"');
+    expect(json).toContain('"preferredOptionId"');
+  });
+
+  it("round trips decision note and preferred option", () => {
+    const json = stringifyAppState({
+      ...seed,
+      blockingQuestions: [
+        {
+          id: "bq-custom",
+          question: "Which option should be preferred?",
+          status: "open",
+          impactLevel: "high",
+          decisionNote: "Prefer the smallest reversible step.",
+          possibleOptions: [
+            { id: "small", label: "small step" },
+            { id: "large", label: "large step" }
+          ],
+          preferredOptionId: "small",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z"
+        }
+      ]
+    });
+    const result = parseAppStateJson(json);
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.blockingQuestions?.[0]).toMatchObject({
+      decisionNote: "Prefer the smallest reversible step.",
+      preferredOptionId: "small"
+    });
   });
 
   it("exports decision records when present", () => {

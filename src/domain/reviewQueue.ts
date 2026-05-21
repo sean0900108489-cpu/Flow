@@ -145,6 +145,8 @@ function decisionRecordItem(record: DecisionRecord): ReviewQueueItem | undefined
 }
 
 function blockingQuestionPriority(question: BlockingQuestion) {
+  if (question.impactLevel === "blocking") return 95;
+  if (question.impactLevel === "high") return 92;
   if (question.finalResolution || question.proposedResolution) return 90;
   if (question.status === "in_review") return 75;
   return 55;
@@ -160,7 +162,13 @@ function blockingQuestionItem(question: BlockingQuestion): ReviewQueueItem | und
     type: "blocking_question",
     title: `Blocking question: ${clean(question.question) || "Untitled question"}`,
     subtitle: "Needs user review",
-    body: [question.context, question.proposedResolution, question.finalResolution].filter(Boolean).join(" "),
+    body: [
+      question.context,
+      question.decisionNote,
+      question.proposedResolution,
+      question.finalResolution,
+      question.preferredOptionId
+    ].filter(Boolean).join(" "),
     status: question.status,
     sourceId: question.id,
     sourceType: "blocking_question",

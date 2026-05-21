@@ -5,6 +5,7 @@ export type ProjectLifecycleStatus = "planning" | "handoff_ready" | "blocked";
 export type UniverseStatus = "active" | "archived";
 export type Readiness = "not_ready" | "needs_clarification" | "draftable" | "ready_for_engineering";
 export type BlockingQuestionStatus = "open" | "in_review" | "resolved" | "archived";
+export type BlockingQuestionImpactLevel = "low" | "medium" | "high" | "blocking";
 export type DecisionRecordStatus = "proposed" | "accepted" | "superseded" | "archived";
 export type RelationshipNodeType = "thought" | "project" | "universe" | "blocking_question" | "decision_record";
 
@@ -63,6 +64,12 @@ export interface Relationship {
   description: string;
 }
 
+export interface BlockingQuestionOption {
+  id: string;
+  label: string;
+  description?: string;
+}
+
 export interface BlockingQuestion {
   id: string;
   question: string;
@@ -70,6 +77,10 @@ export interface BlockingQuestion {
   proposedResolution?: string;
   finalResolution?: string;
   status: BlockingQuestionStatus;
+  impactLevel?: BlockingQuestionImpactLevel;
+  decisionNote?: string;
+  possibleOptions?: BlockingQuestionOption[];
+  preferredOptionId?: string;
   linkedThoughtIds?: string[];
   linkedProjectIds?: string[];
   linkedUniverseIds?: string[];

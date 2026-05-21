@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { AppState, BlockingQuestion } from "../../domain/types";
+import { getBlockingQuestionSummary } from "../../domain/blockingQuestions";
 import {
   getReviewQueueCounts,
   searchReviewQueue,
@@ -170,7 +171,8 @@ export function ReviewQueueCenter({
   onResolveBlockingQuestion,
   onUpdateBlockingQuestion,
   onMarkProjectHandoffReady,
-  onOpenReviewItem
+  onOpenReviewItem,
+  onOpenDecisionCenter
 }: {
   state: AppState;
   onSetAiInsight: (id: string, status: "accepted" | "rejected") => void;
@@ -180,6 +182,7 @@ export function ReviewQueueCenter({
   onUpdateBlockingQuestion: (questionId: string, patch: Partial<BlockingQuestion>) => { ok: boolean; error?: string };
   onMarkProjectHandoffReady: (projectId: string) => { ok: boolean; error?: string };
   onOpenReviewItem: (item: ReviewQueueItem) => void;
+  onOpenDecisionCenter: () => void;
 }) {
   const [searchText, setSearchText] = useState("");
   const [type, setType] = useState<ReviewQueueItemType | "all">("all");
@@ -194,6 +197,7 @@ export function ReviewQueueCenter({
     [searchText, state, status, type, universeId]
   );
   const counts = getReviewQueueCounts(allItems);
+  const decisionSummary = useMemo(() => getBlockingQuestionSummary(state), [state]);
 
   return (
     <div className="stack">
@@ -210,6 +214,10 @@ export function ReviewQueueCenter({
           <Metric label="Decisions" value={counts.proposedDecisions} />
           <Metric label="Blockers" value={counts.blockingQuestions} />
           <Metric label="Handoff" value={counts.handoffCandidates} />
+          <Metric label="Open decisions" value={decisionSummary.openCount} />
+        </div>
+        <div className="actions review-queue-decision-link">
+          <button className="ghost" onClick={onOpenDecisionCenter}>Open Decision Center</button>
         </div>
       </section>
 

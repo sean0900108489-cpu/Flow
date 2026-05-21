@@ -643,6 +643,7 @@ export function App() {
             onUpdateBlockingQuestion={handleUpdateBlockingQuestion}
             onMarkProjectHandoffReady={handleMarkProjectHandoffReady}
             onOpenReviewItem={handleOpenReviewQueueItem}
+            onOpenDecisionCenter={() => setScreen("blocking-questions")}
           />
         )}
 

@@ -1,4 +1,5 @@
 import type { AppState } from "../domain/types";
+import { normalizeAppState } from "../domain/blockingQuestions";
 
 export interface AppStateImportResult {
   ok: boolean;
@@ -31,7 +32,7 @@ export function validateAppState(value: unknown): AppStateImportResult {
     return { ok: false, error: "Invalid array: decisionRecords" };
   }
 
-  return { ok: true, state: value as unknown as AppState };
+  return { ok: true, state: normalizeAppState(value as unknown as AppState) };
 }
 
 export function parseAppStateJson(json: string): AppStateImportResult {
@@ -46,7 +47,7 @@ export function parseAppStateJson(json: string): AppStateImportResult {
 }
 
 export function stringifyAppState(state: AppState): string {
-  return JSON.stringify(state, null, 2);
+  return JSON.stringify(normalizeAppState(state), null, 2);
 }
 
 export function downloadJson(filename: string, json: string) {

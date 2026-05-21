@@ -1,22 +1,19 @@
 import type { AppState } from "../domain/types";
 import { seed } from "../data/seed";
+import { normalizeAppState } from "../domain/blockingQuestions";
 
 export const STORAGE_KEY = "todo-thought-universe:v1";
 
 function normalizeState(state: AppState): AppState {
-  return {
-    ...state,
-    blockingQuestions: state.blockingQuestions ?? [],
-    decisionRecords: state.decisionRecords ?? []
-  };
+  return normalizeAppState(state);
 }
 
 export function loadState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? normalizeState(JSON.parse(raw) as AppState) : seed;
+    return raw ? normalizeState(JSON.parse(raw) as AppState) : normalizeState(seed);
   } catch {
-    return seed;
+    return normalizeState(seed);
   }
 }
 

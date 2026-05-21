@@ -1,11 +1,36 @@
 import { useMemo, useState } from "react";
-import type { AppState, BlockingQuestion, BlockingQuestionStatus } from "../../domain/types";
-import { listBlockingQuestions } from "../../domain/blockingQuestions";
+import type {
+  AppState,
+  BlockingQuestion,
+  BlockingQuestionImpactLevel,
+  BlockingQuestionStatus
+} from "../../domain/types";
+import {
+  getBlockingQuestionSummary,
+  listBlockingQuestions
+} from "../../domain/blockingQuestions";
+import { Metric } from "../common/Metric";
 
 const statuses: Array<BlockingQuestionStatus | "all"> = ["all", "open", "in_review", "resolved", "archived"];
+const editableStatuses: BlockingQuestionStatus[] = ["open", "in_review", "resolved", "archived"];
+const impactLevels: BlockingQuestionImpactLevel[] = ["low", "medium", "high", "blocking"];
+
+function statusLabel(status: BlockingQuestionStatus | "all") {
+  return {
+    all: "All statuses",
+    open: "open",
+    in_review: "exploring",
+    resolved: "decided",
+    archived: "archived"
+  }[status];
+}
 
 function linkedCountLabel(label: string, count: number) {
   return `${label}: ${count}`;
+}
+
+function preferredOptionLabel(question: BlockingQuestion) {
+  return question.possibleOptions?.find((option) => option.id === question.preferredOptionId)?.label;
 }
 
 function BlockingQuestionCard({
@@ -30,6 +55,10 @@ function BlockingQuestionCard({
   const [proposedResolution, setProposedResolution] = useState(question.proposedResolution ?? "");
   const [finalResolution, setFinalResolution] = useState(question.finalResolution ?? "");
   const [status, setStatus] = useState<BlockingQuestionStatus>(question.status);
+  const [impactLevel, setImpactLevel] = useState<BlockingQuestionImpactLevel>(question.impactLevel ?? "medium");
+  const [decisionNote, setDecisionNote] = useState(question.decisionNote ?? "");
+  const [preferredOptionId, setPreferredOptionId] = useState(question.preferredOptionId ?? "");
+  const preferredLabel = preferredOptionLabel(question);
 
   const applyResult = (result: { ok: boolean; error?: string }) => {
     onError(result.ok ? "" : result.error ?? "Blocking question action failed.");
@@ -37,7 +66,14 @@ function BlockingQuestionCard({
   };
 
   const save = () => {
-    applyResult(onUpdate(question.id, { proposedResolution, finalResolution, status }));
+    applyResult(onUpdate(question.id, {
+      proposedResolution,
+      finalResolution,
+      status,
+      impactLevel,
+      decisionNote,
+      preferredOptionId: preferredOptionId || undefined
+    }));
   };
 
   const resolve = () => {
@@ -72,6 +108,31 @@ function BlockingQuestionCard({
         <span className={`badge question-status-${question.status}`}>{question.status}</span>
       </div>
       {question.context && <p>{question.context}</p>}
+      <div className="chips">
+        <span className={`decision-impact-${question.impactLevel ?? "medium"}`}>Impact: {question.impactLevel ?? "medium"}</span>
+        {preferredLabel && <span>Preferred: {preferredLabel}</span>}
+        <span>Updated: {question.updatedAt.slice(0, 10)}</span>
+      </div>
+      {question.decisionNote && (
+        <div className="mini-list">
+          <strong>Decision note</strong>
+          <p>{question.decisionNote}</p>
+        </div>
+      )}
+      {question.possibleOptions && question.possibleOptions.length > 0 && (
+        <div className="mini-list">
+          <strong>Possible options</strong>
+          <ul>
+            {question.possibleOptions.map((option) => (
+              <li key={option.id}>
+                <strong>{option.label}</strong>
+                {option.id === question.preferredOptionId && " (preferred)"}
+                {option.description && <span> - {option.description}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {question.proposedResolution && (
         <div className="mini-list">
           <strong>Proposed resolution</strong>
@@ -90,6 +151,27 @@ function BlockingQuestionCard({
         <span>{linkedCountLabel("Linked universes", question.linkedUniverseIds?.length ?? 0)}</span>
       </div>
       <label>
+        Decision note / current thinking
+        <textarea
+          value={decisionNote}
+          onChange={(event) => setDecisionNote(event.target.value)}
+          placeholder="Write the current decision thinking."
+        />
+      </label>
+      <label>
+        Preferred option
+        <select
+          aria-label="Preferred option"
+          value={preferredOptionId}
+          onChange={(event) => setPreferredOptionId(event.target.value)}
+        >
+          <option value="">No preferred option</option>
+          {(question.possibleOptions ?? []).map((option) => (
+            <option key={option.id} value={option.id}>{option.label}</option>
+          ))}
+        </select>
+      </label>
+      <label>
         Proposed resolution
         <textarea value={proposedResolution} onChange={(event) => setProposedResolution(event.target.value)} />
       </label>
@@ -100,10 +182,21 @@ function BlockingQuestionCard({
       <label>
         Status
         <select value={status} onChange={(event) => setStatus(event.target.value as BlockingQuestionStatus)}>
-          <option value="open">open</option>
-          <option value="in_review">in_review</option>
-          <option value="resolved">resolved</option>
-          <option value="archived">archived</option>
+          {editableStatuses.map((item) => (
+            <option key={item} value={item}>{statusLabel(item)}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Impact level
+        <select
+          aria-label="Impact level"
+          value={impactLevel}
+          onChange={(event) => setImpactLevel(event.target.value as BlockingQuestionImpactLevel)}
+        >
+          {impactLevels.map((item) => (
+            <option key={item} value={item}>{item}</option>
+          ))}
         </select>
       </label>
       <div className="actions">
@@ -147,6 +240,7 @@ export function BlockingQuestionsCenter({
     () => listBlockingQuestions(state, { searchText, status }),
     [searchText, state, status]
   );
+  const summary = useMemo(() => getBlockingQuestionSummary(state), [state]);
 
   const create = () => {
     const result = onCreate({ question: newQuestion, context: newContext });
@@ -166,8 +260,33 @@ export function BlockingQuestionsCenter({
       <section className="panel hero">
         <div className="head">
           <div>
-            <h2>Blocking Questions Center</h2>
-            <p className="muted">Track unresolved product and architecture questions before they block execution.</p>
+            <h2>Decision Center</h2>
+            <p className="muted">Track blocking questions, current options, and decisions before engineering handoff.</p>
+          </div>
+        </div>
+        <div className="metrics decision-center-metrics">
+          <Metric label="Open blockers" value={summary.openCount} />
+          <Metric label="Decided" value={summary.decidedCount} />
+          <Metric label="Core decided" value={summary.allCoreDecided ? "Yes" : "No"} />
+          <Metric label="Unresolved" value={summary.unresolvedCount} />
+        </div>
+      </section>
+
+      <section className="panel decision-summary-card">
+        <div className="head">
+          <div>
+            <h2>Decision Summary</h2>
+            <p className="muted">{summary.readinessMessage}</p>
+          </div>
+        </div>
+        <div className="grid two">
+          <div className="mini-list">
+            <strong>Highest impact unresolved question</strong>
+            <p>{summary.highestImpactUnresolved?.question ?? "No unresolved blocking question."}</p>
+          </div>
+          <div className="mini-list">
+            <strong>Suggested next decision</strong>
+            <p>{summary.suggestedNextDecision?.question ?? "Review engineering readiness as the next phase."}</p>
           </div>
         </div>
       </section>
@@ -191,7 +310,7 @@ export function BlockingQuestionsCenter({
               onChange={(event) => setStatus(event.target.value as BlockingQuestionStatus | "all")}
             >
               {statuses.map((item) => (
-                <option key={item} value={item}>{item === "all" ? "All statuses" : item}</option>
+                <option key={item} value={item}>{statusLabel(item)}</option>
               ))}
             </select>
           </label>

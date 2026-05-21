@@ -54,7 +54,7 @@ const commands: Array<{ id: string; title: string; screen: string; subtitle: str
   { id: "command:projects", title: "Open Projects", screen: "projects", subtitle: "Manage projects" },
   { id: "command:universes", title: "Open Universes", screen: "universes", subtitle: "Manage universes" },
   { id: "command:archived", title: "Open Archived Items", screen: "archived", subtitle: "Restore or delete archived items" },
-  { id: "command:blocking-questions", title: "Open Blocking Questions", screen: "blocking-questions", subtitle: "Review blockers" },
+  { id: "command:blocking-questions", title: "Open Decision Center", screen: "blocking-questions", subtitle: "Review blockers and core decisions" },
   { id: "command:decision-records", title: "Open Decision Records", screen: "decision-records", subtitle: "Review decisions" },
   { id: "command:engineering-handoff", title: "Open Engineering Handoff", screen: "engineering-handoff", subtitle: "Review handoff readiness" },
   { id: "command:relationship-explorer", title: "Open Relationship Explorer", screen: "relationship-explorer", subtitle: "Inspect impact map" },

@@ -590,10 +590,43 @@ test("blocking relationship makes project blocked", async ({ page }) => {
 test("blocking questions screen loads with seed questions", async ({ page }) => {
   await page.getByRole("button", { name: "Blocking Questions" }).click();
 
-  await expect(page.getByRole("heading", { name: "Blocking Questions Center", level: 1 })).toBeVisible();
-  await expect(page.getByText("ThoughtItem 和 TodoItem 是否應該分開？")).toBeVisible();
-  await expect(page.getByText("Universe 是標籤、資料夾，還是獨立物件？")).toBeVisible();
-  await expect(page.getByText("專案什麼時候可以進入工程階段？")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Decision Center", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Decision Summary" })).toBeVisible();
+  await expect(page.getByText("Not fully ready for engineering")).toBeVisible();
+  await expect(blockingQuestionCard(page, "ThoughtItem 和 TodoItem 是否應該分開？")).toBeVisible();
+  await expect(blockingQuestionCard(page, "Universe 是標籤、資料夾，還是獨立物件？")).toBeVisible();
+  const engineeringCard = blockingQuestionCard(page, "專案什麼時候可以進入工程階段？");
+  await expect(engineeringCard).toBeVisible();
+  await expect(engineeringCard.getByText("Preferred: after review queue confirms minimum architecture")).toBeVisible();
+});
+
+test("decision center edits status note and preferred option across reload", async ({ page }) => {
+  await page.getByRole("button", { name: "Blocking Questions" }).click();
+  const card = blockingQuestionCard(page, "專案什麼時候可以進入工程階段？");
+
+  await card.getByLabel("Decision note / current thinking").fill("Engineering can begin after the minimum architecture review clears.");
+  await card.getByLabel("Preferred option").selectOption("after-review-queue-confirms-minimum-architecture");
+  await card.getByLabel("Status").selectOption("resolved");
+  await card.getByRole("button", { name: "Save" }).click();
+
+  await expect(card.locator(".badge", { hasText: "resolved" })).toBeVisible();
+  await expect(
+    card.locator(".mini-list", { hasText: "Decision note" }).locator("p", {
+      hasText: "Engineering can begin after the minimum architecture review clears."
+    })
+  ).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Blocking Questions" }).click();
+  const reloadedCard = blockingQuestionCard(page, "專案什麼時候可以進入工程階段？");
+
+  await expect(reloadedCard.getByLabel("Decision note / current thinking")).toHaveValue(
+    "Engineering can begin after the minimum architecture review clears."
+  );
+  await expect(reloadedCard.getByLabel("Preferred option")).toHaveValue(
+    "after-review-queue-confirms-minimum-architecture"
+  );
+  await expect(reloadedCard.locator(".badge", { hasText: "resolved" })).toBeVisible();
 });
 
 test("create blocking question adds an open question", async ({ page }) => {
@@ -994,7 +1027,7 @@ test("universe detail shows blocking questions linked to the universe", async ({
 
   const blockers = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Blocking questions in this universe" }) });
 
-  await expect(blockers.locator(".universe-blocking-question-card", { hasText: "What decision blocks this universe?" })).toBeVisible();
+  await expect(blockers.getByText("What decision blocks this universe?")).toBeVisible();
   await expect(blockers.getByText("Pick a direction.")).toBeVisible();
 });
 
@@ -1512,8 +1545,13 @@ test("review queue filters, dashboard link, and global search command work", asy
 
   await dashboardPanel.getByRole("button", { name: "Open Review Queue" }).click();
   await expect(page.getByRole("heading", { name: "Review Queue Center", level: 1 })).toBeVisible();
+  await expect(page.getByText("Open decisions")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Decision Center" })).toBeVisible();
   await page.getByLabel("Review type filter").selectOption("blocking_question");
   await expect(reviewQueueCard(page, "專案什麼時候可以進入工程階段？")).toBeVisible();
+
+  await page.getByRole("button", { name: "Open Decision Center" }).click();
+  await expect(page.getByRole("heading", { name: "Decision Center", level: 1 })).toBeVisible();
 
   await page.getByRole("button", { name: "Global Search", exact: true }).click();
   await page.getByPlaceholder("Search everything").fill("Open Review Queue");

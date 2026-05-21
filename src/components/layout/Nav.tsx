@@ -71,7 +71,7 @@ export function title(screen: string) {
     relationships: "Relationship Map",
     "relationship-explorer": "Relationship Explorer",
     "engineering-handoff": "Engineering Handoff Center",
-    "blocking-questions": "Blocking Questions Center",
+    "blocking-questions": "Decision Center",
     "decision-records": "Decision Records Center",
     export: "Engineering Handoff Export",
     transfer: "App State Transfer",
