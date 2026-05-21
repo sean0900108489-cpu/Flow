@@ -11,6 +11,7 @@ import { generateProjectReadinessInsight, generateThoughtClassificationInsight }
 import {
   AIPanel,
   AppStateTransfer,
+  ArchivedItems,
   Capture,
   Dashboard,
   Export,
@@ -39,6 +40,8 @@ export function App() {
   const thought = state.thoughts.find((x) => x.id === selectedThoughtId) ?? state.thoughts[0];
   const project = state.projects.find((x) => x.id === selectedProjectId) ?? state.projects[0];
   const activeProjects = state.projects.filter((x) => x.status !== "archived");
+  const archivedThoughts = state.thoughts.filter((x) => x.status === "archived");
+  const archivedProjects = state.projects.filter((x) => x.status === "archived");
 
   const filteredThoughts = useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -124,7 +127,18 @@ export function App() {
     setScreen("dashboard");
   };
 
-  const deleteThought = (thoughtId: string) => {
+  const visibleThoughts = filteredThoughts.filter((x) => x.status !== "archived");
+
+  const restoreThought = (thoughtId: string) => {
+    save({
+      ...state,
+      thoughts: state.thoughts.map((x) => x.id === thoughtId && x.status === "archived"
+        ? { ...x, status: "inbox", updatedAt: now() }
+        : x)
+    });
+  };
+
+  const deleteThought = (thoughtId: string, nextScreen = "dashboard") => {
     if (!window.confirm("Delete this thought?")) return;
 
     save({
@@ -135,7 +149,7 @@ export function App() {
       aiInsights: state.aiInsights.filter((x) => x.targetId !== thoughtId)
     });
     setSelectedThoughtId(state.thoughts.find((x) => x.id !== thoughtId)?.id ?? "");
-    setScreen("dashboard");
+    setScreen(nextScreen);
   };
 
   const archiveProject = (projectId: string) => {
@@ -146,7 +160,16 @@ export function App() {
     setScreen("dashboard");
   };
 
-  const deleteProject = (projectId: string) => {
+  const restoreProject = (projectId: string) => {
+    save({
+      ...state,
+      projects: state.projects.map((x) => x.id === projectId && x.status === "archived"
+        ? { ...x, status: "active", updatedAt: now() }
+        : x)
+    });
+  };
+
+  const deleteProject = (projectId: string, nextScreen = "dashboard") => {
     if (!window.confirm("Delete this project?")) return;
 
     save({
@@ -157,7 +180,7 @@ export function App() {
       aiInsights: state.aiInsights.filter((x) => x.targetId !== projectId)
     });
     setSelectedProjectId(state.projects.find((x) => x.id !== projectId)?.id ?? "");
-    setScreen("dashboard");
+    setScreen(nextScreen);
   };
 
   const ai = (targetId: string) => {
@@ -268,6 +291,18 @@ export function App() {
           />
         )}
 
+        {screen === "archived" && (
+          <ArchivedItems
+            thoughts={archivedThoughts}
+            projects={archivedProjects}
+            universes={state.universes}
+            onRestoreThought={restoreThought}
+            onDeleteThought={(thoughtId) => deleteThought(thoughtId, "archived")}
+            onRestoreProject={restoreProject}
+            onDeleteProject={(projectId) => deleteProject(projectId, "archived")}
+          />
+        )}
+
         {screen === "ai" && (
           <AIPanel
             insights={state.aiInsights}
@@ -318,7 +353,7 @@ export function App() {
           <h2>所有想法</h2>
           <ThoughtList
             compact
-            thoughts={filteredThoughts}
+            thoughts={visibleThoughts}
             universes={state.universes}
             onSelect={(tid) => {
               setSelectedThoughtId(tid);

@@ -1,4 +1,5 @@
 import {
+  Archive,
   Brain,
   Download,
   FolderKanban,
@@ -14,6 +15,7 @@ export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen:
     ["dashboard", FolderKanban, "Dashboard"],
     ["capture", Plus, "Quick Capture"],
     ["inbox", Inbox, "Idea Inbox"],
+    ["archived", Archive, "Archived Items"],
     ["thought", Brain, "Thought Detail"],
     ["project", Rocket, "Project Detail"],
     ["ai", Wand2, "AI Planning Panel"],
@@ -40,6 +42,7 @@ export function title(screen: string) {
     dashboard: "Universe Dashboard",
     capture: "Quick Capture",
     inbox: "Idea Inbox",
+    archived: "Archived Items",
     thought: "Thought Detail",
     project: "Project Detail",
     ai: "AI Planning Panel",

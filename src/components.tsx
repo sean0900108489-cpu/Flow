@@ -8,6 +8,7 @@ export { Relationships } from "./components/screens/Relationships";
 export { Export } from "./components/screens/Export";
 export { Universes } from "./components/screens/Universes";
 export { AppStateTransfer } from "./components/screens/AppStateTransfer";
+export { ArchivedItems } from "./components/screens/ArchivedItems";
 export { ThoughtList } from "./components/common/ThoughtList";
 export { Metric } from "./components/common/Metric";
 export { EmptyState } from "./components/common/EmptyState";

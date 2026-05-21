@@ -55,6 +55,12 @@ button.danger {
   color: #fecaca;
 }
 
+button.restore {
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(74, 222, 128, 0.38);
+  color: #bbf7d0;
+}
+
 button.full {
   width: 100%;
 }
@@ -264,6 +270,20 @@ header p,
 .compact {
   display: grid;
   gap: 0.75rem;
+}
+
+.archive-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.archive-card {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.9rem;
+  border-radius: 1rem;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.095);
 }
 
 .row {

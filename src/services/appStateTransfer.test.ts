@@ -26,6 +26,20 @@ describe("app state transfer", () => {
     expect(result.state?.projects[0].status).toBe("active");
   });
 
+  it("round trips archived thought and project statuses", () => {
+    const json = stringifyAppState({
+      ...seed,
+      thoughts: seed.thoughts.map((thought, index) => index === 0 ? { ...thought, status: "archived" } : thought),
+      projects: seed.projects.map((project, index) => index === 0 ? { ...project, status: "archived" } : project)
+    });
+
+    const result = parseAppStateJson(json);
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.thoughts[0].status).toBe("archived");
+    expect(result.state?.projects[0].status).toBe("archived");
+  });
+
   it("round trips AIInsight patches and legacy insights without patches", () => {
     const json = stringifyAppState({
       ...seed,

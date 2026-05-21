@@ -94,6 +94,63 @@ test("project delete removes project without deleting linked thought", async ({ 
   await expect(page.locator("strong", { hasText: "做一個不是普通 todo list 的思想宇宙網站" }).first()).toBeVisible();
 });
 
+test("archived thought can be restored to inbox", async ({ page }) => {
+  await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
+
+  await page.getByLabel("標題").fill("Restorable archived thought");
+  await page.getByLabel("內容").fill("This thought should leave archive when restored.");
+  await page.getByLabel("類型").selectOption("task");
+  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+
+  await page.getByRole("button", { name: "Archive Thought" }).click();
+  await page.getByRole("button", { name: "Archived Items" }).click();
+
+  await expect(page.getByRole("heading", { name: "Archived Items", level: 1 })).toBeVisible();
+  await expect(page.getByText("Restorable archived thought")).toBeVisible();
+
+  await page.getByRole("button", { name: "Restore Thought" }).click();
+  await expect(page.locator("main > section").first().getByText("Restorable archived thought")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Idea Inbox" }).click();
+  const inboxList = page.locator("main > div.panel").first();
+  await expect(inboxList.locator(".item strong", { hasText: "Restorable archived thought" })).toBeVisible();
+});
+
+test("archived project can be restored to active dashboard projects", async ({ page }) => {
+  await page.getByRole("button", { name: /Project Detail/ }).click();
+  await page.getByRole("button", { name: "Archive Project" }).click();
+  await page.getByRole("button", { name: "Archived Items" }).click();
+
+  await expect(page.getByRole("heading", { name: "Archived Items", level: 1 })).toBeVisible();
+  await expect(page.getByText("Todo Thought Universe MVP")).toBeVisible();
+
+  await page.getByRole("button", { name: "Restore Project" }).click();
+  await expect(page.locator("main > section").first().getByText("Todo Thought Universe MVP")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Dashboard" }).click();
+  const projectsPanel = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Projects" }) });
+  await expect(projectsPanel.getByText("Todo Thought Universe MVP")).toBeVisible();
+});
+
+test("archived thought can be deleted from archived items", async ({ page }) => {
+  await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
+
+  await page.getByLabel("標題").fill("Delete archived thought");
+  await page.getByLabel("內容").fill("This archived thought should be deleted.");
+  await page.getByLabel("類型").selectOption("note");
+  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+
+  await page.getByRole("button", { name: "Archive Thought" }).click();
+  await page.getByRole("button", { name: "Archived Items" }).click();
+  await expect(page.getByText("Delete archived thought")).toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Delete Thought" }).click();
+
+  await expect(page.getByText("Delete archived thought")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Archived Items", level: 1 })).toBeVisible();
+});
+
 test("mock AI creates draft insight and can accept it", async ({ page }) => {
   await page.getByRole("button", { name: /AI Planning Panel/ }).click();
 
