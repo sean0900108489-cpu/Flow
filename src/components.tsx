@@ -19,6 +19,7 @@ export { BlockingQuestionsCenter } from "./components/screens/BlockingQuestionsC
 export { DecisionRecordsCenter } from "./components/screens/DecisionRecordsCenter";
 export { Universes } from "./components/screens/Universes";
 export { AppStateTransfer } from "./components/screens/AppStateTransfer";
+export { DeploymentStatus } from "./components/screens/DeploymentStatus";
 export { ArchivedItems } from "./components/screens/ArchivedItems";
 export { ThoughtList } from "./components/common/ThoughtList";
 export { Metric } from "./components/common/Metric";

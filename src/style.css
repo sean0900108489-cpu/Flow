@@ -296,6 +296,11 @@ header p,
   grid-template-columns: repeat(6, 1fr);
 }
 
+.deployment-metrics,
+.deployment-data-metrics {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 .decision-center-metrics {
   grid-template-columns: repeat(4, 1fr);
   margin-top: 0;
@@ -595,6 +600,7 @@ header p,
 .relationship-explorer-card,
 .global-search-result-card,
 .review-queue-card,
+.deployment-readiness-card,
 .orphan-card {
   display: grid;
   gap: 0.75rem;
@@ -756,6 +762,10 @@ header p,
   margin-bottom: 0.9rem;
 }
 
+.app-notice {
+  margin-bottom: 0;
+}
+
 .insight.accepted {
   border-color: rgba(34,197,94,0.4);
 }
@@ -809,6 +819,8 @@ header p,
     .global-search-metrics,
     .review-queue-metrics,
     .engineering-readiness-metrics,
+    .deployment-metrics,
+    .deployment-data-metrics,
     .decision-center-metrics,
     .triage-grid,
   .cards {

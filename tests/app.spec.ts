@@ -1620,6 +1620,35 @@ test("review queue filters, dashboard link, and global search command work", asy
   await expect(page.getByRole("heading", { name: "Review Queue Center", level: 1 })).toBeVisible();
 });
 
+test("production routes open centers directly and survive reload", async ({ page }) => {
+  const routes = [
+    { path: "/review-queue", heading: "Review Queue Center" },
+    { path: "/blocking-questions", heading: "Decision Center" },
+    { path: "/engineering-readiness", heading: "Engineering Readiness Center" },
+    { path: "/next-actions", heading: "Next Action Center" },
+    { path: "/deployment-status", heading: "Deployment Status" }
+  ];
+
+  for (const route of routes) {
+    await page.goto(route.path);
+    await expect(page.getByRole("heading", { name: route.heading, level: 1 })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: route.heading, level: 1 })).toBeVisible();
+  }
+});
+
+test("deployment status screen renders app info and readiness summary", async ({ page }) => {
+  await page.getByRole("button", { name: "Deployment Status" }).click();
+
+  await expect(page.getByRole("heading", { name: "Deployment Status", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "App Info" })).toBeVisible();
+  await expect(page.getByText("Todo Thought Universe", { exact: true })).toBeVisible();
+  await expect(page.getByText("todo-thought-universe:v1")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Production Readiness Summary" })).toBeVisible();
+  await expect(page.locator(".deployment-readiness-card").filter({ hasText: "Build ready" })).toBeVisible();
+  await expect(page.locator(".deployment-readiness-card").filter({ hasText: "Next action system available" })).toBeVisible();
+});
+
 test("app state transfer exports and imports full local state", async ({ page }) => {
   await page.getByRole("button", { name: /App State Transfer/ }).click();
 
@@ -1680,6 +1709,7 @@ test("app state transfer exports and imports full local state", async ({ page })
   await page.getByRole("button", { name: "匯入並覆蓋目前資料" }).click();
 
   await expect(page.getByRole("heading", { name: "Universe Dashboard" })).toBeVisible();
+  await expect(page.getByText("App State imported successfully.")).toBeVisible();
   await expect(page.locator(".card strong", { hasText: "匯入宇宙" })).toBeVisible();
   await expect(page.locator(".item strong", { hasText: "匯入專案" }).first()).toBeVisible();
   await expect(page.locator(".item strong", { hasText: "匯入想法" }).first()).toBeVisible();

@@ -6,6 +6,7 @@ import {
   Download,
   FolderKanban,
   Gauge,
+  Info,
   GitBranch,
   Inbox,
   ListChecks,
@@ -40,6 +41,7 @@ export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen:
     ["decision-records", ScrollText, "Decision Records"],
     ["export", Download, "Engineering Export"],
     ["transfer", Download, "App State Transfer"],
+    ["deployment-status", Info, "Deployment Status"],
     ["universes", FolderKanban, "Universes"]
   ] as const;
 
@@ -78,6 +80,7 @@ export function title(screen: string) {
     "decision-records": "Decision Records Center",
     export: "Engineering Handoff Export",
     transfer: "App State Transfer",
+    "deployment-status": "Deployment Status",
     universes: "Universe Management"
   }[screen] ?? "Thought Universe";
 }

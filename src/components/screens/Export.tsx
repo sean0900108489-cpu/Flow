@@ -1,9 +1,14 @@
+import { useState } from "react";
 import type { Project, Universe } from "../../domain/types";
 import { engineeringInput } from "../../services/exportEngineeringInput";
 
 export function Export({ project, universe }: { project: Project; universe?: Universe }) {
+  const [message, setMessage] = useState("");
   const json = JSON.stringify(engineeringInput(project, universe), null, 2);
-  const copy = () => navigator.clipboard.writeText(json);
+  const copy = async () => {
+    await navigator.clipboard.writeText(json);
+    setMessage("EngineeringFlowInput JSON copied.");
+  };
   const download = () => {
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -12,6 +17,7 @@ export function Export({ project, universe }: { project: Project; universe?: Uni
     a.download = `${project.name.replace(/\s+/g, "-").toLowerCase()}-engineering-flow-input.json`;
     a.click();
     URL.revokeObjectURL(url);
+    setMessage("EngineeringFlowInput JSON download started.");
   };
   return (
     <section className="panel">
@@ -25,7 +31,8 @@ export function Export({ project, universe }: { project: Project; universe?: Uni
           <button onClick={download}>下載 JSON</button>
         </div>
       </div>
-      <div className="notice">For project-by-project readiness review, use Engineering Handoff.</div>
+      <div className="notice">Project-by-project export keeps the EngineeringFlowInput schema stable for handoff.</div>
+      {message && <div className="notice">{message}</div>}
       <pre className="json">{json}</pre>
     </section>
   );

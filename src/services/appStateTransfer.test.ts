@@ -233,6 +233,45 @@ describe("app state transfer", () => {
     });
   });
 
+  it("round trips all production readiness center data together", () => {
+    const json = stringifyAppState({
+      ...seed,
+      decisionRecords: [
+        {
+          id: "decision-production",
+          title: "Production keeps local-first storage",
+          decision: "Keep localStorage as the first production persistence layer.",
+          status: "accepted",
+          createdAt: "2026-05-21T00:00:00.000Z",
+          updatedAt: "2026-05-21T00:00:00.000Z"
+        }
+      ],
+      engineeringReadiness: {
+        note: "Ready for production deployment checks.",
+        manualConfidence: "high",
+        targetPhase: "engineering",
+        lastReviewedAt: "2026-05-21T00:00:00.000Z",
+        updatedAt: "2026-05-21T00:00:00.000Z"
+      },
+      nextActionState: {
+        savedActionIds: ["project:p-1"],
+        selectedFocusActionId: "project:p-1",
+        dismissedActionIds: [],
+        manualNote: "Deploy after build, test, and e2e pass.",
+        manualConfidence: "high",
+        focusMode: "build",
+        lastReviewedAt: "2026-05-21T00:00:00.000Z",
+        updatedAt: "2026-05-21T00:00:00.000Z"
+      }
+    });
+    const result = parseAppStateJson(json);
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.decisionRecords?.[0].title).toBe("Production keeps local-first storage");
+    expect(result.state?.engineeringReadiness?.targetPhase).toBe("engineering");
+    expect(result.state?.nextActionState?.selectedFocusActionId).toBe("project:p-1");
+  });
+
   it("imports legacy relationships without source or target types", () => {
     const result = parseAppStateJson(JSON.stringify(seed));
 

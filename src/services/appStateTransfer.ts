@@ -36,6 +36,10 @@ export function validateAppState(value: unknown): AppStateImportResult {
     return { ok: false, error: "Invalid object: nextActionState" };
   }
 
+  if ("engineeringReadiness" in value && value.engineeringReadiness !== undefined && !isRecord(value.engineeringReadiness)) {
+    return { ok: false, error: "Invalid object: engineeringReadiness" };
+  }
+
   return { ok: true, state: normalizeAppState(value as unknown as AppState) };
 }
 

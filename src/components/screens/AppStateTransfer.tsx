@@ -31,6 +31,7 @@ export function AppStateTransfer({
       return;
     }
 
+    setImportText("");
     onImport(result.state);
   };
 
@@ -39,7 +40,10 @@ export function AppStateTransfer({
       <div className="head">
         <div>
           <h2>App State Transfer</h2>
-          <p className="muted">匯出或匯入完整 local-first app state，包含 universes、thoughts、projects、relationships、aiInsights。</p>
+          <p className="muted">
+            匯出或匯入完整 local-first app state，包含 universes、thoughts、projects、relationships、aiInsights、
+            Decision Center、Review Queue、Engineering Readiness 與 Next Action state。
+          </p>
         </div>
         <div className="actions">
           <button className="ghost" onClick={copy}>複製 App State</button>
@@ -55,7 +59,7 @@ export function AppStateTransfer({
           <textarea
             value={importText}
             onChange={(event) => setImportText(event.target.value)}
-            placeholder="貼上 todo-thought-universe-app-state.json 內容..."
+            placeholder="貼上 todo-thought-universe-app-state.json 內容，匯入前會驗證必要 collections 並套用 migration/defaults..."
           />
         </label>
         <button onClick={runImport}>匯入並覆蓋目前資料</button>

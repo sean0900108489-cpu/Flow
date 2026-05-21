@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Brain, Search } from "lucide-react";
 import type { AppState, BlockingQuestion, Project, ThoughtItem } from "./domain/types";
 import type { GlobalSearchResult } from "./domain/globalSearch";
 import type { ReviewQueueItem } from "./domain/reviewQueue";
 import { filterThoughts } from "./domain/listQuery";
+import { pathForScreen, screenForPath } from "./domain/appRouting";
 import {
   archiveBlockingQuestion,
   createBlockingQuestion,
@@ -84,6 +85,7 @@ import {
   Capture,
   Dashboard,
   DecisionRecordsCenter,
+  DeploymentStatus,
   EngineeringHandoffCenter,
   EngineeringReadinessCenter,
   Export,
@@ -106,12 +108,35 @@ import "./style.css";
 
 export function App() {
   const [state, setState] = useState<AppState>(() => loadState());
-  const [screen, setScreen] = useState("dashboard");
+  const [screen, setScreen] = useState(() =>
+    typeof window === "undefined" ? "dashboard" : screenForPath(window.location.pathname)
+  );
   const [selectedThoughtId, setSelectedThoughtId] = useState("t-1");
   const [selectedProjectId, setSelectedProjectId] = useState("p-1");
   const [selectedUniverseId, setSelectedUniverseId] = useState("u-thought");
   const [query, setQuery] = useState("");
   const [universeError, setUniverseError] = useState("");
+  const [systemMessage, setSystemMessage] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const path = pathForScreen(screen);
+
+    if (window.location.pathname !== path) {
+      window.history.replaceState(null, "", path);
+    }
+  }, [screen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const onPopState = () => setScreen(screenForPath(window.location.pathname));
+
+    window.addEventListener("popstate", onPopState);
+
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   const save = (next: AppState) => {
     setState(next);
@@ -675,6 +700,8 @@ export function App() {
           </label>
         </header>
 
+        {systemMessage && <div className="notice app-notice">{systemMessage}</div>}
+
         {screen === "dashboard" && (
           <Dashboard
             state={state}
@@ -909,9 +936,14 @@ export function App() {
               setSelectedThoughtId(nextState.thoughts[0]?.id ?? "");
               setSelectedProjectId(nextState.projects[0]?.id ?? "");
               setSelectedUniverseId(nextState.universes[0]?.id ?? "");
+              setSystemMessage("App State imported successfully. Decision, readiness, and next action data were normalized.");
               setScreen("dashboard");
             }}
           />
+        )}
+
+        {screen === "deployment-status" && (
+          <DeploymentStatus state={state} />
         )}
 
         {screen === "universes" && (
