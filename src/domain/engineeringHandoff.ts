@@ -59,7 +59,9 @@ function projectRelationships(project: Project, thoughts: ThoughtItem[], state: 
 
 function hasBlockingRelationship(project: Project, state: AppState) {
   return state.relationships.some((relationship) =>
-    relationship.type === "blocks" && relationship.targetId === project.id
+    relationship.type === "blocks" &&
+    relationship.targetId === project.id &&
+    (relationship.targetType === undefined || relationship.targetType === "project")
   );
 }
 

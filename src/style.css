@@ -278,6 +278,10 @@ header p,
   grid-template-columns: repeat(4, 1fr);
 }
 
+.relationship-explorer-metrics {
+  grid-template-columns: repeat(5, 1fr);
+}
+
 .metric strong {
   display: block;
   font-size: 1.6rem;
@@ -522,9 +526,27 @@ header p,
 }
 
 .decision-record-card,
-.decision-source-question-card {
+.decision-source-question-card,
+.relationship-explorer-card,
+.orphan-card {
   display: grid;
   gap: 0.75rem;
+}
+
+.relationship-arrow {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #93c5fd;
+  font-weight: 900;
+}
+
+.relationship-arrow::before,
+.relationship-arrow::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(147,197,253,0.28);
 }
 
 .decision-status-proposed {
@@ -657,10 +679,11 @@ header p,
   .grid.two,
   .row,
   .metrics,
-  .next-action-metrics,
-  .triage-metrics,
-  .universe-detail-metrics,
-  .triage-grid,
+    .next-action-metrics,
+    .triage-metrics,
+    .universe-detail-metrics,
+    .relationship-explorer-metrics,
+    .triage-grid,
   .cards {
     grid-template-columns: 1fr;
   }

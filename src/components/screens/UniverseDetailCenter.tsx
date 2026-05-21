@@ -26,7 +26,8 @@ export function UniverseDetailCenter({
   onViewProject,
   onOpenNextActionCenter,
   onOpenBlockingQuestions,
-  onOpenDecisionRecords
+  onOpenDecisionRecords,
+  onOpenRelationshipExplorer
 }: {
   state: AppState;
   universeId: string;
@@ -35,6 +36,7 @@ export function UniverseDetailCenter({
   onOpenNextActionCenter: () => void;
   onOpenBlockingQuestions: () => void;
   onOpenDecisionRecords: () => void;
+  onOpenRelationshipExplorer: () => void;
 }) {
   const [notice, setNotice] = useState("");
   const result = useMemo(() => getUniverseOverview(state, universeId), [state, universeId]);
@@ -256,6 +258,7 @@ export function UniverseDetailCenter({
       <section className="panel">
         <div className="head">
           <h2>Relationships in this universe</h2>
+          <button className="ghost" onClick={onOpenRelationshipExplorer}>Open Relationship Explorer</button>
         </div>
         <div className="cards">
           {overview.relationships.length === 0 ? (

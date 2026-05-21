@@ -53,6 +53,12 @@ import {
   type ThoughtTriagePatch,
   type ThoughtTriageResult
 } from "./domain/thoughtTriage";
+import {
+  createRelationshipSafe,
+  type CreateRelationshipSafeInput,
+  type CreateRelationshipSafeResult,
+  type RelationshipNode
+} from "./domain/relationshipExplorer";
 import { id, now } from "./domain/utils";
 import { seed } from "./data/seed";
 import { loadState, saveState } from "./services/storage";
@@ -72,6 +78,7 @@ import {
   NextActionCenter,
   ProjectDetail,
   Projects,
+  RelationshipExplorer,
   Relationships,
   ThoughtDetail,
   ThoughtList,
@@ -241,6 +248,43 @@ export function App() {
 
   const handleCreateDecisionFromBlockingQuestion = (questionId: string) =>
     applyDecisionRecordResult(createDecisionFromBlockingQuestion(state, questionId));
+
+  const handleCreateRelationshipSafe = (input: CreateRelationshipSafeInput): CreateRelationshipSafeResult => {
+    const result = createRelationshipSafe(state, input);
+
+    if (result.ok) {
+      save(result.state);
+    }
+
+    return result;
+  };
+
+  const handleViewRelationshipNode = (node: RelationshipNode) => {
+    if (node.type === "thought") {
+      setSelectedThoughtId(node.id);
+      setScreen("thought");
+      return;
+    }
+
+    if (node.type === "project") {
+      setSelectedProjectId(node.id);
+      setScreen("project");
+      return;
+    }
+
+    if (node.type === "universe") {
+      setSelectedUniverseId(node.id);
+      setScreen("universe-detail");
+      return;
+    }
+
+    if (node.type === "blocking_question") {
+      setScreen("blocking-questions");
+      return;
+    }
+
+    setScreen("decision-records");
+  };
 
   const addThought = (data: Pick<ThoughtItem, "title" | "content" | "type" | "universeId">) => {
     const item: ThoughtItem = {
@@ -592,7 +636,18 @@ export function App() {
         )}
 
         {screen === "relationships" && (
-          <Relationships state={state} />
+          <Relationships
+            state={state}
+            onOpenRelationshipExplorer={() => setScreen("relationship-explorer")}
+          />
+        )}
+
+        {screen === "relationship-explorer" && (
+          <RelationshipExplorer
+            state={state}
+            onCreateRelationshipSafe={handleCreateRelationshipSafe}
+            onViewRelationshipNode={handleViewRelationshipNode}
+          />
         )}
 
         {screen === "universe-detail" && (
@@ -610,6 +665,7 @@ export function App() {
             onOpenNextActionCenter={() => setScreen("next-actions")}
             onOpenBlockingQuestions={() => setScreen("blocking-questions")}
             onOpenDecisionRecords={() => setScreen("decision-records")}
+            onOpenRelationshipExplorer={() => setScreen("relationship-explorer")}
           />
         )}
 

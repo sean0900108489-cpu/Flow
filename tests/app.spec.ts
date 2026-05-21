@@ -41,6 +41,10 @@ function decisionRecordCard(page: Page, title: string) {
   return page.locator(".decision-record-card").filter({ hasText: title });
 }
 
+function relationshipExplorerCard(page: Page, title: string) {
+  return page.locator(".relationship-explorer-card").filter({ hasText: title });
+}
+
 function projectCard(page: Page, title: string) {
   return page.locator(".project-card").filter({ hasText: title });
 }
@@ -69,6 +73,36 @@ async function createDecisionRecord(page: Page, title: string, decision = "Keep 
   await form.getByLabel("Rationale").fill("The decision keeps product and architecture tradeoffs explicit.");
   await form.getByLabel("Consequences").fill("Future work can revisit the boundary deliberately.");
   await form.getByRole("button", { name: "Create Decision Record" }).click();
+}
+
+async function createProject(page: Page, title: string, description = "Project created for relationship explorer") {
+  await page.getByRole("button", { name: "Projects", exact: true }).click();
+  const form = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Create Project" }) });
+
+  await form.getByLabel("Title").fill(title);
+  await form.getByLabel("Description").fill(description);
+  await form.getByLabel("Next Action").fill(`Start ${title}`);
+  await form.getByRole("button", { name: "Create Project" }).click();
+}
+
+async function createExplorerRelationship(
+  page: Page,
+  input: {
+    sourceTitle: string;
+    targetTitle: string;
+    type: "related_to" | "belongs_to" | "depends_on" | "supports" | "blocks" | "evolves_into";
+    description: string;
+  }
+) {
+  await page.getByRole("button", { name: "Relationship Explorer" }).click();
+
+  await page.getByLabel("Source type", { exact: true }).selectOption("thought");
+  await page.getByLabel("Source", { exact: true }).selectOption({ label: input.sourceTitle });
+  await page.getByLabel("Relationship type", { exact: true }).selectOption(input.type);
+  await page.getByLabel("Target type", { exact: true }).selectOption("project");
+  await page.getByLabel("Target", { exact: true }).selectOption({ label: input.targetTitle });
+  await page.getByLabel("Description", { exact: true }).fill(input.description);
+  await page.getByRole("button", { name: "Create Relationship" }).click();
 }
 
 function handoffProject(patch: Partial<Project> = {}): Project {
@@ -1100,6 +1134,154 @@ test("relationship page displays seeded relationship", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Relationships" })).toBeVisible();
   await expect(page.getByText("supports")).toBeVisible();
   await expect(page.getByText("AI 整理建議支援思想宇宙系統的核心體驗。")).toBeVisible();
+});
+
+test("relationship explorer screen loads", async ({ page }) => {
+  await page.getByRole("button", { name: "Relationship Explorer" }).click();
+
+  await expect(page.getByRole("heading", { name: "Relationship Explorer", level: 1 })).toBeVisible();
+  await expect(page.getByText("Total relationships")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Impact Map" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Orphan thoughts" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Orphan projects" })).toBeVisible();
+});
+
+test("relationship explorer creates a thought to project relationship", async ({ page }) => {
+  await createThought(page, "Relationship source thought", "note");
+  await createProject(page, "Relationship target project");
+  await createExplorerRelationship(page, {
+    sourceTitle: "Relationship source thought",
+    targetTitle: "Relationship target project",
+    type: "supports",
+    description: "Thought supports project direction"
+  });
+
+  const card = relationshipExplorerCard(page, "Relationship source thought").filter({ hasText: "Relationship target project" });
+
+  await expect(card).toBeVisible();
+  await expect(card.getByText("supports", { exact: true })).toBeVisible();
+  await expect(card.getByText("Thought supports project direction")).toBeVisible();
+});
+
+test("relationship explorer blocks duplicate relationships", async ({ page }) => {
+  await createThought(page, "Duplicate relationship source", "note");
+  await createProject(page, "Duplicate relationship target");
+  await createExplorerRelationship(page, {
+    sourceTitle: "Duplicate relationship source",
+    targetTitle: "Duplicate relationship target",
+    type: "supports",
+    description: "Duplicate relationship description"
+  });
+
+  await page.getByRole("button", { name: "Create Relationship" }).click();
+
+  await expect(page.getByText("Relationship already exists.")).toBeVisible();
+});
+
+test("relationship explorer impact map shows incoming and outgoing links", async ({ page }) => {
+  await createThought(page, "Impact source thought", "note");
+  await createProject(page, "Impact target project");
+  await createExplorerRelationship(page, {
+    sourceTitle: "Impact source thought",
+    targetTitle: "Impact target project",
+    type: "supports",
+    description: "Impact source supports target"
+  });
+
+  await page.getByLabel("Select node type").selectOption("project");
+  await page.getByLabel("Select node", { exact: true }).selectOption({ label: "Impact target project" });
+  const incoming = page.locator(".impact-group").filter({ hasText: "Incoming relationships" });
+  await expect(incoming.getByText("Impact source thought supports Impact target project")).toBeVisible();
+
+  await page.getByLabel("Select node type").selectOption("thought");
+  await page.getByLabel("Select node", { exact: true }).selectOption({ label: "Impact source thought" });
+  const outgoing = page.locator(".impact-group").filter({ hasText: "Outgoing relationships" });
+  await expect(outgoing.getByText("Impact source thought supports Impact target project")).toBeVisible();
+});
+
+test("relationship explorer shows blocking impact in both directions", async ({ page }) => {
+  await createThought(page, "Blocking impact thought", "note");
+  await createProject(page, "Blocking impact project");
+  await createExplorerRelationship(page, {
+    sourceTitle: "Blocking impact thought",
+    targetTitle: "Blocking impact project",
+    type: "blocks",
+    description: "Thought blocks project progress"
+  });
+
+  await page.getByLabel("Select node type").selectOption("project");
+  await page.getByLabel("Select node", { exact: true }).selectOption({ label: "Blocking impact project" });
+  const blockedBy = page.locator(".impact-group").filter({ hasText: "Blocked by" });
+  await expect(blockedBy.getByText("Blocking impact thought blocks Blocking impact project")).toBeVisible();
+
+  await page.getByLabel("Select node type").selectOption("thought");
+  await page.getByLabel("Select node", { exact: true }).selectOption({ label: "Blocking impact thought" });
+  const blocks = page.locator(".impact-group").filter({ has: page.getByText("Blocks", { exact: true }) });
+  await expect(blocks.getByText("Blocking impact thought blocks Blocking impact project")).toBeVisible();
+});
+
+test("relationship explorer search and type filters relationships", async ({ page }) => {
+  await createThought(page, "Supports filter source", "note");
+  await createProject(page, "Supports filter target");
+  await createExplorerRelationship(page, {
+    sourceTitle: "Supports filter source",
+    targetTitle: "Supports filter target",
+    type: "supports",
+    description: "Support filter relationship"
+  });
+
+  await createThought(page, "Blocks filter source", "note");
+  await createProject(page, "Blocks filter target");
+  await createExplorerRelationship(page, {
+    sourceTitle: "Blocks filter source",
+    targetTitle: "Blocks filter target",
+    type: "blocks",
+    description: "Block filter relationship"
+  });
+
+  await page.getByLabel("Search relationships").fill("Supports filter source");
+  await expect(relationshipExplorerCard(page, "Supports filter source")).toBeVisible();
+  await expect(relationshipExplorerCard(page, "Blocks filter source")).toHaveCount(0);
+
+  await page.getByLabel("Search relationships").fill("");
+  await page.getByLabel("Relationship type filter").selectOption("blocks");
+  await expect(relationshipExplorerCard(page, "Blocks filter source")).toBeVisible();
+  await expect(relationshipExplorerCard(page, "Supports filter source")).toHaveCount(0);
+});
+
+test("relationship explorer lists orphan thoughts", async ({ page }) => {
+  await createThought(page, "Orphan thought for explorer", "note");
+  await page.getByRole("button", { name: "Relationship Explorer" }).click();
+
+  const orphans = page.locator("section.panel").filter({ has: page.getByRole("heading", { name: "Orphan thoughts" }) });
+
+  await expect(orphans.locator("strong", { hasText: "Orphan thought for explorer" })).toBeVisible();
+});
+
+test("relationship explorer view source and target navigate to details", async ({ page }) => {
+  await createThought(page, "View source relationship thought", "note");
+  await createProject(page, "View target relationship project");
+  await createExplorerRelationship(page, {
+    sourceTitle: "View source relationship thought",
+    targetTitle: "View target relationship project",
+    type: "supports",
+    description: "Relationship with navigable endpoints"
+  });
+
+  const card = relationshipExplorerCard(page, "View source relationship thought").filter({ hasText: "View target relationship project" });
+  await card.getByRole("button", { name: "View Source" }).click();
+
+  await expect(page.getByRole("heading", { name: "Thought Detail", level: 1 })).toBeVisible();
+  await expect(page.getByLabel("標題")).toHaveValue("View source relationship thought");
+
+  await page.getByRole("button", { name: "Relationship Explorer" }).click();
+  await relationshipExplorerCard(page, "View source relationship thought")
+    .filter({ hasText: "View target relationship project" })
+    .getByRole("button", { name: "View Target" })
+    .click();
+
+  await expect(page.getByRole("heading", { name: "Project Detail", level: 1 })).toBeVisible();
+  await expect(page.getByLabel("Title")).toHaveValue("View target relationship project");
 });
 
 test("app state transfer exports and imports full local state", async ({ page }) => {

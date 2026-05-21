@@ -9,6 +9,7 @@ export { ThoughtTriageCenter } from "./components/screens/ThoughtTriageCenter";
 export { UniverseDetailCenter } from "./components/screens/UniverseDetailCenter";
 export { AIPanel } from "./components/screens/AIPanel";
 export { Relationships } from "./components/screens/Relationships";
+export { RelationshipExplorer } from "./components/screens/RelationshipExplorer";
 export { Export } from "./components/screens/Export";
 export { EngineeringHandoffCenter } from "./components/screens/EngineeringHandoffCenter";
 export { BlockingQuestionsCenter } from "./components/screens/BlockingQuestionsCenter";

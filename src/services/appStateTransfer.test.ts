@@ -98,6 +98,35 @@ describe("app state transfer", () => {
     expect(json).toContain("Export decision records");
   });
 
+  it("imports legacy relationships without source or target types", () => {
+    const result = parseAppStateJson(JSON.stringify(seed));
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.relationships[0].sourceType).toBeUndefined();
+  });
+
+  it("round trips relationship source and target types", () => {
+    const json = stringifyAppState({
+      ...seed,
+      relationships: [
+        {
+          id: "relationship-transfer",
+          sourceId: "bq-thought-todo",
+          sourceType: "blocking_question",
+          targetId: "p-1",
+          targetType: "project",
+          type: "blocks",
+          description: "Blocking question blocks project handoff."
+        }
+      ]
+    });
+    const result = parseAppStateJson(json);
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.relationships[0].sourceType).toBe("blocking_question");
+    expect(result.state?.relationships[0].targetType).toBe("project");
+  });
+
   it("round trips project linked thought ids", () => {
     const json = stringifyAppState({
       ...seed,

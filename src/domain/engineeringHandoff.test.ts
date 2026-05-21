@@ -114,6 +114,26 @@ describe("engineering handoff", () => {
     expect(evaluateProjectHandoff(project, state).readiness).toBe("blocked");
   });
 
+  it("treats typed blocks relationships targeting a project as handoff blockers", () => {
+    const project = completeProject();
+    const state: AppState = {
+      ...stateWithProject(project),
+      relationships: [
+        {
+          id: "r-block-typed",
+          sourceId: "t-ready",
+          sourceType: "thought",
+          targetId: project.id,
+          targetType: "project",
+          type: "blocks",
+          description: "Typed blocker."
+        }
+      ]
+    };
+
+    expect(evaluateProjectHandoff(project, state).readiness).toBe("blocked");
+  });
+
   it("builds a handoff package with project, linked thoughts, relationships, and readiness", () => {
     const state = stateWithProject(completeProject());
     const result = buildProjectHandoffPackage("p-ready", state);

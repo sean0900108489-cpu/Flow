@@ -6,6 +6,7 @@ export type UniverseStatus = "active" | "archived";
 export type Readiness = "not_ready" | "needs_clarification" | "draftable" | "ready_for_engineering";
 export type BlockingQuestionStatus = "open" | "in_review" | "resolved" | "archived";
 export type DecisionRecordStatus = "proposed" | "accepted" | "superseded" | "archived";
+export type RelationshipNodeType = "thought" | "project" | "universe" | "blocking_question" | "decision_record";
 
 export interface Universe {
   id: string;
@@ -56,6 +57,8 @@ export interface Relationship {
   id: string;
   sourceId: string;
   targetId: string;
+  sourceType?: RelationshipNodeType;
+  targetType?: RelationshipNodeType;
   type: "belongs_to" | "depends_on" | "supports" | "blocks" | "evolves_into" | "related_to";
   description: string;
 }
