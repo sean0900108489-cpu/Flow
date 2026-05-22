@@ -84,9 +84,10 @@ import {
   type SafeMutationResult
 } from "./domain/mutations/appMutations";
 import { id, now } from "./domain/utils";
+import { normalizeAppState } from "./domain/appState";
 import { seed } from "./data/seed";
 import { loadState, saveState } from "./services/storage";
-import { applyAiInsightPatch } from "./services/applyAiPatch";
+import { setAiInsightStatus } from "./services/applyAiPatch";
 import { generateProjectReadinessInsight, generateThoughtClassificationInsight } from "./services/aiMock";
 import {
   AIPanel,
@@ -150,8 +151,12 @@ export function App() {
   }, []);
 
   const save = (next: AppState) => {
-    setState(next);
-    saveState(next);
+    const normalized = normalizeAppState(next);
+
+    setState(normalized);
+    saveState(normalized);
+
+    return normalized;
   };
 
   const applyUniverseResult = (result: UniverseActionResult) => {
@@ -643,13 +648,11 @@ export function App() {
   };
 
   const acceptAI = (aiId: string, status: "accepted" | "rejected") => {
-    const insight = state.aiInsights.find((x) => x.id === aiId);
-    const patchedState = status === "accepted" && insight ? applyAiInsightPatch(state, insight) : state;
+    const result = setAiInsightStatus(state, aiId, status);
 
-    save({
-      ...patchedState,
-      aiInsights: patchedState.aiInsights.map((x) => x.id === aiId ? { ...x, status } : x)
-    });
+    if (result.statusChanged) {
+      save(result.state);
+    }
   };
 
   return (
@@ -910,10 +913,11 @@ export function App() {
           <AppStateTransfer
             state={state}
             onImport={(nextState) => {
-              save(nextState);
-              setSelectedThoughtId(nextState.thoughts[0]?.id ?? "");
-              setSelectedProjectId(nextState.projects[0]?.id ?? "");
-              setSelectedUniverseId(nextState.universes[0]?.id ?? "");
+              const normalized = save(nextState);
+
+              setSelectedThoughtId(normalized.thoughts[0]?.id ?? "");
+              setSelectedProjectId(normalized.projects[0]?.id ?? "");
+              setSelectedUniverseId(normalized.universes[0]?.id ?? "");
               setSystemMessage("App State imported successfully. Decision, readiness, and next action data were normalized.");
               setScreen("dashboard");
             }}

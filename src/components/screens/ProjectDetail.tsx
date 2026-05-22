@@ -117,7 +117,7 @@ export function ProjectDetail({
         <label>Lifecycle
           <select value={draft.lifecycleStatus} onChange={(e) => updateDraft({ lifecycleStatus: e.target.value as ProjectLifecycleStatus })}>
             <option value="planning">planning</option>
-            <option value="handoff_ready">handoff_ready</option>
+            {project.lifecycleStatus === "handoff_ready" && <option value="handoff_ready" disabled>handoff_ready</option>}
             <option value="blocked">blocked</option>
           </select>
         </label>

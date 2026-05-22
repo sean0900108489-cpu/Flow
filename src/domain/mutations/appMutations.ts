@@ -17,6 +17,9 @@ export interface ProjectMutationResult extends SafeMutationResult {
   projectId?: string;
 }
 
+export const thoughtNotFoundError = "thought_not_found";
+export const projectNotFoundError = "project_not_found";
+
 export type CreateThoughtInput = Pick<ThoughtItem, "title" | "content" | "type" | "universeId">;
 
 export type ThoughtMutationPatch = Partial<Pick<
@@ -133,7 +136,7 @@ export function deleteThought(state: AppState, thoughtId: string): ThoughtMutati
   const thought = state.thoughts.find((item) => item.id === thoughtId);
 
   if (!thought) {
-    return { state, ok: false, error: "Thought not found." };
+    return { state, ok: false, error: thoughtNotFoundError };
   }
 
   const relationshipCleanup = removeRelationshipsForNode(state, { id: thoughtId, type: "thought" });
@@ -167,7 +170,7 @@ export function deleteProject(state: AppState, projectId: string): ProjectMutati
   const project = state.projects.find((item) => item.id === projectId);
 
   if (!project) {
-    return { state, ok: false, error: "Project not found." };
+    return { state, ok: false, error: projectNotFoundError };
   }
 
   const relationshipCleanup = removeRelationshipsForNode(state, { id: projectId, type: "project" });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { seed } from "../data/seed";
 import {
   archiveBlockingQuestion,
+  blockingQuestionNotFoundError,
   createBlockingQuestion,
   deleteBlockingQuestion,
   getBlockingQuestionSummary,
@@ -179,6 +180,14 @@ describe("blocking questions", () => {
     expect(result.state.thoughts).toHaveLength(1);
     expect(result.state.projects).toHaveLength(1);
     expect(result.state.universes).toHaveLength(1);
+  });
+
+  it("deleteBlockingQuestion rejects missing ids without changing state", () => {
+    const result = deleteBlockingQuestion(linkedState, "missing-question");
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe(blockingQuestionNotFoundError);
+    expect(result.state).toBe(linkedState);
   });
 
   it("deleteBlockingQuestion clears decision source references", () => {

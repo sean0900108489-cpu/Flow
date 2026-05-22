@@ -24,6 +24,7 @@ export interface UpdateUniversePatch {
 }
 
 const emptyNameError = "Universe name cannot be empty.";
+export const universeNotFoundError = "universe_not_found";
 export const universeInUseError = "Cannot delete universe while it is in use.";
 
 function ok(state: AppState): UniverseActionResult {
@@ -86,7 +87,7 @@ export function updateUniverse(
   const universe = state.universes.find((item) => item.id === universeId);
 
   if (!universe) {
-    return fail(state, "Universe not found.");
+    return fail(state, universeNotFoundError);
   }
 
   if (patch.name !== undefined && !normalizeName(patch.name)) {
@@ -124,7 +125,7 @@ export function deleteUniverse(
   const universe = state.universes.find((item) => item.id === universeId);
 
   if (!universe) {
-    return fail(state, "Universe not found.");
+    return fail(state, universeNotFoundError);
   }
 
   const isInUse =

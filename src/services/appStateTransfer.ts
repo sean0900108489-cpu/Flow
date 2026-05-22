@@ -1,10 +1,15 @@
 import type { AppState } from "../domain/types";
 import { normalizeAppState } from "../domain/appState";
+import {
+  validateAppStateInvariants,
+  type AppStateInvariantWarning
+} from "../domain/validation/appStateInvariants";
 
 export interface AppStateImportResult {
   ok: boolean;
   state?: AppState;
   error?: string;
+  warnings?: AppStateInvariantWarning[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -40,7 +45,13 @@ export function validateAppState(value: unknown): AppStateImportResult {
     return { ok: false, error: "Invalid object: engineeringReadiness" };
   }
 
-  return { ok: true, state: normalizeAppState(value as unknown as AppState) };
+  const state = normalizeAppState(value as unknown as AppState);
+
+  return {
+    ok: true,
+    state,
+    warnings: validateAppStateInvariants(state)
+  };
 }
 
 export function parseAppStateJson(json: string): AppStateImportResult {

@@ -4,7 +4,9 @@ import {
   archiveProject,
   deleteProject,
   deleteThought,
+  projectNotFoundError,
   restoreProject,
+  thoughtNotFoundError,
   updateThought
 } from "./appMutations";
 
@@ -143,6 +145,15 @@ describe("safe app mutations", () => {
     expect(result.state.nextActionState?.dismissedActionIds).toEqual([]);
   });
 
+  it("deleteThought rejects missing ids without changing state", () => {
+    const base = state();
+    const result = deleteThought(base, "missing-thought");
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe(thoughtNotFoundError);
+    expect(result.state).toBe(base);
+  });
+
   it("deleteProject clears relationships and project references", () => {
     const result = deleteProject(state(), "p-1");
 
@@ -154,6 +165,15 @@ describe("safe app mutations", () => {
     expect(result.state.decisionRecords?.[0].linkedProjectIds).toEqual([]);
     expect(result.state.aiInsights.map((insight) => insight.id)).toEqual(["ai-1"]);
     expect(result.state.nextActionState?.savedActionIds).toEqual(["thought:t-1"]);
+  });
+
+  it("deleteProject rejects missing ids without changing state", () => {
+    const base = state();
+    const result = deleteProject(base, "missing-project");
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe(projectNotFoundError);
+    expect(result.state).toBe(base);
   });
 
   it("archive and restore project preserve relationships", () => {

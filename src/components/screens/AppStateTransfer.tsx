@@ -33,6 +33,10 @@ export function AppStateTransfer({
 
     setImportText("");
     onImport(result.state);
+    setMessage(result.warnings?.length
+      ? `匯入完成，發現 ${result.warnings.length} 個 invariant warning。`
+      : "匯入完成，未發現 invariant warning。"
+    );
   };
 
   return (

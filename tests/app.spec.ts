@@ -233,6 +233,7 @@ test("project detail shows readiness and export generates EngineeringFlowInput",
 
   await expect(page.getByRole("heading", { name: "Project Detail", level: 1 })).toBeVisible();
   await expect(page.getByText(/工程準備度：100% · 可工程交接/)).toBeVisible();
+  await expect(page.getByLabel("Lifecycle").locator("option", { hasText: "handoff_ready" })).toHaveCount(0);
 
   await page.getByRole("button", { name: /Engineering Export/ }).click();
 

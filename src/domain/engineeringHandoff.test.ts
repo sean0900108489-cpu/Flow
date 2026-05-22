@@ -164,6 +164,27 @@ describe("engineering handoff", () => {
     expect(result.state.projects[0].lifecycleStatus).toBeUndefined();
   });
 
+  it("does not mark a project with unresolved handoff blockers as handoff_ready", () => {
+    const state: AppState = {
+      ...stateWithProject(completeProject()),
+      blockingQuestions: [
+        {
+          id: "bq-blocking",
+          question: "Unresolved handoff blocker?",
+          status: "open",
+          impactLevel: "blocking",
+          linkedProjectIds: ["p-ready"],
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z"
+        }
+      ]
+    };
+    const result = markProjectHandoffReady(state, "p-ready");
+
+    expect(result.ok).toBe(false);
+    expect(result.state.projects[0].lifecycleStatus).toBeUndefined();
+  });
+
   it("does not mutate original state", () => {
     const state = stateWithProject(completeProject());
     const original = JSON.stringify(state);

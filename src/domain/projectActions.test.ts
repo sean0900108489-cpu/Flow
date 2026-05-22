@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { seed } from "../data/seed";
-import type { AppState } from "./types";
+import type { AppState, Project } from "./types";
 import {
   createProject,
   linkThoughtToProject,
@@ -11,6 +11,17 @@ import {
 
 function state(): AppState {
   return structuredClone(seed);
+}
+
+function stateWithProjectPatch(patch: Partial<Project>): AppState {
+  const base = state();
+
+  return {
+    ...base,
+    projects: base.projects.map((project) =>
+      project.id === "p-1" ? { ...project, ...patch } : project
+    )
+  };
 }
 
 describe("project actions", () => {
@@ -55,6 +66,72 @@ describe("project actions", () => {
       name: "Updated project",
       intent: "Updated description",
       nextAction: "Updated next action"
+    });
+  });
+
+  it("updateProjectDetails rejects direct handoff_ready transitions for archived projects", () => {
+    const base = stateWithProjectPatch({
+      status: "archived",
+      lifecycleStatus: "planning",
+      readiness: "ready_for_engineering"
+    });
+    const result = updateProjectDetails(base, "p-1", { lifecycleStatus: "handoff_ready" });
+
+    expect(result.ok).toBe(false);
+    expect(result.state).toBe(base);
+    expect(result.error).toContain("guarded handoff");
+  });
+
+  it("updateProjectDetails rejects direct handoff_ready transitions for blocked projects", () => {
+    const base = stateWithProjectPatch({
+      lifecycleStatus: "blocked",
+      readiness: "ready_for_engineering"
+    });
+    const result = updateProjectDetails(base, "p-1", { lifecycleStatus: "handoff_ready" });
+
+    expect(result.ok).toBe(false);
+    expect(result.state).toBe(base);
+    expect(result.error).toContain("guarded handoff");
+  });
+
+  it("updateProjectDetails rejects direct handoff_ready transitions for not-ready projects", () => {
+    const base = stateWithProjectPatch({
+      lifecycleStatus: "planning",
+      readiness: "not_ready",
+      nextAction: ""
+    });
+    const result = updateProjectDetails(base, "p-1", { lifecycleStatus: "handoff_ready" });
+
+    expect(result.ok).toBe(false);
+    expect(result.state).toBe(base);
+    expect(result.error).toContain("guarded handoff");
+  });
+
+  it("updateProjectDetails allows leaving handoff_ready for another legal lifecycle status", () => {
+    const base = stateWithProjectPatch({
+      lifecycleStatus: "handoff_ready",
+      readiness: "ready_for_engineering"
+    });
+    const result = updateProjectDetails(base, "p-1", { lifecycleStatus: "planning" });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.projects.find((project) => project.id === "p-1")?.lifecycleStatus).toBe("planning");
+  });
+
+  it("updateProjectDetails can save other fields when an already handoff_ready project remains handoff_ready", () => {
+    const base = stateWithProjectPatch({
+      lifecycleStatus: "handoff_ready",
+      readiness: "ready_for_engineering"
+    });
+    const result = updateProjectDetails(base, "p-1", {
+      lifecycleStatus: "handoff_ready",
+      title: "Still handoff ready"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.projects.find((project) => project.id === "p-1")).toMatchObject({
+      lifecycleStatus: "handoff_ready",
+      name: "Still handoff ready"
     });
   });
 

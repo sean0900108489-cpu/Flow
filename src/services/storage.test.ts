@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { seed } from "../data/seed";
+import { normalizeAppState } from "../domain/appState";
 import { loadState, saveState, STORAGE_KEY } from "./storage";
 
 class MemoryStorage implements Storage {
@@ -104,5 +105,15 @@ describe("storage", () => {
 
     installStorage(undefined);
     expect(() => saveState(seed)).not.toThrow();
+  });
+
+  it("can persist the same normalized state used by the runtime save path", () => {
+    const storage = installStorage();
+    const { nextActionState, ...legacyState } = seed;
+    const normalizedRuntimeState = normalizeAppState(legacyState);
+
+    saveState(normalizedRuntimeState);
+
+    expect(JSON.parse(storage?.getItem(STORAGE_KEY) ?? "{}")).toEqual(normalizedRuntimeState);
   });
 });

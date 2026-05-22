@@ -6,7 +6,8 @@ import {
   deleteUniverse,
   restoreUniverse,
   updateUniverse,
-  universeInUseError
+  universeInUseError,
+  universeNotFoundError
 } from "./universeActions";
 
 function baseState(): AppState {
@@ -159,6 +160,15 @@ describe("universe actions", () => {
     expect(result.ok).toBe(false);
     expect(result.error).toBe(universeInUseError);
     expect(result.state.universes.some((universe) => universe.id === "u-1")).toBe(true);
+  });
+
+  it("deleteUniverse rejects missing ids without changing state", () => {
+    const state = baseState();
+    const result = deleteUniverse(state, "missing-universe", "detach");
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe(universeNotFoundError);
+    expect(result.state).toBe(state);
   });
 
   it("actions do not mutate the original state", () => {

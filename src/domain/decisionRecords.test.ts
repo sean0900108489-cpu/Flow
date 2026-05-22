@@ -4,6 +4,7 @@ import {
   archiveDecisionRecord,
   createDecisionFromBlockingQuestion,
   createDecisionRecord,
+  decisionRecordNotFoundError,
   deleteDecisionRecord,
   listDecisionRecords,
   updateDecisionRecord
@@ -225,6 +226,15 @@ describe("decision records", () => {
       id: "decision-2",
       supersedesDecisionId: undefined
     });
+  });
+
+  it("deleteDecisionRecord rejects missing ids without changing state", () => {
+    const state = stateWithDecision();
+    const result = deleteDecisionRecord(state, "missing-decision");
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe(decisionRecordNotFoundError);
+    expect(result.state).toBe(state);
   });
 
   it("does not mutate original state", () => {

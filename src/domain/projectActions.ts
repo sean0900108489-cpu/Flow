@@ -121,6 +121,14 @@ export function updateProjectDetails(
     return { state, ok: false, error: "Project title is required." };
   }
 
+  if (patch.lifecycleStatus === "handoff_ready" && project.lifecycleStatus !== "handoff_ready") {
+    return {
+      state,
+      ok: false,
+      error: "Use the guarded handoff action to mark a project handoff_ready."
+    };
+  }
+
   const nextIntent = patch.description ?? patch.intent;
   const mappedPatch: Partial<Project> = {
     ...(nextName !== undefined ? { name: nextName.trim() } : {}),

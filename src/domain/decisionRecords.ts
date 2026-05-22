@@ -14,6 +14,8 @@ export interface DecisionRecordActionResult {
   error?: string;
 }
 
+export const decisionRecordNotFoundError = "decision_record_not_found";
+
 export interface DecisionRecordListOptions {
   searchText?: string;
   status?: DecisionRecordStatus | "all";
@@ -252,6 +254,12 @@ export function archiveDecisionRecord(state: AppState, decisionRecordId: string)
 }
 
 export function deleteDecisionRecord(state: AppState, decisionRecordId: string): DecisionRecordActionResult {
+  const decisionRecord = records(state).find((item) => item.id === decisionRecordId);
+
+  if (!decisionRecord) {
+    return { state, ok: false, error: decisionRecordNotFoundError };
+  }
+
   const relationshipCleanup = removeRelationshipsForNode(state, { id: decisionRecordId, type: "decision_record" });
   const referenceCleanup = removeDeletedNodeReferences(relationshipCleanup.state, {
     id: decisionRecordId,

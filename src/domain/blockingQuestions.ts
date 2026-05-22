@@ -20,6 +20,8 @@ export interface BlockingQuestionActionResult {
   error?: string;
 }
 
+export const blockingQuestionNotFoundError = "blocking_question_not_found";
+
 export interface BlockingQuestionListOptions {
   status?: BlockingQuestionStatus | "all";
   searchText?: string;
@@ -422,6 +424,12 @@ export function archiveBlockingQuestion(state: AppState, questionId: string): Bl
 }
 
 export function deleteBlockingQuestion(state: AppState, questionId: string): BlockingQuestionActionResult {
+  const question = questions(state).find((item) => item.id === questionId);
+
+  if (!question) {
+    return { ok: false, state, error: blockingQuestionNotFoundError };
+  }
+
   const relationshipCleanup = removeRelationshipsForNode(state, { id: questionId, type: "blocking_question" });
   const referenceCleanup = removeDeletedNodeReferences(relationshipCleanup.state, {
     id: questionId,
