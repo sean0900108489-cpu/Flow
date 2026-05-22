@@ -1,4 +1,8 @@
 import { readiness as projectReadiness } from "./readiness";
+import {
+  linkThoughtToProjectReference,
+  unlinkThoughtFromProjectReferences
+} from "./projectThoughtLinks";
 import { createTypedRelationship } from "./relationships/relationshipGraph";
 import { id, now } from "./utils";
 import type {
@@ -52,17 +56,6 @@ function withComputedReadiness(project: Project, explicitReadiness?: Readiness):
   };
 }
 
-function setThoughtProjectId(state: AppState, thoughtIds: string[], projectId?: string) {
-  if (thoughtIds.length === 0) return state.thoughts;
-  const ids = new Set(thoughtIds);
-
-  return state.thoughts.map((thought) =>
-    ids.has(thought.id)
-      ? { ...thought, projectId, updatedAt: now() }
-      : thought
-  );
-}
-
 export function createProject(state: AppState, input: CreateProjectInput): ProjectActionResult {
   const title = input.title.trim();
 
@@ -93,12 +86,20 @@ export function createProject(state: AppState, input: CreateProjectInput): Proje
     updatedAt: timestamp
   });
 
+  let nextState: AppState = {
+    ...state,
+    projects: [project, ...state.projects]
+  };
+
+  linkedThoughtIds.forEach((thoughtId) => {
+    const linkResult = linkThoughtToProjectReference(nextState, projectId, thoughtId);
+    if (linkResult.ok) {
+      nextState = linkResult.state;
+    }
+  });
+
   return {
-    state: {
-      ...state,
-      projects: [project, ...state.projects],
-      thoughts: setThoughtProjectId(state, linkedThoughtIds, projectId)
-    },
+    state: nextState,
     ok: true,
     projectId
   };
@@ -130,6 +131,9 @@ export function updateProjectDetails(
   }
 
   const nextIntent = patch.description ?? patch.intent;
+  const nextLinkedThoughtIds = patch.linkedThoughtIds !== undefined
+    ? unique(patch.linkedThoughtIds)
+    : undefined;
   const mappedPatch: Partial<Project> = {
     ...(nextName !== undefined ? { name: nextName.trim() } : {}),
     ...(nextIntent !== undefined ? { intent: nextIntent } : {}),
@@ -137,7 +141,7 @@ export function updateProjectDetails(
     ...(patch.nextAction !== undefined ? { nextAction: patch.nextAction } : {}),
     ...(patch.status !== undefined ? { status: patch.status } : {}),
     ...(patch.lifecycleStatus !== undefined ? { lifecycleStatus: patch.lifecycleStatus } : {}),
-    ...(patch.linkedThoughtIds !== undefined ? { linkedThoughtIds: unique(patch.linkedThoughtIds) } : {}),
+    ...(nextLinkedThoughtIds !== undefined ? { linkedThoughtIds: nextLinkedThoughtIds } : {}),
     ...(patch.users !== undefined ? { users: unique(patch.users) } : {}),
     ...(patch.features !== undefined ? { features: unique(patch.features) } : {}),
     ...(patch.screens !== undefined ? { screens: unique(patch.screens) } : {}),
@@ -150,65 +154,61 @@ export function updateProjectDetails(
     { ...project, ...mappedPatch, updatedAt: now() },
     patch.readiness
   );
-  const linkedThoughtIds = updatedProject.linkedThoughtIds ?? [];
+  let nextState: AppState = {
+    ...state,
+    projects: state.projects.map((item) => item.id === projectId ? updatedProject : item)
+  };
+
+  if (nextLinkedThoughtIds !== undefined) {
+    const nextLinkedThoughtIdSet = new Set(nextLinkedThoughtIds);
+    const existingThoughtIds = new Set(state.thoughts.map((thought) => thought.id));
+    const thoughtIdsToUnlink = state.thoughts
+      .filter((thought) => thought.projectId === projectId && !nextLinkedThoughtIdSet.has(thought.id))
+      .map((thought) => thought.id);
+
+    thoughtIdsToUnlink.forEach((thoughtId) => {
+      const unlinkResult = unlinkThoughtFromProjectReferences(nextState, thoughtId);
+      if (unlinkResult.ok) {
+        nextState = unlinkResult.state;
+      }
+    });
+
+    nextLinkedThoughtIds.forEach((thoughtId) => {
+      if (!existingThoughtIds.has(thoughtId)) return;
+
+      const linkResult = linkThoughtToProjectReference(nextState, projectId, thoughtId);
+      if (linkResult.ok) {
+        nextState = linkResult.state;
+      }
+    });
+  }
 
   return {
-    state: {
-      ...state,
-      projects: state.projects.map((item) => item.id === projectId ? updatedProject : item),
-      thoughts: patch.linkedThoughtIds !== undefined
-        ? setThoughtProjectId(state, linkedThoughtIds, projectId)
-        : state.thoughts
-    },
+    state: nextState,
     ok: true,
     projectId
   };
 }
 
 export function linkThoughtToProject(state: AppState, projectId: string, thoughtId: string): ProjectActionResult {
-  const project = state.projects.find((item) => item.id === projectId);
-  const thought = state.thoughts.find((item) => item.id === thoughtId);
+  const result = linkThoughtToProjectReference(state, projectId, thoughtId);
 
-  if (!project) {
-    return { state, ok: false, error: "Project not found." };
-  }
-
-  if (!thought) {
-    return { state, ok: false, error: "Thought not found." };
-  }
-
-  const linkedThoughtIds = unique([...(project.linkedThoughtIds ?? []), thoughtId]);
-
-  return updateProjectDetails(state, projectId, { linkedThoughtIds });
+  return result.ok
+    ? { state: result.state, ok: true, projectId }
+    : { state: result.state, ok: false, error: result.error };
 }
 
 export function unlinkThoughtFromProject(state: AppState, projectId: string, thoughtId: string): ProjectActionResult {
   const project = state.projects.find((item) => item.id === projectId);
-  const thought = state.thoughts.find((item) => item.id === thoughtId);
-
   if (!project) {
     return { state, ok: false, error: "Project not found." };
   }
 
-  if (!thought) {
-    return { state, ok: false, error: "Thought not found." };
-  }
+  const result = unlinkThoughtFromProjectReferences(state, thoughtId);
 
-  const linkedThoughtIds = (project.linkedThoughtIds ?? []).filter((id) => id !== thoughtId);
-  const nextState = updateProjectDetails(state, projectId, { linkedThoughtIds }).state;
-
-  return {
-    state: {
-      ...nextState,
-      thoughts: nextState.thoughts.map((item) =>
-        item.id === thoughtId && item.projectId === projectId
-          ? { ...item, projectId: undefined, updatedAt: now() }
-          : item
-      )
-    },
-    ok: true,
-    projectId
-  };
+  return result.ok
+    ? { state: result.state, ok: true, projectId }
+    : { state: result.state, ok: false, error: result.error };
 }
 
 export function promoteThoughtToProject(
@@ -238,7 +238,7 @@ export function promoteThoughtToProject(
     ...result.state,
     thoughts: result.state.thoughts.map((item) =>
       item.id === thoughtId
-        ? { ...item, type: "project", status: "active", projectId: result.projectId, updatedAt: now() }
+        ? { ...item, type: "project", status: "active", updatedAt: now() }
         : item
     ),
     projects: result.state.projects.map((project) =>

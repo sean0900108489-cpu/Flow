@@ -24,6 +24,7 @@ function thought(patch: Partial<ThoughtItem> = {}): ThoughtItem {
     type: "project",
     status: "active",
     universeId: "u-1",
+    projectId: "p-1",
     why: "Important.",
     outcome: "Useful output.",
     nextAction: "Build it.",
@@ -120,7 +121,8 @@ describe("app state invariants", () => {
 
   it("reports direct missing references", () => {
     const warnings = validateAppStateInvariants(baseState({
-      thoughts: [thought({ projectId: "missing-project" })]
+      thoughts: [thought({ projectId: "missing-project" })],
+      projects: [project({ sourceThoughtId: "missing-source-thought", linkedThoughtIds: ["missing-linked-thought"] })]
     }));
 
     expect(warnings).toContainEqual(expect.objectContaining({
@@ -128,6 +130,62 @@ describe("app state invariants", () => {
       entityType: "thought",
       entityId: "t-1",
       field: "projectId"
+    }));
+    expect(warnings).toContainEqual(expect.objectContaining({
+      code: "missing_reference",
+      entityType: "project",
+      entityId: "p-1",
+      field: "linkedThoughtIds"
+    }));
+    expect(warnings).toContainEqual(expect.objectContaining({
+      code: "missing_reference",
+      entityType: "project",
+      entityId: "p-1",
+      field: "sourceThoughtId"
+    }));
+  });
+
+  it("reports Thought projectId drift when the project does not link back", () => {
+    const warnings = validateAppStateInvariants(baseState({
+      projects: [project({ linkedThoughtIds: [] })]
+    }));
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      code: "thought_project_reference_drift",
+      entityType: "thought",
+      entityId: "t-1",
+      field: "projectId"
+    }));
+  });
+
+  it("reports Project linkedThoughtIds drift when the thought points elsewhere", () => {
+    const warnings = validateAppStateInvariants(baseState({
+      thoughts: [thought({ projectId: "p-2" })],
+      projects: [
+        project(),
+        project({ id: "p-2", name: "Second project", linkedThoughtIds: [] })
+      ]
+    }));
+
+    expect(warnings).toContainEqual(expect.objectContaining({
+      code: "thought_project_reference_drift",
+      entityType: "project",
+      entityId: "p-1",
+      field: "linkedThoughtIds"
+    }));
+  });
+
+  it("does not require Project sourceThoughtId to be an active membership link", () => {
+    const warnings = validateAppStateInvariants(baseState({
+      thoughts: [thought({ projectId: undefined })],
+      projects: [project({ linkedThoughtIds: [] })]
+    }));
+
+    expect(warnings).not.toContainEqual(expect.objectContaining({
+      code: "thought_project_reference_drift",
+      entityType: "project",
+      entityId: "p-1",
+      field: "sourceThoughtId"
     }));
   });
 
@@ -203,6 +261,25 @@ describe("app state invariants", () => {
     expect(result.state?.relationships[0].sourceId).toBe("missing-thought");
     expect(result.warnings).toContainEqual(expect.objectContaining({
       code: "missing_relationship_endpoint"
+    }));
+  });
+
+  it("attaches Thought-Project drift warnings during import without rewriting direct refs", () => {
+    const imported = baseState({
+      thoughts: [thought({ projectId: "p-1" })],
+      projects: [project({ linkedThoughtIds: [] })]
+    });
+    const result = parseAppStateJson(JSON.stringify(imported));
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.thoughts[0].projectId).toBe("p-1");
+    expect(result.state?.projects[0].linkedThoughtIds).toEqual([]);
+    expect(result.warnings).toContainEqual(expect.objectContaining({
+      code: "thought_project_reference_drift",
+      severity: "warning",
+      entityType: "thought",
+      entityId: "t-1",
+      field: "projectId"
     }));
   });
 

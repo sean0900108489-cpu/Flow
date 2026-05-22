@@ -1,4 +1,5 @@
 import type { AIInsight, AppState, Project, ThoughtItem, ThoughtType } from "../types";
+import { linkThoughtToProjectReference } from "../projectThoughtLinks";
 import { readiness } from "../readiness";
 import { now } from "../utils";
 
@@ -259,6 +260,12 @@ function hasPatch(value: object) {
   return Object.keys(value).length > 0;
 }
 
+function withoutProjectIdPatch(patch: Partial<ThoughtItem>): Partial<ThoughtItem> {
+  const rest = { ...patch };
+  delete rest.projectId;
+  return rest;
+}
+
 export function applyAiInsightPatch(state: AppState, insight: AIInsight): ApplyAiPatchResult {
   if (!insight.patch || !Array.isArray(insight.patch.operations)) {
     return fail(state, "invalid_patch", ["invalid_patch:missing_operations"]);
@@ -301,20 +308,32 @@ export function applyAiInsightPatch(state: AppState, insight: AIInsight): ApplyA
       Object.assign(patch, result.patch);
     }
 
-    const changed = changedPatch(thought, patch);
-    if (!hasPatch(changed)) {
+    const projectIdPatch = patch.projectId;
+    const changed = changedPatch(thought, withoutProjectIdPatch(patch));
+    let nextState: AppState = state;
+    let changedDirectRefs = false;
+
+    if (hasPatch(changed)) {
+      nextState = {
+        ...nextState,
+        thoughts: nextState.thoughts.map((item) =>
+          item.id === targetId ? { ...item, ...changed, updatedAt: now() } : item
+        )
+      };
+    }
+
+    if (projectIdPatch !== undefined) {
+      const linkResult = linkThoughtToProjectReference(nextState, projectIdPatch, targetId);
+      if (!linkResult.ok) return fail(state, "invalid_value", [...warnings, linkResult.error ?? "invalid_value:projectId"]);
+      nextState = linkResult.state;
+      changedDirectRefs = linkResult.changed ?? false;
+    }
+
+    if (!hasPatch(changed) && !changedDirectRefs) {
       return fail(state, "no_allowed_changes", warnings.length ? warnings : ["no_allowed_changes:thought"]);
     }
 
-    return ok(
-      {
-        ...state,
-        thoughts: state.thoughts.map((item) =>
-          item.id === targetId ? { ...item, ...changed, updatedAt: now() } : item
-        )
-      },
-      warnings
-    );
+    return ok(nextState, warnings);
   }
 
   const project = state.projects.find((item) => item.id === targetId);

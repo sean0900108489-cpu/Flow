@@ -128,6 +128,38 @@ function state(): AppState {
   };
 }
 
+function stateWithUnrelatedProjectLinks(): AppState {
+  const base = state();
+  const thought = base.thoughts[0];
+  const project = base.projects[0];
+
+  return {
+    ...base,
+    thoughts: [
+      thought,
+      {
+        ...thought,
+        id: "t-2",
+        title: "Unrelated thought",
+        projectId: "p-2"
+      }
+    ],
+    projects: [
+      {
+        ...project,
+        linkedThoughtIds: ["t-1", "t-2"]
+      },
+      {
+        ...project,
+        id: "p-2",
+        sourceThoughtId: "t-2",
+        linkedThoughtIds: ["t-2", "t-1"],
+        name: "Unrelated project"
+      }
+    ]
+  };
+}
+
 describe("safe app mutations", () => {
   it("deleteThought clears relationships and stale references", () => {
     const result = deleteThought(state(), "t-1");
@@ -143,6 +175,18 @@ describe("safe app mutations", () => {
     expect(result.state.nextActionState?.selectedFocusActionId).toBeUndefined();
     expect(result.state.nextActionState?.savedActionIds).toEqual(["project:p-1"]);
     expect(result.state.nextActionState?.dismissedActionIds).toEqual([]);
+  });
+
+  it("deleteThought removes the deleted thought from every project without altering unrelated links", () => {
+    const result = deleteThought(stateWithUnrelatedProjectLinks(), "t-1");
+    const firstProject = result.state.projects.find((project) => project.id === "p-1");
+    const secondProject = result.state.projects.find((project) => project.id === "p-2");
+
+    expect(result.ok).toBe(true);
+    expect(firstProject?.sourceThoughtId).toBeUndefined();
+    expect(firstProject?.linkedThoughtIds).toEqual(["t-2"]);
+    expect(secondProject?.sourceThoughtId).toBe("t-2");
+    expect(secondProject?.linkedThoughtIds).toEqual(["t-2"]);
   });
 
   it("deleteThought rejects missing ids without changing state", () => {
@@ -165,6 +209,18 @@ describe("safe app mutations", () => {
     expect(result.state.decisionRecords?.[0].linkedProjectIds).toEqual([]);
     expect(result.state.aiInsights.map((insight) => insight.id)).toEqual(["ai-1"]);
     expect(result.state.nextActionState?.savedActionIds).toEqual(["thought:t-1"]);
+  });
+
+  it("deleteProject clears only thought project references pointing to the deleted project", () => {
+    const result = deleteProject(stateWithUnrelatedProjectLinks(), "p-1");
+    const firstThought = result.state.thoughts.find((thought) => thought.id === "t-1");
+    const secondThought = result.state.thoughts.find((thought) => thought.id === "t-2");
+
+    expect(result.ok).toBe(true);
+    expect(result.state.projects.map((project) => project.id)).toEqual(["p-2"]);
+    expect(result.state.thoughts.map((thought) => thought.id)).toEqual(["t-1", "t-2"]);
+    expect(firstThought?.projectId).toBeUndefined();
+    expect(secondThought?.projectId).toBe("p-2");
   });
 
   it("deleteProject rejects missing ids without changing state", () => {

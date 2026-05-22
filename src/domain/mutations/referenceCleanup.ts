@@ -1,4 +1,4 @@
-import type { AppState, RelationshipNodeType } from "../types";
+import type { AppState, Project, RelationshipNodeType, ThoughtItem } from "../types";
 import type { RelationshipNodeRef } from "../relationships/relationshipGraph";
 import { now } from "../utils";
 
@@ -12,6 +12,31 @@ function nextActionPrefix(type: RelationshipNodeType) {
   if (type === "blocking_question") return "blocking_question";
 
   return undefined;
+}
+
+function withoutDeletedThoughtProjectReferences(project: Project, thoughtId: string, timestamp: string): Project {
+  const linkedThoughtIds = withoutId(project.linkedThoughtIds, thoughtId);
+  const sourceChanged = project.sourceThoughtId === thoughtId;
+  const linkedChanged = linkedThoughtIds.length !== (project.linkedThoughtIds ?? []).length;
+
+  return sourceChanged || linkedChanged
+    ? {
+        ...project,
+        sourceThoughtId: sourceChanged ? undefined : project.sourceThoughtId,
+        linkedThoughtIds,
+        updatedAt: timestamp
+      }
+    : project;
+}
+
+function withoutDeletedProjectThoughtReference(
+  thought: ThoughtItem,
+  projectId: string,
+  timestamp: string
+): ThoughtItem {
+  return thought.projectId === projectId
+    ? { ...thought, projectId: undefined, updatedAt: timestamp }
+    : thought;
 }
 
 function removeNextActionReferences(state: AppState, node: RelationshipNodeRef): AppState {
@@ -36,22 +61,13 @@ function removeNextActionReferences(state: AppState, node: RelationshipNodeRef):
 }
 
 function removeThoughtReferences(state: AppState, thoughtId: string): AppState {
+  const timestamp = now();
+
   return {
     ...state,
-    projects: state.projects.map((project) => {
-      const linkedThoughtIds = withoutId(project.linkedThoughtIds, thoughtId);
-      const sourceChanged = project.sourceThoughtId === thoughtId;
-      const linkedChanged = linkedThoughtIds.length !== (project.linkedThoughtIds ?? []).length;
-
-      return sourceChanged || linkedChanged
-        ? {
-            ...project,
-            sourceThoughtId: sourceChanged ? undefined : project.sourceThoughtId,
-            linkedThoughtIds,
-            updatedAt: now()
-          }
-        : project;
-    }),
+    projects: state.projects.map((project) =>
+      withoutDeletedThoughtProjectReferences(project, thoughtId, timestamp)
+    ),
     blockingQuestions: state.blockingQuestions?.map((question) => {
       const linkedThoughtIds = withoutId(question.linkedThoughtIds, thoughtId);
 
@@ -71,12 +87,12 @@ function removeThoughtReferences(state: AppState, thoughtId: string): AppState {
 }
 
 function removeProjectReferences(state: AppState, projectId: string): AppState {
+  const timestamp = now();
+
   return {
     ...state,
     thoughts: state.thoughts.map((thought) =>
-      thought.projectId === projectId
-        ? { ...thought, projectId: undefined, updatedAt: now() }
-        : thought
+      withoutDeletedProjectThoughtReference(thought, projectId, timestamp)
     ),
     blockingQuestions: state.blockingQuestions?.map((question) => {
       const linkedProjectIds = withoutId(question.linkedProjectIds, projectId);

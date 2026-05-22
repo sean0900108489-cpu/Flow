@@ -24,6 +24,29 @@ function stateWithProjectPatch(patch: Partial<Project>): AppState {
   };
 }
 
+function stateWithSecondProject(): AppState {
+  const base = state();
+  const sourceProject = base.projects.find((project) => project.id === "p-1");
+
+  if (!sourceProject) return base;
+
+  const { sourceThoughtId: _sourceThoughtId, ...projectWithoutSourceThought } = sourceProject;
+
+  return {
+    ...base,
+    projects: [
+      ...base.projects,
+      {
+        ...projectWithoutSourceThought,
+        id: "p-2",
+        name: "Second project",
+        intent: "A second project for move behavior tests.",
+        linkedThoughtIds: []
+      }
+    ]
+  };
+}
+
 describe("project actions", () => {
   it("createProject creates an active project", () => {
     const result = createProject(state(), {
@@ -137,9 +160,11 @@ describe("project actions", () => {
 
   it("linkThoughtToProject adds linkedThoughtIds", () => {
     const result = linkThoughtToProject(state(), "p-1", "t-2");
+    const linkedThoughtIds = result.state.projects.find((project) => project.id === "p-1")?.linkedThoughtIds ?? [];
 
     expect(result.ok).toBe(true);
-    expect(result.state.projects.find((project) => project.id === "p-1")?.linkedThoughtIds).toContain("t-2");
+    expect(linkedThoughtIds).toContain("t-2");
+    expect(linkedThoughtIds.filter((id) => id === "t-2")).toHaveLength(1);
     expect(result.state.thoughts.find((thought) => thought.id === "t-2")?.projectId).toBe("p-1");
   });
 
@@ -155,10 +180,109 @@ describe("project actions", () => {
   it("unlinkThoughtFromProject does not delete the thought", () => {
     const linked = linkThoughtToProject(state(), "p-1", "t-2");
     const result = unlinkThoughtFromProject(linked.state, "p-1", "t-2");
+    const thought = result.state.thoughts.find((item) => item.id === "t-2");
 
     expect(result.ok).toBe(true);
-    expect(result.state.thoughts.find((thought) => thought.id === "t-2")).toBeDefined();
+    expect(thought).toBeDefined();
+    expect(thought?.projectId).toBeUndefined();
     expect(result.state.projects.find((project) => project.id === "p-1")?.linkedThoughtIds ?? []).not.toContain("t-2");
+  });
+
+  it("linkThoughtToProject moves a thought from one project to another without stale links", () => {
+    const linkedToFirst = linkThoughtToProject(stateWithSecondProject(), "p-1", "t-2");
+    const movedToSecond = linkThoughtToProject(linkedToFirst.state, "p-2", "t-2");
+    const thought = movedToSecond.state.thoughts.find((item) => item.id === "t-2");
+    const firstProjectLinkedThoughtIds =
+      movedToSecond.state.projects.find((project) => project.id === "p-1")?.linkedThoughtIds ?? [];
+    const secondProjectLinkedThoughtIds =
+      movedToSecond.state.projects.find((project) => project.id === "p-2")?.linkedThoughtIds ?? [];
+
+    expect(movedToSecond.ok).toBe(true);
+    expect(thought?.projectId).toBe("p-2");
+    expect(firstProjectLinkedThoughtIds).not.toContain("t-2");
+    expect(secondProjectLinkedThoughtIds).toContain("t-2");
+    expect(secondProjectLinkedThoughtIds.filter((id) => id === "t-2")).toHaveLength(1);
+  });
+
+  it("updateProjectDetails clears removed linked thoughts from the project reference", () => {
+    const base = state();
+    const linkedBase: AppState = {
+      ...base,
+      projects: base.projects.map((project) =>
+        project.id === "p-1"
+          ? { ...project, linkedThoughtIds: ["t-1", "t-2"] }
+          : project
+      ),
+      thoughts: base.thoughts.map((thought) =>
+        thought.id === "t-2"
+          ? { ...thought, projectId: "p-1" }
+          : thought
+      )
+    };
+
+    const result = updateProjectDetails(linkedBase, "p-1", { linkedThoughtIds: ["t-1"] });
+    const projectLinkedThoughtIds =
+      result.state.projects.find((project) => project.id === "p-1")?.linkedThoughtIds ?? [];
+
+    expect(result.ok).toBe(true);
+    expect(projectLinkedThoughtIds).not.toContain("t-2");
+    expect(result.state.thoughts.find((thought) => thought.id === "t-2")?.projectId).toBeUndefined();
+  });
+
+  it("updateProjectDetails moves linked thoughts from previous projects without stale links", () => {
+    const base = stateWithSecondProject();
+    const linkedBase: AppState = {
+      ...base,
+      projects: base.projects.map((project) =>
+        project.id === "p-2"
+          ? { ...project, linkedThoughtIds: ["t-2"] }
+          : project
+      ),
+      thoughts: base.thoughts.map((thought) =>
+        thought.id === "t-2"
+          ? { ...thought, projectId: "p-2" }
+          : thought
+      )
+    };
+
+    const result = updateProjectDetails(linkedBase, "p-1", { linkedThoughtIds: ["t-1", "t-2"] });
+    const firstProjectLinkedThoughtIds =
+      result.state.projects.find((project) => project.id === "p-1")?.linkedThoughtIds ?? [];
+    const secondProjectLinkedThoughtIds =
+      result.state.projects.find((project) => project.id === "p-2")?.linkedThoughtIds ?? [];
+
+    expect(result.ok).toBe(true);
+    expect(result.state.thoughts.find((thought) => thought.id === "t-2")?.projectId).toBe("p-1");
+    expect(firstProjectLinkedThoughtIds.filter((id) => id === "t-2")).toHaveLength(1);
+    expect(secondProjectLinkedThoughtIds).not.toContain("t-2");
+  });
+
+  it("updateProjectDetails preserves a thought already moved to another project when removing stale links", () => {
+    const base = stateWithSecondProject();
+    const linkedBase: AppState = {
+      ...base,
+      projects: base.projects.map((project) => {
+        if (project.id === "p-1") return { ...project, linkedThoughtIds: ["t-1", "t-2"] };
+        if (project.id === "p-2") return { ...project, linkedThoughtIds: ["t-2"] };
+        return project;
+      }),
+      thoughts: base.thoughts.map((thought) =>
+        thought.id === "t-2"
+          ? { ...thought, projectId: "p-2" }
+          : thought
+      )
+    };
+
+    const result = updateProjectDetails(linkedBase, "p-1", { linkedThoughtIds: ["t-1"] });
+    const firstProjectLinkedThoughtIds =
+      result.state.projects.find((project) => project.id === "p-1")?.linkedThoughtIds ?? [];
+    const secondProjectLinkedThoughtIds =
+      result.state.projects.find((project) => project.id === "p-2")?.linkedThoughtIds ?? [];
+
+    expect(result.ok).toBe(true);
+    expect(firstProjectLinkedThoughtIds).not.toContain("t-2");
+    expect(secondProjectLinkedThoughtIds).toContain("t-2");
+    expect(result.state.thoughts.find((thought) => thought.id === "t-2")?.projectId).toBe("p-2");
   });
 
   it("promoteThoughtToProject creates a project and links the source thought", () => {

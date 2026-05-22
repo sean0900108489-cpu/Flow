@@ -163,6 +163,69 @@ function checkReferenceList(
   }
 }
 
+function addThoughtProjectReferenceDriftWarning(
+  warnings: AppStateInvariantWarning[],
+  entityType: string,
+  entityId: string,
+  field: string,
+  message: string
+) {
+  warnings.push(warning({
+    code: "thought_project_reference_drift",
+    severity: "warning",
+    entityType,
+    entityId,
+    field,
+    message
+  }));
+}
+
+function checkThoughtProjectReferenceDrift(
+  warnings: AppStateInvariantWarning[],
+  state: AppState
+) {
+  const thoughtsById = new Map(state.thoughts.map((thought) => [thought.id, thought]));
+  const projectsById = new Map(state.projects.map((project) => [project.id, project]));
+
+  for (const thought of state.thoughts) {
+    const projectId = text(thought.projectId);
+    if (!projectId) continue;
+
+    const project = projectsById.get(projectId);
+    if (!project) continue;
+
+    if (!(project.linkedThoughtIds ?? []).includes(thought.id)) {
+      addThoughtProjectReferenceDriftWarning(
+        warnings,
+        "thought",
+        thought.id,
+        "projectId",
+        `Thought ${thought.id} points to project ${projectId}, but project ${projectId} does not link back to the thought.`
+      );
+    }
+  }
+
+  for (const project of state.projects) {
+    for (const thoughtId of project.linkedThoughtIds ?? []) {
+      const cleanThoughtId = text(thoughtId);
+      if (!cleanThoughtId) continue;
+
+      const thought = thoughtsById.get(cleanThoughtId);
+      if (!thought) continue;
+
+      if (thought.projectId !== project.id) {
+        addThoughtProjectReferenceDriftWarning(
+          warnings,
+          "project",
+          project.id,
+          "linkedThoughtIds",
+          `Project ${project.id} links thought ${cleanThoughtId}, but the thought points to ${thought.projectId ?? "no project"}.`
+        );
+      }
+    }
+  }
+}
+
 function entityIdsByType(state: AppState) {
   return {
     thought: collectionIds(state.thoughts),
@@ -282,6 +345,8 @@ function checkDirectReferences(warnings: AppStateInvariantWarning[], state: AppS
       { optional: true }
     );
   }
+
+  checkThoughtProjectReferenceDrift(warnings, state);
 }
 
 function inferredAIInsightTargetType(insight: AIInsight): RelationshipNodeType | undefined {

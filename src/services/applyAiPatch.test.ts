@@ -67,6 +67,22 @@ const baseState = (): AppState => ({
   aiInsights: []
 });
 
+const stateWithProjectMembership = (): AppState => {
+  const state = baseState();
+
+  return {
+    ...state,
+    thoughts: state.thoughts.map((thought) =>
+      thought.id === "t-1" ? { ...thought, projectId: "p-1" } : thought
+    ),
+    projects: [
+      baseProject({ linkedThoughtIds: ["t-1"] }),
+      baseProject({ id: "p-2", name: "Second project", linkedThoughtIds: [] }),
+      baseProject({ id: "p-archived", status: "archived", name: "Archived project" })
+    ]
+  };
+};
+
 const insight = (patch?: AIInsight["patch"]): AIInsight => ({
   id: "ai-1",
   targetId: "t-1",
@@ -359,6 +375,68 @@ describe("setAiInsightStatus", () => {
     expect(result.state.aiInsights[0].status).toBe("accepted");
   });
 
+  it("accepts Thought projectId patches with reciprocal project links", () => {
+    const state = baseState();
+    const draft = insight({
+      targetType: "thought",
+      targetId: "t-1",
+      operations: [{ type: "updateThought", thoughtId: "t-1", patch: { projectId: "p-1" } }]
+    });
+
+    const result = setAiInsightStatus({ ...state, aiInsights: [draft] }, "ai-1", "accepted");
+    const linkedThoughtIds = result.state.projects.find((project) => project.id === "p-1")?.linkedThoughtIds ?? [];
+
+    expect(result.applied).toBe(true);
+    expect(result.statusChanged).toBe(true);
+    expect(result.state.thoughts.find((thought) => thought.id === "t-1")?.projectId).toBe("p-1");
+    expect(linkedThoughtIds).toContain("t-1");
+    expect(linkedThoughtIds.filter((id) => id === "t-1")).toHaveLength(1);
+    expect(result.state.aiInsights[0].status).toBe("accepted");
+  });
+
+  it("does not change Project sourceThoughtId when accepting Thought projectId patches", () => {
+    const state = {
+      ...baseState(),
+      projects: [
+        baseProject({ sourceThoughtId: "t-2" }),
+        baseProject({ id: "p-archived", status: "archived", name: "Archived project" })
+      ]
+    };
+    const draft = insight({
+      targetType: "thought",
+      targetId: "t-1",
+      operations: [{ type: "updateThought", thoughtId: "t-1", patch: { projectId: "p-1" } }]
+    });
+
+    const result = setAiInsightStatus({ ...state, aiInsights: [draft] }, "ai-1", "accepted");
+
+    expect(result.applied).toBe(true);
+    expect(result.state.projects.find((project) => project.id === "p-1")?.sourceThoughtId).toBe("t-2");
+  });
+
+  it("accepts Thought projectId patches as moves without stale project links", () => {
+    const state = stateWithProjectMembership();
+    const draft = insight({
+      targetType: "thought",
+      targetId: "t-1",
+      operations: [{ type: "updateThought", thoughtId: "t-1", patch: { projectId: "p-2" } }]
+    });
+
+    const result = setAiInsightStatus({ ...state, aiInsights: [draft] }, "ai-1", "accepted");
+    const firstProjectLinkedThoughtIds =
+      result.state.projects.find((project) => project.id === "p-1")?.linkedThoughtIds ?? [];
+    const secondProjectLinkedThoughtIds =
+      result.state.projects.find((project) => project.id === "p-2")?.linkedThoughtIds ?? [];
+
+    expect(result.applied).toBe(true);
+    expect(result.statusChanged).toBe(true);
+    expect(result.state.thoughts.find((thought) => thought.id === "t-1")?.projectId).toBe("p-2");
+    expect(firstProjectLinkedThoughtIds).not.toContain("t-1");
+    expect(secondProjectLinkedThoughtIds).toContain("t-1");
+    expect(secondProjectLinkedThoughtIds.filter((id) => id === "t-1")).toHaveLength(1);
+    expect(result.state.aiInsights[0].status).toBe("accepted");
+  });
+
   it("does not mark invalid AI patches as accepted", () => {
     const state = baseState();
     const draft = insight({
@@ -374,6 +452,33 @@ describe("setAiInsightStatus", () => {
     expect(result.error).toBe("invalid_value");
     expect(result.state.aiInsights[0].status).toBe("draft");
   });
+
+  it.each([
+    ["empty", "   ", "invalid_value:projectId:must_be_non_empty_string"],
+    ["missing", "missing-project", "missing_reference:projectId:missing-project"],
+    ["archived", "p-archived", "invalid_value:projectId:p-archived:project_archived"]
+  ])(
+    "does not accept %s Thought projectId patches or mutate project links",
+    (_label, projectId, warning) => {
+      const state = stateWithProjectMembership();
+      const draft = insight({
+        targetType: "thought",
+        targetId: "t-1",
+        operations: [{ type: "updateThought", thoughtId: "t-1", patch: { projectId } }]
+      });
+
+      const result = setAiInsightStatus({ ...state, aiInsights: [draft] }, "ai-1", "accepted");
+
+      expect(result.applied).toBe(false);
+      expect(result.statusChanged).toBe(false);
+      expect(result.error).toBe("invalid_value");
+      expect(result.warnings).toContain(warning);
+      expect(result.state.thoughts.find((thought) => thought.id === "t-1")?.projectId).toBe("p-1");
+      expect(result.state.projects.find((project) => project.id === "p-1")?.linkedThoughtIds).toEqual(["t-1"]);
+      expect(result.state.projects.find((project) => project.id === "p-2")?.linkedThoughtIds).toEqual([]);
+      expect(result.state.aiInsights[0].status).toBe("draft");
+    }
+  );
 
   it("can still accept non-patch AI insights as review decisions", () => {
     const state = baseState();
