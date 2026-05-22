@@ -1,3 +1,4 @@
+import { useState, type FocusEvent, type MouseEvent } from "react";
 import {
   Archive,
   Brain,
@@ -19,7 +20,13 @@ import {
   Wand2
 } from "lucide-react";
 
+type NavTooltip = {
+  label: string;
+  top: number;
+};
+
 export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen: string) => void }) {
+  const [tooltip, setTooltip] = useState<NavTooltip | null>(null);
   const items = [
     ["dashboard", FolderKanban, "Dashboard"],
     ["global-search", Search, "Global Search"],
@@ -45,15 +52,42 @@ export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen:
     ["universes", FolderKanban, "Universes"]
   ] as const;
 
+  const showTooltip =
+    (label: string) => (event: FocusEvent<HTMLButtonElement> | MouseEvent<HTMLButtonElement>) => {
+      const rect = event.currentTarget.getBoundingClientRect();
+      setTooltip({ label, top: rect.top + rect.height / 2 });
+    };
+  const hideTooltip = () => setTooltip(null);
+
   return (
-    <nav>
-      {items.map(([key, Icon, label]) => (
-        <button key={key} className={screen === key ? "active" : ""} onClick={() => setScreen(key)}>
-          <Icon size={18} />
-          {label}
-        </button>
-      ))}
-    </nav>
+    <>
+      <nav>
+        {items.map(([key, Icon, label]) => (
+          <button
+            key={key}
+            type="button"
+            aria-label={label}
+            aria-current={screen === key ? "page" : undefined}
+            className={screen === key ? "active" : ""}
+            data-tooltip={label}
+            title={label}
+            onBlur={hideTooltip}
+            onClick={() => setScreen(key)}
+            onFocus={showTooltip(label)}
+            onMouseEnter={showTooltip(label)}
+            onMouseLeave={hideTooltip}
+          >
+            <Icon size={18} />
+            <span className="nav-label">{label}</span>
+          </button>
+        ))}
+      </nav>
+      {tooltip && (
+        <span className="nav-tooltip" style={{ top: tooltip.top }}>
+          {tooltip.label}
+        </span>
+      )}
+    </>
   );
 }
 

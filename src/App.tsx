@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Brain, Search } from "lucide-react";
+import { Brain, RotateCcw, Search } from "lucide-react";
 import type { AppState, BlockingQuestion, Project, ThoughtItem } from "./domain/types";
 import type { GlobalSearchResult } from "./domain/globalSearch";
-import type { ReviewQueueItem } from "./domain/reviewQueue";
+import { searchReviewQueue, type ReviewQueueItem } from "./domain/reviewQueue";
 import { filterThoughts } from "./domain/listQuery";
 import { pathForScreen, screenForPath } from "./domain/appRouting";
 import {
@@ -89,6 +89,7 @@ import { seed } from "./data/seed";
 import { loadState, saveState } from "./services/storage";
 import { setAiInsightStatus } from "./services/applyAiPatch";
 import { generateProjectReadinessInsight, generateThoughtClassificationInsight } from "./services/aiMock";
+import { AiChatDock } from "./components/layout/AiChatDock";
 import {
   AIPanel,
   AppStateTransfer,
@@ -129,6 +130,7 @@ export function App() {
   const [query, setQuery] = useState("");
   const [universeError, setUniverseError] = useState("");
   const [systemMessage, setSystemMessage] = useState("");
+  const [isAiChatDockOpen, setIsAiChatDockOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -588,6 +590,8 @@ export function App() {
   const projectUniverseOptions = project
     ? universeOptionsForItemUniverseIds(state.universes, [project.universeId])
     : activeUniverses;
+  const aiDraftCount = state.aiInsights.filter((insight) => insight.status === "draft").length;
+  const reviewQueueCount = searchReviewQueue(state).length;
 
   const restoreThought = (thoughtId: string) => {
     applySafeMutationResult(restoreThoughtMutation(state, thoughtId));
@@ -657,17 +661,34 @@ export function App() {
 
   return (
     <div className="shell">
-      <aside>
-        <div className="brand" onClick={() => setScreen("dashboard")}>
-          <Brain />
-          <div>
-            <strong>Thought Universe</strong>
-            <span>思想管理系統</span>
-          </div>
-        </div>
-        <Nav screen={screen} setScreen={setScreen} />
-        <button className="ghost full" onClick={() => save(seed)}>重置 Demo</button>
-      </aside>
+	      <aside>
+	        <button
+	          type="button"
+	          className="brand"
+	          aria-label="Thought Universe dashboard"
+	          data-tooltip="Thought Universe"
+	          title="Thought Universe"
+	          onClick={() => setScreen("dashboard")}
+	        >
+	          <Brain />
+	          <div>
+	            <strong>Thought Universe</strong>
+	            <span>思想管理系統</span>
+	          </div>
+	        </button>
+	        <Nav screen={screen} setScreen={setScreen} />
+	        <button
+	          type="button"
+	          className="ghost full sidebar-reset"
+	          aria-label="Reset demo"
+	          data-tooltip="Reset Demo"
+	          title="Reset Demo"
+	          onClick={() => save(seed)}
+	        >
+	          <RotateCcw size={18} />
+	          <span className="nav-label">重置 Demo</span>
+	        </button>
+	      </aside>
 
       <main>
         <header>
@@ -957,6 +978,18 @@ export function App() {
           />
         </section>
       </main>
+
+      <AiChatDock
+        isOpen={isAiChatDockOpen}
+        currentScreenLabel={title(screen)}
+        selectedThoughtTitle={thought?.title}
+        selectedProjectTitle={project?.name}
+        aiDraftCount={aiDraftCount}
+        reviewQueueCount={reviewQueueCount}
+        onOpenChange={setIsAiChatDockOpen}
+        onOpenAiPanel={() => setScreen("ai")}
+        onOpenReviewQueue={() => setScreen("review-queue")}
+      />
     </div>
   );
 }
