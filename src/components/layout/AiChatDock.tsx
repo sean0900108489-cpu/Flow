@@ -12,8 +12,21 @@ import {
   XCircle
 } from "lucide-react";
 import { Fragment, type ChangeEvent, type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
-
-type AiChatRole = "assistant" | "user";
+import {
+  ATTACHMENT_ACCEPT,
+  attachmentStatusLabel,
+  buildAiRequestMessages,
+  buildComposedPrompt as composeAiChatPrompt,
+  buildComposedPromptPreview as composeAiChatPromptPreview,
+  createAiChatAttachment,
+  formatBytes,
+  formatCount,
+  postAiChatRequest,
+  resolveAiProviderEndpoint,
+  type AiChatAttachment,
+  type AiChatRole,
+  type AiProviderRequestConfig
+} from "./aiChatDockRequest";
 
 type AiChatMessageVariant = "default" | "error";
 
@@ -23,10 +36,6 @@ type AiModelOption = "gpt-5.5-2026-04-23" | "gpt-5.1" | "custom";
 
 type ApiRequestMode = "send" | "test";
 
-type AiChatAttachmentStatus = "text-included" | "metadata-only" | "read-error";
-
-type AttachmentPromptMode = "api" | "history" | "preview";
-
 interface AiChatMessage {
   id: string;
   role: AiChatRole;
@@ -35,46 +44,10 @@ interface AiChatMessage {
   variant?: AiChatMessageVariant;
 }
 
-interface AiChatAttachment {
-  id: string;
-  name: string;
-  extension: string;
-  mimeType: string;
-  size: number;
-  status: AiChatAttachmentStatus;
-  statusMessage: string;
-  textContent?: string;
-}
-
-interface ChatCompletionRequestMessage {
-  role: AiChatRole;
-  content: string;
-}
-
-interface ChatCompletionConfig {
-  apiKey: string;
-  endpoint: string;
-  model: string;
-}
-
 type MarkdownLikeBlock =
   | { id: string; type: "paragraph"; lines: string[] }
   | { id: string; type: "list"; items: string[] }
   | { id: string; type: "code"; language: string; content: string };
-
-const MAX_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024;
-const MAX_ATTACHMENT_PROMPT_CHARACTERS = 12_000;
-const SUPPORTED_ATTACHMENT_EXTENSIONS = ["json", "txt", "md", "pdf", "png"] as const;
-const TEXT_ATTACHMENT_EXTENSIONS = new Set(["json", "txt", "md"]);
-const TEXT_ATTACHMENT_MIME_TYPES = new Set(["application/json", "text/plain", "text/markdown"]);
-const SUPPORTED_ATTACHMENT_MIME_TYPES = new Set([
-  "application/json",
-  "text/plain",
-  "text/markdown",
-  "application/pdf",
-  "image/png"
-]);
-const ATTACHMENT_ACCEPT = ".json,.txt,.md,.pdf,.png,application/json,text/plain,text/markdown,application/pdf,image/png";
 
 const LOCAL_STORAGE_KEYS = {
   apiBaseUrl: "eflow.aiChat.apiBaseUrl",
@@ -232,146 +205,6 @@ function readStoredPromptMode() {
   const value = readLocalString(LOCAL_STORAGE_KEYS.promptMode, "freeform");
 
   return isPromptMode(value) ? value : "freeform";
-}
-
-function getFileExtension(fileName: string) {
-  return fileName.split(".").pop()?.toLowerCase() ?? "";
-}
-
-function isSupportedAttachment(file: File) {
-  const extension = getFileExtension(file.name);
-
-  return SUPPORTED_ATTACHMENT_EXTENSIONS.some((supported) => supported === extension) || SUPPORTED_ATTACHMENT_MIME_TYPES.has(file.type);
-}
-
-function isTextAttachment(extension: string, mimeType: string) {
-  return TEXT_ATTACHMENT_EXTENSIONS.has(extension) || TEXT_ATTACHMENT_MIME_TYPES.has(mimeType);
-}
-
-function formatBytes(size: number) {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatCount(count: number) {
-  return count.toLocaleString();
-}
-
-function attachmentStatusLabel(status: AiChatAttachmentStatus) {
-  if (status === "text-included") return "text included in prompt";
-  if (status === "read-error") return "text read failed; metadata only";
-
-  return "metadata only; content not extracted";
-}
-
-function formatAttachmentTextForPrompt(content: string) {
-  const normalizedContent = content.replace(/\r\n/g, "\n");
-
-  if (normalizedContent.length <= MAX_ATTACHMENT_PROMPT_CHARACTERS) return normalizedContent;
-
-  return [
-    normalizedContent.slice(0, MAX_ATTACHMENT_PROMPT_CHARACTERS),
-    "",
-    `[Attachment text truncated to ${MAX_ATTACHMENT_PROMPT_CHARACTERS.toLocaleString()} characters for this prompt.]`
-  ].join("\n");
-}
-
-function attachmentTextSummary(content: string) {
-  const normalizedLength = content.replace(/\r\n/g, "\n").length;
-
-  if (normalizedLength <= MAX_ATTACHMENT_PROMPT_CHARACTERS) {
-    return `${formatCount(normalizedLength)} characters included in API sends from UI memory only`;
-  }
-
-  return `first ${formatCount(MAX_ATTACHMENT_PROMPT_CHARACTERS)} of ${formatCount(
-    normalizedLength
-  )} characters included in API sends from UI memory only`;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : undefined;
-}
-
-function contentToText(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-
-  if (!Array.isArray(value)) return "";
-
-  return value
-    .map((part) => {
-      if (typeof part === "string") return part;
-
-      const record = asRecord(part);
-
-      return contentToText(record?.text ?? record?.content);
-    })
-    .filter(Boolean)
-    .join("\n")
-    .trim();
-}
-
-function extractAssistantContent(payload: unknown) {
-  const record = asRecord(payload);
-  const choices = Array.isArray(record?.choices) ? record.choices : [];
-  const firstChoice = asRecord(choices[0]);
-  const message = asRecord(firstChoice?.message);
-  const delta = asRecord(firstChoice?.delta);
-
-  return (
-    contentToText(message?.content) ||
-    contentToText(firstChoice?.text) ||
-    contentToText(delta?.content) ||
-    contentToText(record?.output_text) ||
-    contentToText(record?.content) ||
-    contentToText(record?.message) ||
-    contentToText(asRecord(record?.message)?.content)
-  );
-}
-
-function extractApiErrorMessage(payload: unknown) {
-  if (typeof payload === "string") return payload.trim();
-
-  const record = asRecord(payload);
-  const error = asRecord(record?.error);
-
-  return (
-    contentToText(error?.message) ||
-    contentToText(error?.code) ||
-    contentToText(record?.message) ||
-    contentToText(record?.error)
-  );
-}
-
-async function readResponsePayload(response: Response): Promise<unknown> {
-  const contentType = response.headers.get("content-type") ?? "";
-
-  if (contentType.includes("application/json")) {
-    try {
-      return await response.json();
-    } catch {
-      return undefined;
-    }
-  }
-
-  try {
-    const text = await response.text();
-
-    if (!text.trim()) return undefined;
-
-    try {
-      return JSON.parse(text) as unknown;
-    } catch {
-      return text;
-    }
-  } catch {
-    return undefined;
-  }
-}
-
-function buildChatCompletionsEndpoint(apiBaseUrl: string) {
-  return `${apiBaseUrl.replace(/\/+$/, "")}/chat/completions`;
 }
 
 function copyTextWithHiddenTextarea(text: string) {
@@ -569,15 +402,6 @@ function MarkdownLikeMessage({
   );
 }
 
-function toApiMessages(messages: AiChatMessage[]): ChatCompletionRequestMessage[] {
-  return messages
-    .filter((message) => message.content.trim())
-    .map((message) => ({
-      role: message.role,
-      content: message.content
-    }));
-}
-
 function errorMessageFromUnknown(error: unknown) {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
@@ -587,40 +411,6 @@ function errorMessageFromUnknown(error: unknown) {
 
 function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError";
-}
-
-async function postChatCompletion(
-  config: ChatCompletionConfig,
-  messages: ChatCompletionRequestMessage[],
-  signal: AbortSignal
-) {
-  const response = await fetch(config.endpoint, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: config.model,
-      messages
-    }),
-    signal
-  });
-  const payload = await readResponsePayload(response);
-
-  if (!response.ok) {
-    const detail = extractApiErrorMessage(payload);
-
-    throw new Error(detail || `Request failed with ${response.status} ${response.statusText}.`);
-  }
-
-  const assistantContent = extractAssistantContent(payload);
-
-  if (!assistantContent) {
-    throw new Error("API response did not include choices[0].message.content.");
-  }
-
-  return assistantContent;
 }
 
 export interface AiChatDockProps {
@@ -758,60 +548,22 @@ export function AiChatDock({
     });
   }, [isOpen, messages]);
 
-  const attachmentPromptBlock = (mode: AttachmentPromptMode) => {
-    if (mode === "history" && attachments.length) {
-      return "Attachment context was included from UI memory for this request. Attachment details and text content are not stored in chat history.";
-    }
+  const buildDisplayPrompt = (draft: string) =>
+    composeAiChatPrompt({
+      promptMode,
+      promptDraft: draft,
+      attachments,
+      mode: "history"
+    });
 
-    const attachmentPreview = attachments.length
-      ? attachments
-          .map((attachment) => {
-            const metadata = `- ${attachment.name} (${attachment.extension || "unknown"}, ${formatBytes(attachment.size)}, ${
-              attachment.mimeType || "unknown MIME"
-            })\n  Status: ${attachmentStatusLabel(attachment.status)}. ${attachment.statusMessage}`;
-
-            if (!attachment.textContent) return metadata;
-
-            if (mode === "preview") {
-              return `${metadata}\n  Text content: ${attachmentTextSummary(
-                attachment.textContent
-              )}. Raw attachment text is omitted from copied previews.`;
-            }
-
-            return [
-              metadata,
-              "",
-              "Text content:",
-              `<<<BEGIN_ATTACHMENT_TEXT:${attachment.name}>>>`,
-              formatAttachmentTextForPrompt(attachment.textContent),
-              "<<<END_ATTACHMENT_TEXT>>>"
-            ].join("\n");
-          })
-          .join("\n\n")
-      : "none";
-
-    return attachmentPreview;
-  };
-
-  const buildComposedPrompt = (mode: AttachmentPromptMode = "api") => {
-    return [
-      `Prompt mode: ${promptMode}`,
-      `Prompt:\n${promptDraft.trim() || "(empty)"}`,
-      `Attachments:\n${attachmentPromptBlock(mode)}`
-    ].join("\n\n");
-  };
-
-  const buildComposedPromptPreview = () => {
-    const attachmentPreview = attachmentPromptBlock("preview");
-
-    return [
-      `Prompt mode: ${promptMode}`,
-      `Model: ${activeModelLabel}`,
-      `API base URL: ${apiBaseUrl || "(not set)"}`,
-      `Prompt:\n${promptDraft.trim() || "(empty)"}`,
-      `Attachments:\n${attachmentPreview}`
-    ].join("\n\n");
-  };
+  const buildPreviewPrompt = () =>
+    composeAiChatPromptPreview({
+      promptMode,
+      activeModelLabel,
+      apiBaseUrl,
+      promptDraft,
+      attachments
+    });
 
   const copyToClipboard = async (text: string, successMessage: string) => {
     if (!text.trim()) {
@@ -846,7 +598,7 @@ export function AiChatDock({
     setMessages((currentMessages) => [...currentMessages, createMessage("assistant", message, "error")]);
   };
 
-  const resolveChatCompletionConfig = (): { config: ChatCompletionConfig } | { error: string } => {
+  const resolveAiRequestConfig = (): { config: AiProviderRequestConfig } | { error: string } => {
     const trimmedApiKey = apiKey.trim();
     const trimmedBaseUrl = apiBaseUrl.trim();
     const resolvedModel = selectedModel === "custom" ? customModelId.trim() : selectedModel;
@@ -855,11 +607,14 @@ export function AiChatDock({
     if (!trimmedBaseUrl) return { error: "API base URL is required before sending to the model." };
     if (!resolvedModel) return { error: "Model ID is required before sending to the model." };
 
+    const endpoint = resolveAiProviderEndpoint(trimmedBaseUrl);
+
     return {
       config: {
         apiKey: trimmedApiKey,
-        endpoint: buildChatCompletionsEndpoint(trimmedBaseUrl),
-        model: resolvedModel
+        endpoint: endpoint.endpoint,
+        model: resolvedModel,
+        providerMode: endpoint.providerMode
       }
     };
   };
@@ -898,7 +653,7 @@ export function AiChatDock({
       return;
     }
 
-    const configResult = resolveChatCompletionConfig();
+    const configResult = resolveAiRequestConfig();
 
     if ("error" in configResult) {
       appendAssistantError(`API setup error: ${configResult.error}`);
@@ -906,16 +661,20 @@ export function AiChatDock({
       return;
     }
 
-    const requestUserMessage = createMessage("user", buildComposedPrompt("api"));
-    const displayUserMessage = createMessage("user", buildComposedPrompt("history"));
-    const requestMessages = toApiMessages([...messages, requestUserMessage]);
+    const displayUserMessage = createMessage("user", buildDisplayPrompt(submittedPromptDraft));
+    const requestMessages = buildAiRequestMessages({
+      historyMessages: messages,
+      promptMode,
+      promptDraft: submittedPromptDraft,
+      attachments
+    });
     const { controller, requestId } = beginApiRequest("send");
 
     setMessages((currentMessages) => [...currentMessages, displayUserMessage]);
     setStatusMessage(`Sending to ${configResult.config.model}...`);
 
     try {
-      const assistantContent = await postChatCompletion(configResult.config, requestMessages, controller.signal);
+      const assistantContent = await postAiChatRequest(configResult.config, requestMessages, controller.signal);
 
       if (requestIdRef.current !== requestId) return;
 
@@ -940,51 +699,18 @@ export function AiChatDock({
 
     if (!file) return;
 
-    const extension = getFileExtension(file.name);
+    const result = await createAiChatAttachment(file, createAttachmentId);
 
-    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-      setAttachmentError(`${file.name} is larger than 20MB.`);
+    if (!result.attachment) {
+      setAttachmentError(result.error ?? `${file.name} could not be attached.`);
       return;
     }
 
-    if (!isSupportedAttachment(file)) {
-      setAttachmentError(`${file.name} must be json, txt, md, pdf, or png.`);
-      return;
-    }
+    const attachment = result.attachment;
 
-    let textContent: string | undefined;
-    let status: AiChatAttachmentStatus = "metadata-only";
-    let statusMessage = "PDF/image content is not extracted in this step.";
-
-    if (isTextAttachment(extension, file.type)) {
-      try {
-        textContent = await file.text();
-        status = "text-included";
-        statusMessage = "Text content is included in prompt preview and API sends, with prompt truncation if needed.";
-      } catch {
-        status = "read-error";
-        statusMessage = "Text could not be read with the browser File API; metadata only.";
-        setAttachmentError(`${file.name} could not be read as text, so only metadata was retained.`);
-      }
-    }
-
-    setAttachments((currentAttachments) => [
-      ...currentAttachments,
-      {
-        id: createAttachmentId(),
-        name: file.name,
-        extension,
-        mimeType: file.type || "unknown",
-        size: file.size,
-        status,
-        statusMessage,
-        textContent
-      }
-    ]);
-
-    if (status !== "read-error") setAttachmentError("");
-
-    setStatusMessage(`${file.name} attached locally. ${attachmentStatusLabel(status)}.`);
+    setAttachments((currentAttachments) => [...currentAttachments, attachment]);
+    setAttachmentError(result.error ?? "");
+    setStatusMessage(`${file.name} attached locally. ${attachmentStatusLabel(attachment.status)}.`);
   };
 
   const handleRemoveAttachment = (attachmentId: string) => {
@@ -1007,7 +733,7 @@ export function AiChatDock({
       return;
     }
 
-    const configResult = resolveChatCompletionConfig();
+    const configResult = resolveAiRequestConfig();
 
     if ("error" in configResult) {
       appendAssistantError(`API setup error: ${configResult.error}`);
@@ -1020,12 +746,12 @@ export function AiChatDock({
     setStatusMessage(`Testing ${configResult.config.model}...`);
 
     try {
-      const assistantContent = await postChatCompletion(
+      const assistantContent = await postAiChatRequest(
         configResult.config,
         [
           {
             role: "user",
-            content: "Reply with one short sentence confirming this OpenAI-compatible chat completions endpoint works."
+            content: "Reply with one short sentence confirming this configured AI endpoint works."
           }
         ],
         controller.signal
@@ -1088,9 +814,9 @@ export function AiChatDock({
   };
 
   const handleCopyPromptPreview = () => {
-    const preview = buildComposedPromptPreview();
-    const attachmentNote = attachments.some((attachment) => attachment.textContent)
-      ? "; raw attachment text omitted from preview"
+    const preview = buildPreviewPrompt();
+    const attachmentNote = attachments.some((attachment) => attachment.textContent || attachment.imageDataUrl)
+      ? "; raw attachment contents omitted from preview"
       : "";
 
     void copyToClipboard(
@@ -1371,7 +1097,7 @@ export function AiChatDock({
             </label>
             <div className="ai-chat-dock__attachment-meta">
               <span>Supported</span>
-              <strong>json, txt, md, pdf, png · 20MB max</strong>
+              <strong>json, txt, md, pdf, png, jpg, jpeg · 20MB max</strong>
             </div>
             {attachments.length > 0 && (
               <div className="ai-chat-dock__attachment-controls">
@@ -1388,7 +1114,13 @@ export function AiChatDock({
                 {attachments.map((attachment) => (
                   <li
                     key={attachment.id}
-                    className={attachment.status === "read-error" ? "ai-chat-dock__attachment--error" : ""}
+                    className={
+                      attachment.status === "extraction-failed" ||
+                      attachment.status === "unsupported" ||
+                      attachment.status === "pdf-unreadable"
+                        ? "ai-chat-dock__attachment--error"
+                        : ""
+                    }
                   >
                     <span>{attachment.name}</span>
                     <small>
