@@ -2,12 +2,22 @@ import type { AppState } from "../../domain/types";
 import { calculateProductionReadinessSummary } from "../../domain/productionReadiness";
 import { STORAGE_KEY } from "../../services/storage";
 import { Metric } from "../common/Metric";
+import { ArchitectureStatusPanel } from "./ArchitectureStatusPanel";
+import { ConfirmedCommandImportPanel } from "./ConfirmedCommandImportPanel";
 
 function runtimeValue(value: string | undefined, fallback: string) {
   return value && value.trim() ? value : fallback;
 }
 
-export function DeploymentStatus({ state }: { state: AppState }) {
+export function DeploymentStatus({
+  state,
+  projectId,
+  onApplyImportedCommands
+}: {
+  state: AppState;
+  projectId?: string;
+  onApplyImportedCommands?: (nextState: AppState, message: string) => void;
+}) {
   const summary = calculateProductionReadinessSummary(state);
   const version = runtimeValue(
     typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : undefined,
@@ -95,6 +105,10 @@ export function DeploymentStatus({ state }: { state: AppState }) {
           ))}
         </div>
       </div>
+
+      <ConfirmedCommandImportPanel state={state} onApply={onApplyImportedCommands} />
+
+      <ArchitectureStatusPanel state={state} projectId={projectId} />
     </section>
   );
 }

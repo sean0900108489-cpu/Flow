@@ -387,6 +387,10 @@ header p,
   grid-template-columns: repeat(4, 1fr);
 }
 
+.command-import-metrics {
+  margin-top: 0;
+}
+
 .decision-center-metrics {
   grid-template-columns: repeat(4, 1fr);
   margin-top: 0;
@@ -687,9 +691,126 @@ header p,
 .global-search-result-card,
 .review-queue-card,
 .deployment-readiness-card,
+.command-import-result-card,
 .orphan-card {
   display: grid;
   gap: 0.75rem;
+}
+
+.command-import-textarea {
+  min-height: 12rem;
+}
+
+.review-health-drilldown {
+  gap: 0.9rem;
+}
+
+.handoff-export-panel {
+  gap: 0.9rem;
+}
+
+.handoff-export-controls {
+  align-items: end;
+}
+
+.handoff-export-actions {
+  justify-content: flex-end;
+}
+
+.handoff-export-actions button {
+  min-height: 2.65rem;
+}
+
+.handoff-export-preview,
+.handoff-export-section,
+.handoff-export-section-body,
+.handoff-export-card {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.handoff-export-section {
+  padding: 0.9rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.055);
+}
+
+.handoff-export-section summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.handoff-export-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.review-drilldown-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.review-drilldown-section,
+.review-drilldown-group,
+.review-drilldown-body,
+.command-draft-preview {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.review-drilldown-card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.055);
+}
+
+.review-drilldown-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.review-drilldown-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.review-drilldown-card summary > span:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.command-draft-preview {
+  padding: 0.7rem;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(2,6,23,0.28);
+}
+
+.command-draft-json {
+  max-height: 14rem;
+}
+
+.review-severity-info {
+  background: rgba(59,130,246,0.22);
+}
+
+.review-severity-warning {
+  background: rgba(245,158,11,0.22);
+}
+
+.review-severity-error {
+  background: rgba(239,68,68,0.22);
 }
 
 .review-queue-body {

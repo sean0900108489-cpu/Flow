@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
 import type { AIInsight } from "../../domain/types";
 
@@ -26,8 +27,19 @@ export function AIPanel({
   insights: AIInsight[];
   onThought: () => void;
   onProject: () => void;
-  onSet: (id: string, status: "accepted" | "rejected") => void;
+  onSet: (id: string, status: "accepted" | "rejected") => { ok: boolean; error?: string };
 }) {
+  const [message, setMessage] = useState("");
+
+  const reviewInsight = (id: string, status: "accepted" | "rejected") => {
+    const result = onSet(id, status);
+
+    setMessage(result.ok
+      ? `AI draft ${status}.`
+      : result.error ?? "AI draft review failed."
+    );
+  };
+
   return (
     <section className="panel">
       <div className="head">
@@ -38,6 +50,7 @@ export function AIPanel({
         </div>
       </div>
       <p className="muted">MVP 使用 mock AI。AIInsight 是 draft，需要人工接受或拒絕。</p>
+      {message && <div className={message.includes("failed") || message.includes(":") ? "warn" : "notice"}>{message}</div>}
       <div className="stack">
         {insights.length === 0 && <p className="muted">尚無 AI 建議。</p>}
         {insights.map((x) => {
@@ -60,8 +73,8 @@ export function AIPanel({
               )}
               {x.status === "draft" && (
                 <div className="actions">
-                  <button onClick={() => onSet(x.id, "accepted")}><CheckCircle2 size={16} />接受</button>
-                  <button className="ghost" onClick={() => onSet(x.id, "rejected")}><XCircle size={16} />拒絕</button>
+                  <button onClick={() => reviewInsight(x.id, "accepted")}><CheckCircle2 size={16} />接受</button>
+                  <button className="ghost" onClick={() => reviewInsight(x.id, "rejected")}><XCircle size={16} />拒絕</button>
                 </div>
               )}
             </div>

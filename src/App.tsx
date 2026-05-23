@@ -35,7 +35,7 @@ import {
   universeOptionsForItemUniverseIds,
   type UniverseActionResult
 } from "./domain/universeActions";
-import { markProjectHandoffReady } from "./domain/engineeringHandoff";
+import { executeDomainCommand, type DomainCommand } from "./domain/commandLayer";
 import {
   updateEngineeringReadinessAssessment,
   type EngineeringReadinessPatch
@@ -87,7 +87,6 @@ import { id, now } from "./domain/utils";
 import { normalizeAppState } from "./domain/appState";
 import { seed } from "./data/seed";
 import { loadState, saveState } from "./services/storage";
-import { setAiInsightStatus } from "./services/applyAiPatch";
 import { generateProjectReadinessInsight, generateThoughtClassificationInsight } from "./services/aiMock";
 import { AiChatDock } from "./components/layout/AiChatDock";
 import {
@@ -159,6 +158,31 @@ export function App() {
     saveState(normalized);
 
     return normalized;
+  };
+
+  const runConfirmedDomainCommand = (
+    command: Omit<DomainCommand, "id" | "source" | "confirmedByUser">
+  ) => {
+    const result = executeDomainCommand(
+      state,
+      {
+        ...command,
+        id: id("cmd"),
+        source: "user",
+        confirmedByUser: true
+      },
+      { actorId: "local-ui" }
+    );
+
+    if (!result.ok) {
+      const message = `${result.error.code}: ${result.error.message}`;
+      setSystemMessage(message);
+      return { ok: false, error: message };
+    }
+
+    setSystemMessage("");
+    save(result.state);
+    return { ok: true };
   };
 
   const applyUniverseResult = (result: UniverseActionResult) => {
@@ -270,13 +294,10 @@ export function App() {
   };
 
   const handleMarkProjectHandoffReady = (projectId: string) => {
-    const result = markProjectHandoffReady(state, projectId);
-
-    if (result.ok) {
-      save(result.state);
-    }
-
-    return { ok: result.ok, error: result.error };
+    return runConfirmedDomainCommand({
+      type: "project.markHandoffReady",
+      target: { type: "project", id: projectId }
+    });
   };
 
   const handleCreateBlockingQuestion = (input: { question: string; context?: string }) =>
@@ -652,11 +673,11 @@ export function App() {
   };
 
   const acceptAI = (aiId: string, status: "accepted" | "rejected") => {
-    const result = setAiInsightStatus(state, aiId, status);
-
-    if (result.statusChanged) {
-      save(result.state);
-    }
+    return runConfirmedDomainCommand({
+      type: "aiInsight.review",
+      target: { type: "aiInsight", id: aiId },
+      payload: { status }
+    });
   };
 
   return (
@@ -946,7 +967,14 @@ export function App() {
         )}
 
         {screen === "deployment-status" && (
-          <DeploymentStatus state={state} />
+          <DeploymentStatus
+            state={state}
+            projectId={project?.id}
+            onApplyImportedCommands={(nextState, message) => {
+              save(nextState);
+              setSystemMessage(message);
+            }}
+          />
         )}
 
         {screen === "universes" && (

@@ -1,6 +1,52 @@
 import { useState } from "react";
 import type { AppState } from "../../domain/types";
+import type { AppStateInvariantWarning } from "../../domain/validation/appStateInvariants";
 import { downloadJson, parseAppStateJson, stringifyAppState } from "../../services/appStateTransfer";
+
+function optionalDetail(warning: AppStateInvariantWarning, key: "target" | "evidence") {
+  const value = (warning as unknown as Record<string, unknown>)[key];
+
+  if (value === undefined) return "";
+
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+function warningTarget(warning: AppStateInvariantWarning) {
+  const entity = [warning.entityType, warning.entityId].filter(Boolean).join(":");
+  const field = warning.field ? `field:${warning.field}` : "";
+
+  return [entity, field].filter(Boolean).join(" / ");
+}
+
+export function AppStateImportWarningDetails({
+  warnings
+}: {
+  warnings: AppStateInvariantWarning[];
+}) {
+  if (warnings.length === 0) return null;
+
+  return (
+    <div className="notice import-warning-details">
+      <strong>Import warning details</strong>
+      <ul>
+        {warnings.map((warning, index) => {
+          const target = optionalDetail(warning, "target") || warningTarget(warning);
+          const evidence = optionalDetail(warning, "evidence");
+
+          return (
+            <li key={`${warning.code}:${warning.entityType ?? "app"}:${warning.entityId ?? index}:${warning.field ?? "state"}`}>
+              <code>{warning.code}</code>
+              <span> severity:{warning.severity}</span>
+              {target && <span> target:{target}</span>}
+              {evidence && <span> evidence:{evidence}</span>}
+              <span> message:{warning.message}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 export function AppStateTransfer({
   state,
@@ -11,6 +57,7 @@ export function AppStateTransfer({
 }) {
   const [importText, setImportText] = useState("");
   const [message, setMessage] = useState("");
+  const [importWarnings, setImportWarnings] = useState<AppStateInvariantWarning[]>([]);
   const json = stringifyAppState(state);
 
   const copy = async () => {
@@ -28,11 +75,13 @@ export function AppStateTransfer({
 
     if (!result.ok || !result.state) {
       setMessage(`匯入失敗：${result.error ?? "Invalid app state."}`);
+      setImportWarnings([]);
       return;
     }
 
     setImportText("");
     onImport(result.state);
+    setImportWarnings(result.warnings ?? []);
     setMessage(result.warnings?.length
       ? `匯入完成，發現 ${result.warnings.length} 個 invariant warning。`
       : "匯入完成，未發現 invariant warning。"
@@ -56,6 +105,7 @@ export function AppStateTransfer({
       </div>
 
       {message && <div className="notice">{message}</div>}
+      <AppStateImportWarningDetails warnings={importWarnings} />
 
       <div className="form">
         <label>

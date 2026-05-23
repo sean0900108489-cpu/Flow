@@ -14,7 +14,8 @@ import {
   isProjectArchived,
   isProjectBlocked,
   isProjectLifecycleHandoffReady,
-  isProjectReadyForEngineering
+  isProjectReadyForEngineering,
+  shouldProjectAppearInHandoffReviewQueue
 } from "./projectSemantics";
 import {
   shouldAIInsightAppearInReviewQueue,
@@ -75,6 +76,52 @@ function stateWithProject(item: Project, questions: BlockingQuestion[] = []): Ap
 }
 
 describe("status semantics", () => {
+  it("formalizes TodoItem as a ThoughtItem task role instead of a persisted collection", () => {
+    const task = thought({ type: "task" });
+    const appState: AppState = {
+      universes: [],
+      thoughts: [task],
+      projects: [],
+      relationships: [],
+      aiInsights: [],
+      blockingQuestions: [],
+      decisionRecords: []
+    };
+
+    expect(appState.thoughts[0].type).toBe("task");
+    expect(Object.prototype.hasOwnProperty.call(appState, "todos")).toBe(false);
+  });
+
+  it("formalizes Universe as a persisted object referenced directly by thoughts and projects", () => {
+    const item = project({ universeId: "u-semantic" });
+    const task = thought({ universeId: "u-semantic" });
+    const appState: AppState = {
+      universes: [
+        {
+          id: "u-semantic",
+          name: "Semantic Universe",
+          description: "A persisted domain container.",
+          purpose: "Group related thought and project records.",
+          focus: "main"
+        }
+      ],
+      thoughts: [task],
+      projects: [item],
+      relationships: [],
+      aiInsights: [],
+      blockingQuestions: [],
+      decisionRecords: []
+    };
+
+    expect(appState.universes[0]).toMatchObject({
+      id: "u-semantic",
+      purpose: "Group related thought and project records."
+    });
+    expect(appState.thoughts[0].universeId).toBe("u-semantic");
+    expect(appState.projects[0].universeId).toBe("u-semantic");
+    expect(appState.relationships).toEqual([]);
+  });
+
   it("keeps project data status, lifecycle, and readiness as separate meanings", () => {
     const archivedReadyProject = project({ status: "archived" });
     const handoffButNotReadyProject = project({
@@ -93,6 +140,18 @@ describe("status semantics", () => {
 
     expect(isProjectLifecycleHandoffReady(handoffButNotReadyProject)).toBe(true);
     expect(isProjectReadyForEngineering(handoffButNotReadyProject)).toBe(false);
+  });
+
+  it("keeps ready_for_engineering as reviewable content maturity, not handoff_ready workflow state", () => {
+    const readyPlanningProject = project({
+      lifecycleStatus: "planning",
+      readiness: "ready_for_engineering"
+    });
+
+    expect(isProjectReadyForEngineering(readyPlanningProject)).toBe(true);
+    expect(isProjectLifecycleHandoffReady(readyPlanningProject)).toBe(false);
+    expect(shouldProjectAppearInHandoffReviewQueue(readyPlanningProject)).toBe(true);
+    expect(canProjectEnterEngineeringHandoff(readyPlanningProject, stateWithProject(readyPlanningProject))).toBe(true);
   });
 
   it("treats linked unresolved high impact questions as project handoff blockers", () => {

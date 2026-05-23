@@ -28,6 +28,8 @@ export interface Universe {
   status?: UniverseStatus;
 }
 
+// Todo items are currently represented as ThoughtItem records with type "task".
+// Do not add a persisted todos[] collection without an explicit AppState migration.
 export interface ThoughtItem {
   id: string;
   title: string;
@@ -47,8 +49,11 @@ export interface Project {
   id: string;
   sourceThoughtId?: string;
   linkedThoughtIds?: string[];
+  // Universe is a persisted container object, not a tag/folder string.
   universeId: string;
   status: ProjectStatus;
+  // lifecycleStatus is workflow state; readiness is content maturity.
+  // ready_for_engineering must not imply handoff_ready.
   lifecycleStatus?: ProjectLifecycleStatus;
   name: string;
   intent: string;

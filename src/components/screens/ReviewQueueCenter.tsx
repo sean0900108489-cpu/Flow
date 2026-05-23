@@ -59,8 +59,8 @@ function ReviewQueueCard({
   onNotice
 }: {
   item: ReviewQueueItem;
-  onAcceptAiInsight: (id: string) => void;
-  onRejectAiInsight: (id: string) => void;
+  onAcceptAiInsight: (id: string) => { ok: boolean; error?: string };
+  onRejectAiInsight: (id: string) => { ok: boolean; error?: string };
   onAcceptDecisionRecord: (decisionRecordId: string) => DecisionRecordActionResult;
   onRejectDecisionRecord: (decisionRecordId: string) => DecisionRecordActionResult;
   onResolveBlockingQuestion: (questionId: string, finalResolution: string) => { ok: boolean; error?: string };
@@ -79,9 +79,7 @@ function ReviewQueueCard({
 
   const accept = () => {
     if (item.type === "ai_insight") {
-      onAcceptAiInsight(item.sourceId);
-      onError("");
-      onNotice("AI draft accepted.");
+      applyResult(onAcceptAiInsight(item.sourceId), "AI draft accepted.", "AI draft could not be accepted.");
       return;
     }
 
@@ -92,9 +90,7 @@ function ReviewQueueCard({
 
   const reject = () => {
     if (item.type === "ai_insight") {
-      onRejectAiInsight(item.sourceId);
-      onError("");
-      onNotice("AI draft rejected.");
+      applyResult(onRejectAiInsight(item.sourceId), "AI draft rejected.", "AI draft could not be rejected.");
       return;
     }
 
@@ -175,7 +171,7 @@ export function ReviewQueueCenter({
   onOpenDecisionCenter
 }: {
   state: AppState;
-  onSetAiInsight: (id: string, status: "accepted" | "rejected") => void;
+  onSetAiInsight: (id: string, status: "accepted" | "rejected") => { ok: boolean; error?: string };
   onAcceptDecisionRecord: (decisionRecordId: string) => DecisionRecordActionResult;
   onRejectDecisionRecord: (decisionRecordId: string) => DecisionRecordActionResult;
   onResolveBlockingQuestion: (questionId: string, finalResolution: string) => { ok: boolean; error?: string };
