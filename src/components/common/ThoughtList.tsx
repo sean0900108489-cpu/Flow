@@ -3,7 +3,7 @@ import type { ListSortBy } from "../../domain/listQuery";
 import { filterThoughts, sortThoughts } from "../../domain/listQuery";
 import type { ThoughtItem, Universe } from "../../domain/types";
 import { universeOptionsForItemUniverseIds } from "../../domain/universeActions";
-import { statusLabel, typeLabel } from "../../domain/labels";
+import { useI18n } from "../../i18n";
 import { EmptyState } from "./EmptyState";
 import { ListControls } from "./ListControls";
 
@@ -22,6 +22,7 @@ export function ThoughtList({
   showControls?: boolean;
   showStatusFilter?: boolean;
 }) {
+  const { t: translate } = useI18n();
   const [searchText, setSearchText] = useState("");
   const [typeFilter, setTypeFilter] = useState<ThoughtItem["type"] | "all">("all");
   const [statusFilter, setStatusFilter] = useState<ThoughtItem["status"] | "all">("all");
@@ -58,18 +59,18 @@ export function ThoughtList({
         />
       )}
       <div className="stack">
-        {visibleThoughts.length === 0 && <EmptyState>沒有想法。</EmptyState>}
+        {visibleThoughts.length === 0 && <EmptyState>{translate("No thoughts.")}</EmptyState>}
         {visibleThoughts.map((t) => {
           const u = universes.find((x) => x.id === t.universeId);
           return (
             <button className="item" key={t.id} onClick={() => onSelect(t.id)}>
               <div className="line">
                 <strong>{t.title}</strong>
-                <span className={`badge ${t.type}`}>{typeLabel[t.type]}</span>
+                <span className={`badge ${t.type}`}>{translate(t.type)}</span>
               </div>
-              <span>{t.nextAction || t.content || "尚未設定下一步"}</span>
+              <span>{t.nextAction || t.content || translate("No next action set yet.")}</span>
               <div className="chips">
-                <span>{statusLabel[t.status]}</span>
+                <span>{translate(t.status)}</span>
                 {u && <span>{u.name}</span>}
               </div>
             </button>

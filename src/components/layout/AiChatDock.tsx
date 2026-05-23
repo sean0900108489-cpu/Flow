@@ -27,6 +27,7 @@ import {
   type AiChatRole,
   type AiProviderRequestConfig
 } from "./aiChatDockRequest";
+import { useI18n } from "../../i18n";
 
 type AiChatMessageVariant = "default" | "error";
 
@@ -346,10 +347,11 @@ function MarkdownLikeMessage({
   copyButtonTabIndex?: number;
   onCopyCode: (code: string) => void;
 }) {
+  const { t } = useI18n();
   const blocks = parseMarkdownLike(content);
 
   if (!blocks.length) {
-    return <p className="ai-chat-dock__message-paragraph">(empty)</p>;
+    return <p className="ai-chat-dock__message-paragraph">{t("(empty)")}</p>;
   }
 
   return (
@@ -367,7 +369,7 @@ function MarkdownLikeMessage({
                   onClick={() => onCopyCode(block.content)}
                 >
                   <Copy size={14} />
-                  Copy code
+                  {t("Copy code")}
                 </button>
               </figcaption>
               <pre>
@@ -436,6 +438,7 @@ export function AiChatDock({
   onOpenAiPanel,
   onOpenReviewQueue
 }: AiChatDockProps) {
+  const { t } = useI18n();
   const [hasLoadedDockPreference, setHasLoadedDockPreference] = useState(false);
   const [messages, setMessages] = useState<AiChatMessage[]>(readStoredMessages);
   const [promptDraft, setPromptDraft] = useState(() => readLocalString(LOCAL_STORAGE_KEYS.promptDraft));
@@ -462,9 +465,9 @@ export function AiChatDock({
   const requestIdRef = useRef(0);
   const isRequestInFlight = requestMode !== null;
   const statusClass = isOpen ? "ai-chat-dock--open" : "ai-chat-dock--collapsed";
-  const launcherLabel = "Open AI workspace";
+  const launcherLabel = t("Open AI workspace");
   const hiddenPanelTabIndex = isOpen ? undefined : -1;
-  const activeModelLabel = selectedModel === "custom" ? customModelId || "Custom model" : selectedModel;
+  const activeModelLabel = selectedModel === "custom" ? customModelId || t("Custom model") : selectedModel;
 
   useEffect(() => {
     const storedPreference = readLocalJson<boolean | null>(LOCAL_STORAGE_KEYS.dockOpen, null);
@@ -567,7 +570,7 @@ export function AiChatDock({
 
   const copyToClipboard = async (text: string, successMessage: string) => {
     if (!text.trim()) {
-      setStatusMessage("Nothing to copy.");
+      setStatusMessage(t("Nothing to copy."));
       return;
     }
 
@@ -579,18 +582,18 @@ export function AiChatDock({
       }
 
       if (copyTextWithHiddenTextarea(text)) {
-        setStatusMessage(`${successMessage} Clipboard fallback used.`);
+        setStatusMessage(`${successMessage} ${t("Clipboard fallback used.")}`);
         return;
       }
 
-      setStatusMessage("Clipboard is unavailable in this browser context.");
+      setStatusMessage(t("Clipboard is unavailable in this browser context."));
     } catch {
       if (copyTextWithHiddenTextarea(text)) {
-        setStatusMessage(`${successMessage} Clipboard fallback used.`);
+        setStatusMessage(`${successMessage} ${t("Clipboard fallback used.")}`);
         return;
       }
 
-      setStatusMessage("Clipboard copy failed.");
+      setStatusMessage(t("Clipboard copy failed."));
     }
   };
 
@@ -603,9 +606,9 @@ export function AiChatDock({
     const trimmedBaseUrl = apiBaseUrl.trim();
     const resolvedModel = selectedModel === "custom" ? customModelId.trim() : selectedModel;
 
-    if (!trimmedApiKey) return { error: "API key is required before sending to the model." };
-    if (!trimmedBaseUrl) return { error: "API base URL is required before sending to the model." };
-    if (!resolvedModel) return { error: "Model ID is required before sending to the model." };
+    if (!trimmedApiKey) return { error: t("API key is required before sending to the model.") };
+    if (!trimmedBaseUrl) return { error: t("API base URL is required before sending to the model.") };
+    if (!resolvedModel) return { error: t("Model ID is required before sending to the model.") };
 
     const endpoint = resolveAiProviderEndpoint(trimmedBaseUrl);
 
@@ -641,7 +644,7 @@ export function AiChatDock({
     event.preventDefault();
 
     if (isRequestInFlight) {
-      setStatusMessage("A model request is already in flight.");
+      setStatusMessage(t("A model request is already in flight."));
       return;
     }
 
@@ -649,15 +652,15 @@ export function AiChatDock({
     const content = submittedPromptDraft.trim();
 
     if (!content) {
-      setStatusMessage("Prompt is empty.");
+      setStatusMessage(t("Prompt is empty."));
       return;
     }
 
     const configResult = resolveAiRequestConfig();
 
     if ("error" in configResult) {
-      appendAssistantError(`API setup error: ${configResult.error}`);
-      setStatusMessage("API setup is incomplete; prompt preserved.");
+      appendAssistantError(t("API setup error: {error}", { error: configResult.error }));
+      setStatusMessage(t("API setup is incomplete; prompt preserved."));
       return;
     }
 
@@ -671,7 +674,7 @@ export function AiChatDock({
     const { controller, requestId } = beginApiRequest("send");
 
     setMessages((currentMessages) => [...currentMessages, displayUserMessage]);
-    setStatusMessage(`Sending to ${configResult.config.model}...`);
+    setStatusMessage(t("Sending to {model}...", { model: configResult.config.model }));
 
     try {
       const assistantContent = await postAiChatRequest(configResult.config, requestMessages, controller.signal);
@@ -680,14 +683,14 @@ export function AiChatDock({
 
       setMessages((currentMessages) => [...currentMessages, createMessage("assistant", assistantContent)]);
       setPromptDraft((currentDraft) => (currentDraft === submittedPromptDraft ? "" : currentDraft));
-      setStatusMessage("Assistant response received.");
+      setStatusMessage(t("Assistant response received."));
     } catch (error) {
       if (requestIdRef.current !== requestId) return;
 
-      const message = isAbortError(error) ? "Request cancelled before completion." : errorMessageFromUnknown(error);
+      const message = isAbortError(error) ? t("Request cancelled before completion.") : errorMessageFromUnknown(error);
 
-      appendAssistantError(`API error: ${message}`);
-      setStatusMessage(isAbortError(error) ? "Request cancelled; prompt preserved." : "API request failed; prompt preserved.");
+      appendAssistantError(t("API error: {message}", { message }));
+      setStatusMessage(isAbortError(error) ? t("Request cancelled; prompt preserved.") : t("API request failed; prompt preserved."));
     } finally {
       finishApiRequest(requestId);
     }
@@ -702,7 +705,7 @@ export function AiChatDock({
     const result = await createAiChatAttachment(file, createAttachmentId);
 
     if (!result.attachment) {
-      setAttachmentError(result.error ?? `${file.name} could not be attached.`);
+      setAttachmentError(result.error ?? t("{name} could not be attached.", { name: file.name }));
       return;
     }
 
@@ -710,40 +713,43 @@ export function AiChatDock({
 
     setAttachments((currentAttachments) => [...currentAttachments, attachment]);
     setAttachmentError(result.error ?? "");
-    setStatusMessage(`${file.name} attached locally. ${attachmentStatusLabel(attachment.status)}.`);
+    setStatusMessage(t("{name} attached locally. {status}.", {
+      name: file.name,
+      status: t(attachmentStatusLabel(attachment.status))
+    }));
   };
 
   const handleRemoveAttachment = (attachmentId: string) => {
     setAttachments((currentAttachments) =>
       currentAttachments.filter((currentAttachment) => currentAttachment.id !== attachmentId)
     );
-    setStatusMessage("Attachment removed from UI memory.");
+    setStatusMessage(t("Attachment removed from UI memory."));
   };
 
   const handleClearAttachments = () => {
     setAttachments([]);
     setAttachmentError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
-    setStatusMessage("All attachments cleared from UI memory.");
+    setStatusMessage(t("All attachments cleared from UI memory."));
   };
 
   const handleTestModel = async () => {
     if (isRequestInFlight) {
-      setStatusMessage("A model request is already in flight.");
+      setStatusMessage(t("A model request is already in flight."));
       return;
     }
 
     const configResult = resolveAiRequestConfig();
 
     if ("error" in configResult) {
-      appendAssistantError(`API setup error: ${configResult.error}`);
-      setStatusMessage("API setup is incomplete; model test was not sent.");
+      appendAssistantError(t("API setup error: {error}", { error: configResult.error }));
+      setStatusMessage(t("API setup is incomplete; model test was not sent."));
       return;
     }
 
     const { controller, requestId } = beginApiRequest("test");
 
-    setStatusMessage(`Testing ${configResult.config.model}...`);
+    setStatusMessage(t("Testing {model}...", { model: configResult.config.model }));
 
     try {
       const assistantContent = await postAiChatRequest(
@@ -761,16 +767,16 @@ export function AiChatDock({
 
       setMessages((currentMessages) => [
         ...currentMessages,
-        createMessage("assistant", `Model test succeeded for ${configResult.config.model}.\n\n${assistantContent}`)
+        createMessage("assistant", `${t("Model test succeeded for {model}.", { model: configResult.config.model })}\n\n${assistantContent}`)
       ]);
-      setStatusMessage("Model test succeeded.");
+      setStatusMessage(t("Model test succeeded."));
     } catch (error) {
       if (requestIdRef.current !== requestId) return;
 
-      const message = isAbortError(error) ? "Request cancelled before completion." : errorMessageFromUnknown(error);
+      const message = isAbortError(error) ? t("Request cancelled before completion.") : errorMessageFromUnknown(error);
 
-      appendAssistantError(`API test error: ${message}`);
-      setStatusMessage(isAbortError(error) ? "Model test cancelled." : "Model test failed.");
+      appendAssistantError(t("AI test error: {error}", { error: message }));
+      setStatusMessage(isAbortError(error) ? t("Model test cancelled.") : t("Model test failed."));
     } finally {
       finishApiRequest(requestId);
     }
@@ -785,7 +791,7 @@ export function AiChatDock({
   const handleClearApiKey = () => {
     setApiKey("");
     removeSessionValue(SESSION_STORAGE_KEYS.apiKey);
-    setStatusMessage("API key cleared from UI state and sessionStorage.");
+    setStatusMessage(t("API key cleared from UI state and sessionStorage."));
   };
 
   const handleClearConversation = () => {
@@ -797,11 +803,11 @@ export function AiChatDock({
       const shouldClear =
         typeof window === "undefined" ||
         window.confirm(
-          "Clear the local AI conversation history? This removes UI-only chat history from localStorage. API key and current attachments stay in this tab's UI state."
+          t("Clear the local AI conversation history? This removes UI-only chat history from localStorage. API key and current attachments stay in this tab's UI state.")
         );
 
       if (!shouldClear) {
-        setStatusMessage("Clear conversation cancelled.");
+        setStatusMessage(t("Clear conversation cancelled."));
         return;
       }
 
@@ -810,18 +816,21 @@ export function AiChatDock({
 
     removeLocalValue(LOCAL_STORAGE_KEYS.messages);
     setMessages(DEFAULT_MESSAGES);
-    setStatusMessage("Conversation cleared locally and removed from localStorage.");
+    setStatusMessage(t("Conversation cleared locally and removed from localStorage."));
   };
 
   const handleCopyPromptPreview = () => {
     const preview = buildPreviewPrompt();
     const attachmentNote = attachments.some((attachment) => attachment.textContent || attachment.imageDataUrl)
-      ? "; raw attachment contents omitted from preview"
+      ? t("Copy prompt preview omitted attachment contents")
       : "";
 
     void copyToClipboard(
       preview,
-      `Composed prompt preview copied (${formatCount(preview.length)} characters${attachmentNote}).`
+      t("Composed prompt preview copied ({count} characters{note}).", {
+        count: formatCount(preview.length),
+        note: attachmentNote
+      })
     );
   };
 
@@ -831,22 +840,24 @@ export function AiChatDock({
       .find((message) => message.role === "assistant" && message.id !== "ai-session-seed");
 
     if (!latestAssistantMessage) {
-      setStatusMessage("No assistant response to copy yet.");
+      setStatusMessage(t("No assistant response to copy yet."));
       return;
     }
 
     void copyToClipboard(
       latestAssistantMessage.content,
-      `Latest assistant response copied (${formatCount(latestAssistantMessage.content.length)} characters).`
+      t("Latest assistant response copied ({count} characters).", {
+        count: formatCount(latestAssistantMessage.content.length)
+      })
     );
   };
 
   const handleCopyCodeBlock = (code: string) => {
-    void copyToClipboard(code, `Code block copied (${formatCount(code.length)} characters).`);
+    void copyToClipboard(code, t("Code block copied ({count} characters).", { count: formatCount(code.length) }));
   };
 
   return (
-    <aside className={`ai-chat-dock ${statusClass}`} aria-label="AI chat dock">
+    <aside className={`ai-chat-dock ${statusClass}`} aria-label={t("AI chat dock")}>
       <button
         type="button"
         className="ai-chat-dock__launcher"
@@ -868,27 +879,27 @@ export function AiChatDock({
       >
         <div className="ai-chat-dock__header">
           <div className="ai-chat-dock__header-copy">
-            <h2 id="ai-chat-dock-title">AI Workspace</h2>
-            <p>Draft-only context surface. Actions stay in the existing review screens.</p>
+            <h2 id="ai-chat-dock-title">{t("AI Workspace")}</h2>
+            <p>{t("Draft-only context surface. Actions stay in the existing review screens.")}</p>
           </div>
           <button
             type="button"
             className="ghost ai-chat-dock__close"
-            aria-label="Collapse AI workspace"
+            aria-label={t("Collapse AI workspace")}
             tabIndex={hiddenPanelTabIndex}
             onClick={() => onOpenChange(false)}
           >
             <PanelRightClose size={17} aria-hidden="true" />
-            <span>Collapse</span>
+            <span>{t("Collapse")}</span>
           </button>
         </div>
 
         <div className="ai-chat-dock__body">
-          <section className="ai-chat-dock__section" aria-label="Model settings">
-            <h3>Model</h3>
+          <section className="ai-chat-dock__section" aria-label={t("Model settings")}>
+            <h3>{t("Model")}</h3>
             <div className="ai-chat-dock__setup">
               <label>
-                Model selector
+                {t("Model selector")}
                 <select
                   value={selectedModel}
                   tabIndex={hiddenPanelTabIndex}
@@ -900,14 +911,14 @@ export function AiChatDock({
                 >
                   {MODEL_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.label)}
                     </option>
                   ))}
                 </select>
               </label>
 
               <label>
-                API base URL
+                {t("API base URL")}
                 <input
                   value={apiBaseUrl}
                   placeholder="/api/ai-chat"
@@ -917,7 +928,7 @@ export function AiChatDock({
               </label>
 
               <label className="ai-chat-dock__field--wide">
-                Custom model ID
+                {t("Custom model ID")}
                 <input
                   value={customModelId}
                   placeholder="gpt-5.5"
@@ -927,13 +938,13 @@ export function AiChatDock({
               </label>
 
               <label className="ai-chat-dock__field--wide">
-                API key
+                {t("API key")}
                 <span className="ai-chat-dock__input-icon">
                   <KeyRound size={15} aria-hidden="true" />
                   <input
                     type="password"
                     value={apiKey}
-                    placeholder="Memory-only by default"
+                    placeholder={t("Memory-only by default")}
                     tabIndex={hiddenPanelTabIndex}
                     onChange={(event) => setApiKey(event.target.value)}
                   />
@@ -947,7 +958,7 @@ export function AiChatDock({
                   tabIndex={hiddenPanelTabIndex}
                   onChange={(event) => setShouldPersistApiKeyInSession(event.target.checked)}
                 />
-                Keep API key for this tab session
+                {t("Keep API key for this tab session")}
               </label>
             </div>
 
@@ -960,19 +971,19 @@ export function AiChatDock({
                 onClick={handleTestModel}
               >
                 <FlaskConical size={16} />
-                {requestMode === "test" ? "Testing model" : "Test model"}
+                {requestMode === "test" ? t("Testing model") : t("Test model")}
               </button>
               <button type="button" className="ghost" tabIndex={hiddenPanelTabIndex} onClick={handleClearApiKey}>
                 <XCircle size={16} />
-                Clear API key
+                {t("Clear API key")}
               </button>
             </div>
           </section>
 
-          <section className="ai-chat-dock__section" aria-label="Prompt settings">
-            <h3>Prompt Settings</h3>
+          <section className="ai-chat-dock__section" aria-label={t("Prompt settings")}>
+            <h3>{t("Prompt Settings")}</h3>
             <label className="ai-chat-dock__field-label">
-              Prompt mode
+              {t("Prompt mode")}
               <select
                 value={promptMode}
                 tabIndex={hiddenPanelTabIndex}
@@ -984,7 +995,7 @@ export function AiChatDock({
               >
                 {PROMPT_MODE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.label)}
                   </option>
                 ))}
               </select>
@@ -993,38 +1004,38 @@ export function AiChatDock({
 
           <dl className="ai-chat-dock__context">
             <div>
-              <dt>Current screen</dt>
+              <dt>{t("Current screen")}</dt>
               <dd>{currentScreenLabel}</dd>
             </div>
             {selectedThoughtTitle && (
               <div>
-                <dt>Selected thought</dt>
+                <dt>{t("Selected thought")}</dt>
                 <dd>{selectedThoughtTitle}</dd>
               </div>
             )}
             {selectedProjectTitle && (
               <div>
-                <dt>Selected project</dt>
+                <dt>{t("Selected project")}</dt>
                 <dd>{selectedProjectTitle}</dd>
               </div>
             )}
             <div>
-              <dt>Active model</dt>
+              <dt>{t("Active model")}</dt>
               <dd>{activeModelLabel}</dd>
             </div>
             <div>
-              <dt>API key</dt>
-              <dd>{apiKey ? "Loaded in UI state" : "Not set"}</dd>
+              <dt>{t("API key")}</dt>
+              <dd>{apiKey ? t("Loaded in UI state") : t("Not set")}</dd>
             </div>
           </dl>
 
-          <div className="ai-chat-dock__summary" aria-label="AI review summary">
+          <div className="ai-chat-dock__summary" aria-label={t("AI review summary")}>
             <div>
-              <span>AI drafts</span>
+              <span>{t("AI drafts")}</span>
               <strong>{aiDraftCount}</strong>
             </div>
             <div>
-              <span>Review items</span>
+              <span>{t("Review items")}</span>
               <strong>{reviewQueueCount}</strong>
             </div>
           </div>
@@ -1037,7 +1048,7 @@ export function AiChatDock({
               onClick={onOpenAiPanel}
             >
               <Wand2 size={16} />
-              Open AI Panel
+              {t("Open AI Panel")}
             </button>
             <button
               type="button"
@@ -1046,15 +1057,15 @@ export function AiChatDock({
               onClick={onOpenReviewQueue}
             >
               <ClipboardCheck size={16} />
-              Open Review Queue
+              {t("Open Review Queue")}
             </button>
           </div>
 
-          <section className="ai-chat-dock__section ai-chat-dock__section--output" aria-label="AI output and response">
-            <h3>Output</h3>
+          <section className="ai-chat-dock__section ai-chat-dock__section--output" aria-label={t("AI output and response")}>
+            <h3>{t("Output")}</h3>
             <div
               className="ai-chat-dock__messages"
-              aria-label="AI session conversation"
+              aria-label={t("AI session conversation")}
               aria-live="polite"
               ref={messagesPanelRef}
             >
@@ -1070,11 +1081,11 @@ export function AiChatDock({
                     .join(" ")}
                 >
                   <span>
-                    {message.variant === "error" ? "Assistant error" : message.role === "assistant" ? "Assistant" : "You"} ·{" "}
+                    {message.variant === "error" ? t("Assistant error") : message.role === "assistant" ? t("Assistant") : t("You")} ·{" "}
                     {message.createdAt}
                   </span>
                   <MarkdownLikeMessage
-                    content={message.content}
+                    content={message.id === "ai-session-seed" ? t(message.content) : message.content}
                     copyButtonTabIndex={hiddenPanelTabIndex}
                     onCopyCode={handleCopyCodeBlock}
                   />
@@ -1083,10 +1094,10 @@ export function AiChatDock({
             </div>
           </section>
 
-          <section className="ai-chat-dock__section ai-chat-dock__attachments" aria-label="Attachment upload">
-            <h3>Attachments</h3>
+          <section className="ai-chat-dock__section ai-chat-dock__attachments" aria-label={t("Attachment upload")}>
+            <h3>{t("Attachments")}</h3>
             <label className="ai-chat-dock__field-label">
-              Upload file
+              {t("Upload file")}
               <input
                 type="file"
                 accept={ATTACHMENT_ACCEPT}
@@ -1096,15 +1107,15 @@ export function AiChatDock({
               />
             </label>
             <div className="ai-chat-dock__attachment-meta">
-              <span>Supported</span>
+              <span>{t("Supported")}</span>
               <strong>json, txt, md, pdf, png, jpg, jpeg · 20MB max</strong>
             </div>
             {attachments.length > 0 && (
               <div className="ai-chat-dock__attachment-controls">
-                <span>{attachments.length} file{attachments.length === 1 ? "" : "s"} in UI memory only</span>
+                <span>{t("{count} file(s) in UI memory only", { count: attachments.length })}</span>
                 <button type="button" className="ghost" tabIndex={hiddenPanelTabIndex} onClick={handleClearAttachments}>
                   <Trash2 size={15} />
-                  Clear attachments
+                  {t("Clear attachments")}
                 </button>
               </div>
             )}
@@ -1128,12 +1139,12 @@ export function AiChatDock({
                       {formatBytes(attachment.size)}
                     </small>
                     <small>
-                      {attachmentStatusLabel(attachment.status)} · {attachment.statusMessage}
+                      {t(attachmentStatusLabel(attachment.status))} · {attachment.statusMessage}
                     </small>
                     <button
                       type="button"
                       className="ghost"
-                      aria-label={`Remove ${attachment.name}`}
+                      aria-label={t("Remove {name}", { name: attachment.name })}
                       tabIndex={hiddenPanelTabIndex}
                       onClick={() => handleRemoveAttachment(attachment.id)}
                     >
@@ -1148,11 +1159,11 @@ export function AiChatDock({
 
         <form className="ai-chat-dock__composer" onSubmit={handleSubmit}>
           <label>
-            Prompt input
+            {t("Prompt input")}
             <textarea
               value={promptDraft}
-              placeholder="請求 Codex prompt、貼上報告，或討論架構決策。"
-              aria-label="AI chat draft input"
+              placeholder={t("Ask for a Codex prompt, paste a report, or discuss an architecture decision.")}
+              aria-label={t("AI chat draft input")}
               aria-busy={requestMode === "send"}
               tabIndex={hiddenPanelTabIndex}
               onChange={(event) => setPromptDraft(event.target.value)}
@@ -1166,25 +1177,25 @@ export function AiChatDock({
               tabIndex={hiddenPanelTabIndex}
             >
               <Send size={16} />
-              {requestMode === "send" ? "Sending" : "Send"}
+              {requestMode === "send" ? t("Sending") : t("Send")}
             </button>
             {isRequestInFlight && (
               <button type="button" className="ghost" tabIndex={hiddenPanelTabIndex} onClick={handleCancelRequest}>
                 <XCircle size={16} />
-                Cancel request
+                {t("Cancel request")}
               </button>
             )}
             <button type="button" className="ghost" tabIndex={hiddenPanelTabIndex} onClick={handleCopyPromptPreview}>
               <Copy size={16} />
-              Copy composed prompt preview
+              {t("Copy composed prompt preview")}
             </button>
             <button type="button" className="ghost" tabIndex={hiddenPanelTabIndex} onClick={handleCopyLatestResponse}>
               <Copy size={16} />
-              Copy latest response
+              {t("Copy latest response")}
             </button>
             <button type="button" className="ghost" tabIndex={hiddenPanelTabIndex} onClick={handleClearConversation}>
               <Trash2 size={16} />
-              Clear conversation
+              {t("Clear conversation")}
             </button>
           </div>
           {statusMessage && (

@@ -281,6 +281,40 @@ header p,
   color: rgba(255,255,255,0.58);
 }
 
+.language-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.75rem;
+  padding: 0.3rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0.9rem;
+  background: rgba(255,255,255,0.055);
+  white-space: nowrap;
+}
+
+.language-toggle span {
+  padding: 0 0.45rem;
+  color: rgba(255,255,255,0.62);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.language-toggle button {
+  min-width: 3.1rem;
+  min-height: 2.05rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.65rem;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.language-toggle button.active {
+  background: rgba(34,211,238,0.16);
+  border-color: rgba(34,211,238,0.36);
+  color: #cffafe;
+}
+
 .search {
   min-width: 290px;
   display: flex;
@@ -1630,6 +1664,11 @@ header p,
   .search {
     min-width: 0;
     width: 100%;
+  }
+
+  .language-toggle {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .ai-chat-dock {

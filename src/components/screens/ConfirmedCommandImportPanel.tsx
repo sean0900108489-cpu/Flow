@@ -13,6 +13,7 @@ import {
   type ConfirmedCommandApplyResult
 } from "../../domain/commands/confirmedCommandImport";
 import type { AppState } from "../../domain/types";
+import { useI18n } from "../../i18n";
 import { Metric } from "../common/Metric";
 
 function issueKey(issue: CommandImportIssue, index: number) {
@@ -51,6 +52,7 @@ export function ConfirmedCommandImportPanel({
   state: AppState;
   onApply?: (nextState: AppState, message: string) => void;
 }) {
+  const { t } = useI18n();
   const [rawCommands, setRawCommands] = useState("");
   const [validation, setValidation] = useState<CommandImportValidationResult>();
   const [dryRun, setDryRun] = useState<CommandDryRunResult>();
@@ -73,7 +75,7 @@ export function ConfirmedCommandImportPanel({
 
   const apply = () => {
     if (!validation?.ok || !dryRun?.ok) return;
-    if (typeof window !== "undefined" && !window.confirm("Apply imported commands through executeDomainCommand?")) {
+    if (typeof window !== "undefined" && !window.confirm(t("Apply imported commands through executeDomainCommand?"))) {
       return;
     }
 
@@ -87,7 +89,7 @@ export function ConfirmedCommandImportPanel({
     if (result.ok) {
       onApply?.(
         result.state,
-        `Applied ${result.appliedCount} imported command${result.appliedCount === 1 ? "" : "s"}.`
+        t("Applied {count} imported command(s).", { count: result.appliedCount })
       );
     }
   };
@@ -96,19 +98,18 @@ export function ConfirmedCommandImportPanel({
     <section className="panel stack command-import-panel">
       <div className="head">
         <div>
-          <h2>Confirmed Command Import</h2>
-          <p className="muted">Validation / Dry Run / Apply for external command JSON.</p>
+          <h2>{t("Confirmed Command Import")}</h2>
+          <p className="muted">{t("Validation / Dry Run / Apply for external command JSON.")}</p>
         </div>
-        <span className="badge">guarded apply</span>
+        <span className="badge">{t("guarded apply")}</span>
       </div>
 
       <div className="notice">
-        Imported commands are not trusted. Validate and Dry Run are read-only. Apply requires confirmation and uses the
-        domain command layer. Failed batches are atomic and will not partially apply.
+        {t("Imported commands are not trusted. Validate and Dry Run are read-only. Apply requires confirmation and uses the domain command layer. Failed batches are atomic and will not partially apply.")}
       </div>
 
       <label>
-        Command JSON
+        {t("Command JSON")}
         <textarea
           className="command-import-textarea"
           value={rawCommands}
@@ -123,15 +124,15 @@ export function ConfirmedCommandImportPanel({
       </label>
 
       <div className="actions">
-        <button onClick={validate} disabled={!rawCommands.trim()}>Validate</button>
-        <button className="ghost" onClick={runDryRun} disabled={!validation?.ok}>Dry Run</button>
-        <button className="restore" onClick={apply} disabled={!dryRun?.ok || !onApply}>Apply</button>
+        <button onClick={validate} disabled={!rawCommands.trim()}>{t("Validate")}</button>
+        <button className="ghost" onClick={runDryRun} disabled={!validation?.ok}>{t("Dry Run")}</button>
+        <button className="restore" onClick={apply} disabled={!dryRun?.ok || !onApply}>{t("Apply")}</button>
       </div>
 
       {!validation && (
         <div className="mini-list">
-          <strong>Initial state</strong>
-          <p>Commands are drafts until validated, dry-run, and confirmed. Dry Run does not mutate AppState.</p>
+          <strong>{t("Initial state")}</strong>
+          <p>{t("Commands are drafts until validated, dry-run, and confirmed. Dry Run does not mutate AppState.")}</p>
         </div>
       )}
 
@@ -139,9 +140,9 @@ export function ConfirmedCommandImportPanel({
         <div className="grid two">
           <div className="mini-list stack">
             <div className="line">
-              <h2>Validation</h2>
+              <h2>{t("Validation")}</h2>
               <span className={`badge ${validation.ok ? "readiness-criterion-met" : "readiness-criterion-blocked"}`}>
-                {validation.ok ? "ok" : "failed"}
+                {validation.ok ? t("ok") : t("failed")}
               </span>
             </div>
             <div className="metrics deployment-data-metrics command-import-metrics">
@@ -151,7 +152,7 @@ export function ConfirmedCommandImportPanel({
               <Metric label="Warnings" value={validation.warnings.length} />
             </div>
             <div className="chips">
-              <span>format {validation.sourceSummary.format}</span>
+              <span>{t("format")} {validation.sourceSummary.format}</span>
             </div>
             <IssueList title="Errors" issues={validation.errors} />
             <IssueList title="Warnings" issues={validation.warnings} />
@@ -160,9 +161,9 @@ export function ConfirmedCommandImportPanel({
           {dryRun && (
             <div className="mini-list stack">
               <div className="line">
-                <h2>Dry Run</h2>
+                <h2>{t("Dry Run")}</h2>
                 <span className={`badge ${dryRun.ok ? "readiness-criterion-met" : "readiness-criterion-blocked"}`}>
-                  {dryRun.ok ? "ok" : "blocked"}
+                  {dryRun.ok ? t("ok") : t("blocked")}
                 </span>
               </div>
               <div className="metrics deployment-data-metrics command-import-metrics">
@@ -183,14 +184,14 @@ export function ConfirmedCommandImportPanel({
               <div className="line">
                 <strong>{result.commandType}</strong>
                 <span className={`badge ${result.ok ? "readiness-criterion-met" : "readiness-criterion-blocked"}`}>
-                  {result.ok ? "would run" : "blocked"}
+                  {result.ok ? t("would run") : t("blocked")}
                 </span>
               </div>
               <p>{result.preview.summary}</p>
               <div className="mini-list">
-                <strong>Affected entities</strong>
+                <strong>{t("Affected entities")}</strong>
                 {result.preview.affectedEntities.length === 0 ? (
-                  <p>No target entity declared.</p>
+                  <p>{t("No target entity declared.")}</p>
                 ) : (
                   <ul>
                     {result.preview.affectedEntities.map((entity) => (
@@ -202,7 +203,7 @@ export function ConfirmedCommandImportPanel({
                 )}
               </div>
               <div className="mini-list">
-                <strong>Expected changes</strong>
+                <strong>{t("Expected changes")}</strong>
                 <ul>{result.preview.expectedChanges.map((change) => <li key={change}>{change}</li>)}</ul>
               </div>
               <IssueList title="Errors" issues={result.errors} />
@@ -214,7 +215,7 @@ export function ConfirmedCommandImportPanel({
 
       {applyResult && (
         <div className={`notice ${applyResult.ok ? "" : "warn-lite"}`}>
-          Apply {applyResult.ok ? "completed" : "failed"} · applied {applyResult.appliedCount} commands
+          {t("Apply")} {applyResult.ok ? t("completed") : t("failed")} · {t("applied {count} commands", { count: applyResult.appliedCount })}
           {applyResult.errors.length > 0 ? ` · ${applyResult.errors[0].message}` : ""}
         </div>
       )}

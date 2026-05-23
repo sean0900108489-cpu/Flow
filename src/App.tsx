@@ -88,6 +88,7 @@ import { normalizeAppState } from "./domain/appState";
 import { seed } from "./data/seed";
 import { loadState, saveState } from "./services/storage";
 import { generateProjectReadinessInsight, generateThoughtClassificationInsight } from "./services/aiMock";
+import { I18nProvider, useI18n } from "./i18n";
 import { AiChatDock } from "./components/layout/AiChatDock";
 import {
   AIPanel,
@@ -118,7 +119,8 @@ import {
 } from "./components";
 import "./style.css";
 
-export function App() {
+function AppShell() {
+  const { language, languageOptions, setLanguage, t } = useI18n();
   const [state, setState] = useState<AppState>(() => loadState());
   const [screen, setScreen] = useState(() =>
     typeof window === "undefined" ? "dashboard" : screenForPath(window.location.pathname)
@@ -187,7 +189,7 @@ export function App() {
 
   const applyUniverseResult = (result: UniverseActionResult) => {
     if (!result.ok) {
-      setUniverseError(result.error ?? "Universe action failed.");
+      setUniverseError(result.error ?? t("Universe action failed."));
       return false;
     }
 
@@ -235,7 +237,7 @@ export function App() {
 
   const applySafeMutationResult = (result: SafeMutationResult) => {
     if (!result.ok) {
-      setSystemMessage(result.error ?? "Mutation failed.");
+      setSystemMessage(result.error ?? t("Mutation failed."));
       return false;
     }
 
@@ -279,12 +281,12 @@ export function App() {
   };
 
   const handleDeleteUniverse = (universeId: string) => {
-    if (!window.confirm("Delete this universe?")) return;
+    if (!window.confirm(t("Delete this universe?"))) return;
     applyUniverseResult(deleteUniverse(state, universeId, "blockIfInUse"));
   };
 
   const handleDetachDeleteUniverse = (universeId: string) => {
-    if (!window.confirm("Detach linked items and delete this universe?")) return;
+    if (!window.confirm(t("Detach linked items and delete this universe?"))) return;
     applyUniverseResult(deleteUniverse(state, universeId, "detach"));
   };
 
@@ -619,7 +621,7 @@ export function App() {
   };
 
   const deleteThought = (thoughtId: string, nextScreen = "dashboard") => {
-    if (!window.confirm("Delete this thought?")) return;
+    if (!window.confirm(t("Delete this thought?"))) return;
     const result = deleteThoughtMutation(state, thoughtId);
 
     if (applySafeMutationResult(result)) {
@@ -639,7 +641,7 @@ export function App() {
   };
 
   const deleteProject = (projectId: string, nextScreen = "dashboard") => {
-    if (!window.confirm("Delete this project?")) return;
+    if (!window.confirm(t("Delete this project?"))) return;
     const result = deleteProjectMutation(state, projectId);
 
     if (applySafeMutationResult(result)) {
@@ -686,44 +688,58 @@ export function App() {
 	        <button
 	          type="button"
 	          className="brand"
-	          aria-label="Thought Universe dashboard"
-	          data-tooltip="Thought Universe"
-	          title="Thought Universe"
+	          aria-label={t("Thought Universe dashboard")}
+	          data-tooltip={t("Thought Universe")}
+	          title={t("Thought Universe")}
 	          onClick={() => setScreen("dashboard")}
 	        >
 	          <Brain />
 	          <div>
-	            <strong>Thought Universe</strong>
-	            <span>思想管理系統</span>
+	            <strong>{t("Thought Universe")}</strong>
+	            <span>{t("Thought management system")}</span>
 	          </div>
 	        </button>
 	        <Nav screen={screen} setScreen={setScreen} />
 	        <button
 	          type="button"
 	          className="ghost full sidebar-reset"
-	          aria-label="Reset demo"
-	          data-tooltip="Reset Demo"
-	          title="Reset Demo"
+	          aria-label={t("Reset demo")}
+	          data-tooltip={t("Reset Demo")}
+	          title={t("Reset Demo")}
 	          onClick={() => save(seed)}
 	        >
 	          <RotateCcw size={18} />
-	          <span className="nav-label">重置 Demo</span>
+	          <span className="nav-label">{t("Reset Demo")}</span>
 	        </button>
 	      </aside>
 
       <main>
         <header>
           <div>
-            <h1>{title(screen)}</h1>
-            <p>想法 → 宇宙 → 任務/專案 → 下一步 → 工程交接</p>
+            <h1>{t(title(screen))}</h1>
+            <p>{t("Thoughts → universes → tasks/projects → next actions → engineering handoff")}</p>
+          </div>
+          <div className="language-toggle" role="group" aria-label={t("UI language")}>
+            <span>{t("Language")}</span>
+            {languageOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={language === option.value ? "active" : "ghost"}
+                aria-pressed={language === option.value}
+                onClick={() => setLanguage(option.value)}
+              >
+                {option.shortLabel}
+              </button>
+            ))}
           </div>
           <label className="search">
             <Search size={16} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜尋想法..." />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Search thoughts")} />
           </label>
         </header>
 
-        {systemMessage && <div className="notice app-notice">{systemMessage}</div>}
+        {systemMessage && <div className="notice app-notice">{t(systemMessage)}</div>}
 
         {screen === "dashboard" && (
           <Dashboard
@@ -960,7 +976,7 @@ export function App() {
               setSelectedThoughtId(normalized.thoughts[0]?.id ?? "");
               setSelectedProjectId(normalized.projects[0]?.id ?? "");
               setSelectedUniverseId(normalized.universes[0]?.id ?? "");
-              setSystemMessage("App State imported successfully. Decision, readiness, and next action data were normalized.");
+              setSystemMessage(t("App State imported successfully. Decision, readiness, and next action data were normalized."));
               setScreen("dashboard");
             }}
           />
@@ -1009,7 +1025,7 @@ export function App() {
 
       <AiChatDock
         isOpen={isAiChatDockOpen}
-        currentScreenLabel={title(screen)}
+        currentScreenLabel={t(title(screen))}
         selectedThoughtTitle={thought?.title}
         selectedProjectTitle={project?.name}
         aiDraftCount={aiDraftCount}
@@ -1019,5 +1035,13 @@ export function App() {
         onOpenReviewQueue={() => setScreen("review-queue")}
       />
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <I18nProvider>
+      <AppShell />
+    </I18nProvider>
   );
 }

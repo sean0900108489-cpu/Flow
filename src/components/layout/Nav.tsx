@@ -19,6 +19,7 @@ import {
   ScrollText,
   Wand2
 } from "lucide-react";
+import { useI18n } from "../../i18n";
 
 type NavTooltip = {
   label: string;
@@ -26,6 +27,7 @@ type NavTooltip = {
 };
 
 export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen: string) => void }) {
+  const { t } = useI18n();
   const [tooltip, setTooltip] = useState<NavTooltip | null>(null);
   const items = [
     ["dashboard", FolderKanban, "Dashboard"],
@@ -66,19 +68,19 @@ export function Nav({ screen, setScreen }: { screen: string; setScreen: (screen:
           <button
             key={key}
             type="button"
-            aria-label={label}
+            aria-label={t(label)}
             aria-current={screen === key ? "page" : undefined}
             className={screen === key ? "active" : ""}
-            data-tooltip={label}
-            title={label}
+            data-tooltip={t(label)}
+            title={t(label)}
             onBlur={hideTooltip}
             onClick={() => setScreen(key)}
-            onFocus={showTooltip(label)}
-            onMouseEnter={showTooltip(label)}
+            onFocus={showTooltip(t(label))}
+            onMouseEnter={showTooltip(t(label))}
             onMouseLeave={hideTooltip}
           >
             <Icon size={18} />
-            <span className="nav-label">{label}</span>
+            <span className="nav-label">{t(label)}</span>
           </button>
         ))}
       </nav>

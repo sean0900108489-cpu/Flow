@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { AppState, Project } from "../../domain/types";
 import { readiness } from "../../domain/readiness";
-import { readinessLabel } from "../../domain/labels";
 import type { ListSortBy } from "../../domain/listQuery";
 import { filterProjects, filterThoughts, sortProjects, sortThoughts } from "../../domain/listQuery";
 import { listNextActions } from "../../domain/nextActions";
@@ -9,6 +8,7 @@ import { buildReviewQueue } from "../../domain/reviewQueue";
 import { isUniverseActive, universeOptionsForItemUniverseIds } from "../../domain/universeActions";
 import { ListControls } from "../common/ListControls";
 import { Metric } from "../common/Metric";
+import { useI18n } from "../../i18n";
 
 export function Dashboard({
   state,
@@ -23,6 +23,7 @@ export function Dashboard({
   selectThought: (id: string) => void;
   selectProject: (id: string) => void;
 }) {
+  const { t: translate } = useI18n();
   const [thoughtSearchText, setThoughtSearchText] = useState("");
   const [thoughtTypeFilter, setThoughtTypeFilter] = useState<"all" | AppState["thoughts"][number]["type"]>("all");
   const [thoughtUniverseFilter, setThoughtUniverseFilter] = useState("all");
@@ -62,8 +63,8 @@ export function Dashboard({
   return (
     <section className="grid two">
       <div className="panel hero">
-        <h2>我現在想做什麼？</h2>
-        <p>優先看 Active Thought、Project Readiness、Next Action。</p>
+        <h2>{translate("What do I want to do now?")}</h2>
+        <p>{translate("Prioritize active thoughts, project readiness, and next actions.")}</p>
         <div className="metrics">
           <Metric label="Inbox" value={inbox.length} />
           <Metric label="Active" value={active.length} />
@@ -76,11 +77,11 @@ export function Dashboard({
         <div className="head">
           <div>
             <h2>Global Search</h2>
-            <p className="muted">Open any thought, project, universe, decision, blocker, relationship, action, or command.</p>
+            <p className="muted">{translate("Open any thought, project, universe, decision, blocker, relationship, action, or command.")}</p>
           </div>
         </div>
         <div className="actions">
-          <button className="ghost" onClick={() => setScreen("global-search")}>Open Global Search</button>
+          <button className="ghost" onClick={() => setScreen("global-search")}>{translate("Open Global Search")}</button>
         </div>
       </div>
 
@@ -88,7 +89,7 @@ export function Dashboard({
         <div className="head">
           <div>
             <h2>Review Queue</h2>
-            <p className="muted">{reviewQueue.length} drafts, decisions, blockers, or handoffs need review</p>
+            <p className="muted">{translate("{count} drafts, decisions, blockers, or handoffs need review", { count: reviewQueue.length })}</p>
           </div>
         </div>
         {firstReviewItem ? (
@@ -97,10 +98,10 @@ export function Dashboard({
             <span>{firstReviewItem.subtitle}</span>
           </button>
         ) : (
-          <div className="notice">No pending review items.</div>
+          <div className="notice">{translate("No pending review items.")}</div>
         )}
         <div className="actions">
-          <button className="ghost" onClick={() => setScreen("review-queue")}>Open Review Queue</button>
+          <button className="ghost" onClick={() => setScreen("review-queue")}>{translate("Open Review Queue")}</button>
         </div>
       </div>
 
@@ -108,7 +109,7 @@ export function Dashboard({
         <div className="head">
           <div>
             <h2>Next Actions</h2>
-            <p className="muted">{availableNextActions.length} available actions</p>
+            <p className="muted">{translate("{count} available actions", { count: availableNextActions.length })}</p>
           </div>
         </div>
         {dashboardNextActions.length > 0 ? (
@@ -121,15 +122,15 @@ export function Dashboard({
             ))}
           </div>
         ) : (
-          <div className="notice">No available next action.</div>
+          <div className="notice">{translate("No available next action.")}</div>
         )}
         <div className="actions">
-          <button className="ghost" onClick={() => setScreen("next-actions")}>Open Next Action Center</button>
+          <button className="ghost" onClick={() => setScreen("next-actions")}>{translate("Open Next Action Center")}</button>
         </div>
       </div>
 
       <div className="panel">
-        <h2>目前下一步</h2>
+        <h2>{translate("Current next steps")}</h2>
         <ListControls
           searchText={thoughtSearchText}
           onSearchTextChange={setThoughtSearchText}
@@ -145,14 +146,14 @@ export function Dashboard({
           {visibleActive.map((t) => (
             <button className="item" key={t.id} onClick={() => { selectThought(t.id); setScreen("thought"); }}>
               <strong>{t.title}</strong>
-              <span>{t.nextAction || "尚未設定下一步"}</span>
+              <span>{t.nextAction || translate("No next action set yet.")}</span>
             </button>
           ))}
         </div>
       </div>
 
       <div className="panel">
-        <h2>Universes</h2>
+        <h2>{translate("Universes")}</h2>
         <div className="cards">
           {activeUniverses.map((u) => (
             <div className="card" key={u.id}>
@@ -160,7 +161,7 @@ export function Dashboard({
               <p>{u.purpose || u.description}</p>
               <div className="chips">
                 <span>{u.focus}</span>
-                <span>{state.thoughts.filter((t) => t.universeId === u.id).length} thoughts</span>
+                <span>{translate("{count} thoughts", { count: state.thoughts.filter((t) => t.universeId === u.id).length })}</span>
               </div>
             </div>
           ))}
@@ -168,7 +169,7 @@ export function Dashboard({
       </div>
 
       <div className="panel">
-        <h2>Projects</h2>
+        <h2>{translate("Projects")}</h2>
         <ListControls
           searchText={projectSearchText}
           onSearchTextChange={setProjectSearchText}
@@ -187,7 +188,7 @@ export function Dashboard({
             return (
               <button className="item" key={p.id} onClick={() => { selectProject(p.id); setScreen("project"); }}>
                 <strong>{p.name}</strong>
-                <span>{r.score}% · {readinessLabel[r.value]}</span>
+                <span>{r.score}% · {translate(r.value)}</span>
               </button>
             );
           })}

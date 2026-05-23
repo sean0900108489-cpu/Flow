@@ -1,6 +1,6 @@
 import type { ListSortBy } from "../../domain/listQuery";
 import type { ThoughtStatus, ThoughtType, Universe } from "../../domain/types";
-import { statusLabel, typeLabel } from "../../domain/labels";
+import { useI18n } from "../../i18n";
 
 const thoughtTypes: ThoughtType[] = ["inspiration", "task", "project", "goal", "question", "note"];
 const thoughtStatuses: ThoughtStatus[] = ["inbox", "active", "paused", "done", "archived"];
@@ -37,23 +37,24 @@ export function ListControls({
   onSortByChange: (value: ListSortBy) => void;
   universes?: Universe[];
 }) {
+  const { t } = useI18n();
   const resolvedStatusOptions =
-    statusOptions ?? thoughtStatuses.map((status) => ({ value: status, label: statusLabel[status] }));
+    statusOptions ?? thoughtStatuses.map((status) => ({ value: status, label: status }));
 
   return (
     <div className="list-controls">
       <label>
-        Search
-        <input value={searchText} onChange={(event) => onSearchTextChange(event.target.value)} placeholder="Search" />
+        {t("Search")}
+        <input value={searchText} onChange={(event) => onSearchTextChange(event.target.value)} placeholder={t("Search")} />
       </label>
 
       {typeFilter !== undefined && onTypeFilterChange && (
         <label>
-          Type
+          {t("Type")}
           <select value={typeFilter} onChange={(event) => onTypeFilterChange(event.target.value as ThoughtType | "all")}>
-            <option value="all">All types</option>
+            <option value="all">{t("All types")}</option>
             {thoughtTypes.map((type) => (
-              <option key={type} value={type}>{typeLabel[type]}</option>
+              <option key={type} value={type}>{t(type)}</option>
             ))}
           </select>
         </label>
@@ -61,11 +62,11 @@ export function ListControls({
 
       {statusFilter !== undefined && onStatusFilterChange && (
         <label>
-          Status
+          {t("Status")}
           <select value={statusFilter} onChange={(event) => onStatusFilterChange(event.target.value)}>
-            <option value="all">All statuses</option>
+            <option value="all">{t("All statuses")}</option>
             {resolvedStatusOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>{t(option.label)}</option>
             ))}
           </select>
         </label>
@@ -73,9 +74,9 @@ export function ListControls({
 
       {universeFilter !== undefined && onUniverseFilterChange && (
         <label>
-          Universe
+          {t("Universe")}
           <select value={universeFilter} onChange={(event) => onUniverseFilterChange(event.target.value)}>
-            <option value="all">All universes</option>
+            <option value="all">{t("All universes")}</option>
             {universes.map((universe) => (
               <option key={universe.id} value={universe.id}>{universe.name}</option>
             ))}
@@ -84,12 +85,12 @@ export function ListControls({
       )}
 
       <label>
-        Sort
+        {t("Sort")}
         <select value={sortBy} onChange={(event) => onSortByChange(event.target.value as ListSortBy)}>
-          <option value="updated_desc">Updated newest</option>
-          <option value="updated_asc">Updated oldest</option>
-          <option value="title_asc">Title A-Z</option>
-          <option value="title_desc">Title Z-A</option>
+          <option value="updated_desc">{t("Updated newest")}</option>
+          <option value="updated_asc">{t("Updated oldest")}</option>
+          <option value="title_asc">{t("Title A-Z")}</option>
+          <option value="title_desc">{t("Title Z-A")}</option>
         </select>
       </label>
     </div>

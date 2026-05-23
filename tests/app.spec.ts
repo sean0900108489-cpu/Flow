@@ -9,15 +9,15 @@ test.beforeEach(async ({ page }) => {
 
 async function createThought(page: Page, title: string, type = "note", universeName?: string) {
   await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
-  const capture = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "快速捕捉想法" }) });
+  const capture = page.locator("section.panel.form").filter({ has: page.getByRole("heading", { name: "Quick Capture" }) });
 
-  await capture.getByLabel("標題").fill(title);
-  await capture.getByLabel("內容").fill(`${title} content`);
-  await capture.getByLabel("類型").selectOption(type);
+  await capture.getByLabel("Title").fill(title);
+  await capture.getByLabel("Content").fill(`${title} content`);
+  await capture.locator("select").first().selectOption(type);
   if (universeName) {
     await capture.locator("select").last().selectOption({ label: universeName });
   }
-  await capture.getByRole("button", { name: "儲存到 Inbox" }).click();
+  await capture.getByRole("button", { name: "Save to Inbox" }).click();
 }
 
 async function createUniverse(page: Page, name: string, description = "Personal body and energy system") {
@@ -177,18 +177,38 @@ function handoffState(projectPatch: Partial<Project> = {}, relationships: Relati
 
 test("dashboard renders core product areas", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Universe Dashboard" })).toBeVisible();
-  await expect(page.getByText("我現在想做什麼？")).toBeVisible();
+  await expect(page.getByText("What do I want to do now?")).toBeVisible();
   await expect(page.locator("strong").filter({ hasText: "思想管理系統宇宙" })).toBeVisible();
   await expect(page.getByText("Todo Thought Universe MVP").first()).toBeVisible();
+});
+
+test("language toggle switches visible shell UI without mutating app state", async ({ page }) => {
+  await page.getByRole("button", { name: "繁中" }).click();
+
+  await expect(page.getByRole("heading", { name: "宇宙儀表板" })).toBeVisible();
+  await expect(page.getByText("我現在想做什麼？")).toBeVisible();
+  await expect(page.getByPlaceholder("搜尋想法")).toBeVisible();
+  await expect(page.getByRole("button", { name: "快速捕捉" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "EN" })).toHaveAttribute("aria-pressed", "false");
+
+  await expect.poll(
+    () => page.evaluate(() => localStorage.getItem("todo-thought-universe:ui-language"))
+  ).toBe("zh-TW");
+
+  const appStateJson = await page.evaluate(() => localStorage.getItem("todo-thought-universe:v1"));
+  expect(appStateJson ?? "").not.toContain("zh-TW");
+
+  await page.getByRole("button", { name: "EN" }).click();
+  await expect(page.getByRole("heading", { name: "Universe Dashboard" })).toBeVisible();
 });
 
 test("quick capture creates a thought and redirects to Thought Detail", async ({ page }) => {
   await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
 
-  await page.getByLabel("標題").fill("E2E 新增想法");
-  await page.getByLabel("內容").fill("這是一個由 Playwright 自動建立的想法。");
-  await page.getByLabel("類型").selectOption("task");
-  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+  await page.getByLabel("Title").fill("E2E 新增想法");
+  await page.getByLabel("Content").fill("這是一個由 Playwright 自動建立的想法。");
+  await page.locator("section.panel.form select").first().selectOption("task");
+  await page.getByRole("button", { name: "Save to Inbox" }).click();
 
   await expect(page.getByRole("heading", { name: "Thought Detail", level: 1 })).toBeVisible();
   await expect(page.getByLabel("標題")).toHaveValue("E2E 新增想法");
@@ -200,26 +220,26 @@ test("quick capture creates a thought and redirects to Thought Detail", async ({
 test("thought archive hides thought from active dashboard list", async ({ page }) => {
   await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
 
-  await page.getByLabel("標題").fill("E2E 封存想法");
-  await page.getByLabel("內容").fill("這個想法會先變成 active，再被封存。");
-  await page.getByLabel("類型").selectOption("task");
-  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+  await page.getByLabel("Title").fill("E2E 封存想法");
+  await page.getByLabel("Content").fill("這個想法會先變成 active，再被封存。");
+  await page.locator("section.panel.form select").first().selectOption("task");
+  await page.getByRole("button", { name: "Save to Inbox" }).click();
 
   await page.getByLabel("狀態").selectOption("active");
   await page.getByRole("button", { name: "Archive Thought" }).click();
 
   await expect(page.getByRole("heading", { name: "Universe Dashboard", level: 1 })).toBeVisible();
-  const nextActions = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "目前下一步" }) });
+  const nextActions = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Current next steps" }) });
   await expect(nextActions.getByText("E2E 封存想法")).toHaveCount(0);
 });
 
 test("thought delete removes thought and related UI stays stable", async ({ page }) => {
   await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
 
-  await page.getByLabel("標題").fill("E2E 刪除想法");
-  await page.getByLabel("內容").fill("這個想法會被刪除。");
-  await page.getByLabel("類型").selectOption("note");
-  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+  await page.getByLabel("Title").fill("E2E 刪除想法");
+  await page.getByLabel("Content").fill("這個想法會被刪除。");
+  await page.locator("section.panel.form select").first().selectOption("note");
+  await page.getByRole("button", { name: "Save to Inbox" }).click();
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete Thought" }).click();
@@ -839,19 +859,21 @@ test("decision records search and status filter", async ({ page }) => {
 test("archived thought can be restored to inbox", async ({ page }) => {
   await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
 
-  await page.getByLabel("標題").fill("Restorable archived thought");
-  await page.getByLabel("內容").fill("This thought should leave archive when restored.");
-  await page.getByLabel("類型").selectOption("task");
-  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+  await page.getByLabel("Title").fill("Restorable archived thought");
+  await page.getByLabel("Content").fill("This thought should leave archive when restored.");
+  await page.locator("section.panel.form select").first().selectOption("task");
+  await page.getByRole("button", { name: "Save to Inbox" }).click();
 
   await page.getByRole("button", { name: "Archive Thought" }).click();
   await page.getByRole("button", { name: "Archived Items" }).click();
 
   await expect(page.getByRole("heading", { name: "Archived Items", level: 1 })).toBeVisible();
-  await expect(page.getByText("Restorable archived thought")).toBeVisible();
+  const archivedThoughts = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Archived Thoughts" }) });
+  const archivedThought = archivedThoughts.locator(".archive-card").filter({ hasText: "Restorable archived thought" });
+  await expect(archivedThought).toBeVisible();
 
-  await page.getByRole("button", { name: "Restore Thought" }).click();
-  await expect(page.locator("main > section").first().getByText("Restorable archived thought")).toHaveCount(0);
+  await archivedThought.getByRole("button", { name: "Restore Thought" }).click();
+  await expect(archivedThoughts.locator(".archive-card").filter({ hasText: "Restorable archived thought" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Idea Inbox" }).click();
   const inboxList = page.locator("main > div.panel").first();
@@ -864,12 +886,14 @@ test("archived project can be restored to active dashboard projects", async ({ p
   await page.getByRole("button", { name: "Archived Items" }).click();
 
   await expect(page.getByRole("heading", { name: "Archived Items", level: 1 })).toBeVisible();
-  await expect(page.getByText("Todo Thought Universe MVP")).toBeVisible();
+  const archivedProjects = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Archived Projects" }) });
+  const archivedProject = archivedProjects.locator(".archive-card").filter({ hasText: "Todo Thought Universe MVP" });
+  await expect(archivedProject).toBeVisible();
 
-  await page.getByRole("button", { name: "Restore Project" }).click();
-  await expect(page.locator("main > section").first().getByText("Todo Thought Universe MVP")).toHaveCount(0);
+  await archivedProject.getByRole("button", { name: "Restore Project" }).click();
+  await expect(archivedProjects.locator(".archive-card").filter({ hasText: "Todo Thought Universe MVP" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Dashboard" }).click();
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
   const projectsPanel = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Projects" }) });
   await expect(projectsPanel.getByText("Todo Thought Universe MVP")).toBeVisible();
 });
@@ -877,19 +901,21 @@ test("archived project can be restored to active dashboard projects", async ({ p
 test("archived thought can be deleted from archived items", async ({ page }) => {
   await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
 
-  await page.getByLabel("標題").fill("Delete archived thought");
-  await page.getByLabel("內容").fill("This archived thought should be deleted.");
-  await page.getByLabel("類型").selectOption("note");
-  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+  await page.getByLabel("Title").fill("Delete archived thought");
+  await page.getByLabel("Content").fill("This archived thought should be deleted.");
+  await page.locator("section.panel.form select").first().selectOption("note");
+  await page.getByRole("button", { name: "Save to Inbox" }).click();
 
   await page.getByRole("button", { name: "Archive Thought" }).click();
   await page.getByRole("button", { name: "Archived Items" }).click();
-  await expect(page.getByText("Delete archived thought")).toBeVisible();
+  const archivedThoughts = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "Archived Thoughts" }) });
+  const archivedThought = archivedThoughts.locator(".archive-card").filter({ hasText: "Delete archived thought" });
+  await expect(archivedThought).toBeVisible();
 
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Delete Thought" }).click();
+  await archivedThought.getByRole("button", { name: "Delete Thought" }).click();
 
-  await expect(page.getByText("Delete archived thought")).toHaveCount(0);
+  await expect(archivedThoughts.locator(".archive-card").filter({ hasText: "Delete archived thought" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Archived Items", level: 1 })).toBeVisible();
 });
 
@@ -914,7 +940,7 @@ test("thought type filter narrows the idea inbox", async ({ page }) => {
   const inbox = page.locator("main > div.panel").first();
 
   await inbox.getByLabel("Search").fill("type filter");
-  await inbox.getByLabel("Type").selectOption("task");
+  await inbox.locator("select").first().selectOption("task");
 
   await expect(inbox.locator(".item strong", { hasText: "Task type filter thought" })).toBeVisible();
   await expect(inbox.locator(".item strong", { hasText: "Note type filter thought" })).toHaveCount(0);
@@ -1192,10 +1218,10 @@ test("mock AI creates draft insight and can accept it", async ({ page }) => {
 test("AI patch proposal applies to thought only after accept", async ({ page }) => {
   await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
 
-  await page.getByLabel("標題").fill("E2E AI patch project idea");
-  await page.getByLabel("內容").fill("Build an app for structured planning.");
-  await page.getByLabel("類型").selectOption("inspiration");
-  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+  await page.getByLabel("Title").fill("E2E AI patch project idea");
+  await page.getByLabel("Content").fill("Build an app for structured planning.");
+  await page.locator("section.panel.form select").first().selectOption("inspiration");
+  await page.getByRole("button", { name: "Save to Inbox" }).click();
 
   await page.getByRole("button", { name: /AI Planning Panel/ }).click();
   await page.getByRole("button", { name: "分析目前 Thought" }).click();
@@ -1215,10 +1241,10 @@ test("AI patch proposal applies to thought only after accept", async ({ page }) 
 test("rejecting AI patch proposal does not apply thought changes", async ({ page }) => {
   await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
 
-  await page.getByLabel("標題").fill("E2E reject AI patch idea");
-  await page.getByLabel("內容").fill("Build an app that should stay unchanged after reject.");
-  await page.getByLabel("類型").selectOption("inspiration");
-  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+  await page.getByLabel("Title").fill("E2E reject AI patch idea");
+  await page.getByLabel("Content").fill("Build an app that should stay unchanged after reject.");
+  await page.locator("section.panel.form select").first().selectOption("inspiration");
+  await page.getByRole("button", { name: "Save to Inbox" }).click();
 
   await page.getByRole("button", { name: /AI Planning Panel/ }).click();
   await page.getByRole("button", { name: "分析目前 Thought" }).click();
@@ -1519,10 +1545,10 @@ test("review queue screen loads", async ({ page }) => {
 test("review queue accepts an AI draft and applies its patch", async ({ page }) => {
   await page.getByRole("button", { name: "Quick Capture", exact: true }).click();
 
-  await page.getByLabel("標題").fill("Review queue AI idea");
-  await page.getByLabel("內容").fill("Build a structured planning app from an idea.");
-  await page.getByLabel("類型").selectOption("inspiration");
-  await page.getByRole("button", { name: "儲存到 Inbox" }).click();
+  await page.getByLabel("Title").fill("Review queue AI idea");
+  await page.getByLabel("Content").fill("Build a structured planning app from an idea.");
+  await page.locator("section.panel.form select").first().selectOption("inspiration");
+  await page.getByRole("button", { name: "Save to Inbox" }).click();
 
   await page.getByRole("button", { name: /AI Planning Panel/ }).click();
   await page.getByRole("button", { name: "分析目前 Thought" }).click();
@@ -1706,8 +1732,8 @@ test("app state transfer exports and imports full local state", async ({ page })
     aiInsights: []
   };
 
-  await page.getByLabel("匯入 App State JSON").fill(JSON.stringify(importedState, null, 2));
-  await page.getByRole("button", { name: "匯入並覆蓋目前資料" }).click();
+  await page.getByLabel("Import App State JSON").fill(JSON.stringify(importedState, null, 2));
+  await page.getByRole("button", { name: "Import and overwrite current data" }).click();
 
   await expect(page.getByRole("heading", { name: "Universe Dashboard" })).toBeVisible();
   await expect(page.getByText("App State imported successfully.")).toBeVisible();

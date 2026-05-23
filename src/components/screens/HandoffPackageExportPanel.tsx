@@ -7,6 +7,7 @@ import {
   type EngineeringHandoffPackageExport
 } from "../../domain/engineeringHandoffExport";
 import type { AppState } from "../../domain/types";
+import { useI18n } from "../../i18n";
 import { Metric } from "../common/Metric";
 
 type ExportBuildResult =
@@ -85,6 +86,7 @@ export function HandoffPackageExportPanel({
   state: AppState;
   projectId?: string;
 }) {
+  const { t } = useI18n();
   const initialProjectId = projectId ?? state.projects[0]?.id ?? "";
   const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId);
   const [notice, setNotice] = useState("");
@@ -99,23 +101,23 @@ export function HandoffPackageExportPanel({
       };
     } catch (error) {
       return {
-        error: error instanceof Error ? error.message : "Unable to build EngineeringHandoffPackage export."
+        error: error instanceof Error ? error.message : t("Unable to build EngineeringHandoffPackage export.")
       };
     }
-  }, [effectiveProjectId, state]);
+  }, [effectiveProjectId, state, t]);
 
   if (state.projects.length === 0) {
     return (
       <section className="panel stack handoff-export-panel">
         <div className="head">
           <div>
-            <h2>EngineeringHandoffPackage Export</h2>
-            <p className="muted">Preview and export a read-only engineering draft package.</p>
+            <h2>{t("EngineeringHandoffPackage Export")}</h2>
+            <p className="muted">{t("Preview and export a read-only engineering draft package.")}</p>
           </div>
-          <span className="badge">read-only</span>
+          <span className="badge">{t("read-only")}</span>
         </div>
         <div className="notice">
-          No projects are available for EngineeringHandoffPackage export.
+          {t("No projects are available for EngineeringHandoffPackage export.")}
         </div>
       </section>
     );
@@ -126,13 +128,13 @@ export function HandoffPackageExportPanel({
       <section className="panel stack handoff-export-panel">
         <div className="head">
           <div>
-            <h2>EngineeringHandoffPackage Export</h2>
-            <p className="muted">Preview and export a read-only engineering draft package.</p>
+            <h2>{t("EngineeringHandoffPackage Export")}</h2>
+            <p className="muted">{t("Preview and export a read-only engineering draft package.")}</p>
           </div>
-          <span className="badge">error</span>
+          <span className="badge">{t("error")}</span>
         </div>
         <label>
-          Project selector
+          {t("Project selector")}
           <select value={effectiveProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
             {state.projects.map((project) => (
               <option key={project.id} value={project.id}>
@@ -141,7 +143,7 @@ export function HandoffPackageExportPanel({
             ))}
           </select>
         </label>
-        <div className="warn">Package builder error: {buildResult.error}</div>
+        <div className="warn">{t("Package builder error: {error}", { error: buildResult.error })}</div>
       </section>
     );
   }
@@ -177,21 +179,19 @@ export function HandoffPackageExportPanel({
     <section className="panel stack handoff-export-panel">
       <div className="head">
         <div>
-          <h2>EngineeringHandoffPackage Export</h2>
-          <p className="muted">Preview and export the selected project as a read-only engineering draft.</p>
+          <h2>{t("EngineeringHandoffPackage Export")}</h2>
+          <p className="muted">{t("Preview and export the selected project as a read-only engineering draft.")}</p>
         </div>
         <span className="badge">{exportPackage.schema}</span>
       </div>
 
       <div className="notice">
-        This handoff package is a read-only engineering draft export. Generating or exporting it does not mutate
-        AppState. It does not mark the project as handoff_ready. handoff_ready requires explicit user confirmation
-        through the command layer.
+        {t("This handoff package is a read-only engineering draft export. Generating or exporting it does not mutate AppState. It does not mark the project as handoff_ready. handoff_ready requires explicit user confirmation through the command layer.")}
       </div>
 
       <div className="grid two handoff-export-controls">
         <label>
-          Project selector
+          {t("Project selector")}
           <select value={effectiveProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
             {state.projects.map((project) => (
               <option key={project.id} value={project.id}>
@@ -201,25 +201,25 @@ export function HandoffPackageExportPanel({
           </select>
         </label>
         <div className="actions handoff-export-actions">
-          <button className="ghost" onClick={() => copyText(json, "EngineeringHandoffPackage JSON copied.")}>
-            Copy JSON
+          <button className="ghost" onClick={() => copyText(json, t("EngineeringHandoffPackage JSON copied."))}>
+            {t("Copy JSON")}
           </button>
           <button
             className="ghost"
             onClick={() =>
               downloadText(`${filenameBase}.engineering-handoff-package.json`, "application/json", json)}
           >
-            Download JSON
+            {t("Download JSON")}
           </button>
-          <button className="ghost" onClick={() => copyText(markdown, "EngineeringHandoffPackage Markdown copied.")}>
-            Copy Markdown
+          <button className="ghost" onClick={() => copyText(markdown, t("EngineeringHandoffPackage Markdown copied."))}>
+            {t("Copy Markdown")}
           </button>
           <button
             className="ghost"
             onClick={() =>
               downloadText(`${filenameBase}.engineering-handoff-package.md`, "text/markdown", markdown)}
           >
-            Download Markdown
+            {t("Download Markdown")}
           </button>
         </div>
       </div>
@@ -228,14 +228,13 @@ export function HandoffPackageExportPanel({
 
       {hasDraftRisk && !isHandoffReady && (
         <div className="warn">
-          Draft package may be incomplete. This project is not handoff_ready. Resolve blockers and confirm handoff
-          readiness before formal engineering handoff.
+          {t("Draft package may be incomplete. This project is not handoff_ready. Resolve blockers and confirm handoff readiness before formal engineering handoff.")}
         </div>
       )}
 
       {isHandoffReady && hasDraftRisk && (
         <div className="warn">
-          This project is already marked handoff_ready, but current draft signals may need review before reuse.
+          {t("This project is already marked handoff_ready, but current draft signals may need review before reuse.")}
         </div>
       )}
 
@@ -247,26 +246,25 @@ export function HandoffPackageExportPanel({
       </div>
 
       <div className="mini-list">
-        <strong>Handoff readiness summary</strong>
+        <strong>{t("Handoff readiness summary")}</strong>
         <ul>
-          <li>Project: {projectName} ({handoffPackage.projectId})</li>
-          <li>Lifecycle status: {label(report.lifecycleStatus)}</li>
-          <li>Preflight passed: {label(report.handoffPreflight.passed)}</li>
-          <li>Blockers / warnings: {handoffPackage.blockers.length}</li>
-          <li>Exported at: {exportPackage.exportedAt}</li>
+          <li>{t("Project: {name} ({id})", { name: projectName, id: handoffPackage.projectId })}</li>
+          <li>{t("Lifecycle status: {value}", { value: label(report.lifecycleStatus) })}</li>
+          <li>{t("Preflight passed: {value}", { value: label(report.handoffPreflight.passed) })}</li>
+          <li>{t("Blockers / warnings: {count}", { count: handoffPackage.blockers.length })}</li>
+          <li>{t("Exported at: {value}", { value: exportPackage.exportedAt })}</li>
         </ul>
       </div>
 
       <div className="notice">
-        Engineering draft export does not mark the project as handoff_ready. handoff_ready requires explicit confirmed
-        command flow.
+        {t("Engineering draft export does not mark the project as handoff_ready. handoff_ready requires explicit confirmed command flow.")}
       </div>
 
       <div className="handoff-export-preview stack">
         <PackageSection title="EngineeringFlowInput">
           <div className="grid two">
             <div className="mini-list">
-              <strong>Project identity</strong>
+              <strong>{t("Project identity")}</strong>
               <ul>
                 <li>id: {flowInput.projectIdentity.id}</li>
                 <li>name: {label(flowInput.projectName)}</li>
@@ -275,7 +273,7 @@ export function HandoffPackageExportPanel({
               </ul>
             </div>
             <div className="mini-list">
-              <strong>Context counts</strong>
+              <strong>{t("Context counts")}</strong>
               <ul>
                 <li>linked thoughts: {flowInput.linkedThoughts.length}</li>
                 <li>blockers: {flowInput.relevantBlockers.length}</li>
@@ -290,7 +288,7 @@ export function HandoffPackageExportPanel({
           <p>{handoffPackage.requiredSoftwarePlan.summary}</p>
           <div className="cards">
             {handoffPackage.requiredSoftwarePlan.modules.length === 0 ? (
-              <div className="mini-list">No required software modules.</div>
+              <div className="mini-list">{t("No required software modules.")}</div>
             ) : (
               handoffPackage.requiredSoftwarePlan.modules.map((module) => (
                 <article className="card handoff-export-card" key={module.id}>
@@ -313,14 +311,14 @@ export function HandoffPackageExportPanel({
         <PackageSection title="ProjectEvolutionPlan">
           <div className="grid two">
             <div className="mini-list">
-              <strong>Next milestones</strong>
-              <TextList items={handoffPackage.projectEvolutionPlan.nextMilestones} empty="No milestones listed." />
+              <strong>{t("Next milestones")}</strong>
+              <TextList items={handoffPackage.projectEvolutionPlan.nextMilestones} empty={t("No milestones listed.")} />
             </div>
             <div className="mini-list">
-              <strong>Suggested implementation sequence</strong>
+              <strong>{t("Suggested implementation sequence")}</strong>
               <TextList
                 items={handoffPackage.projectEvolutionPlan.suggestedImplementationSequence}
-                empty="No implementation sequence listed."
+                empty={t("No implementation sequence listed.")}
               />
             </div>
           </div>
@@ -329,35 +327,35 @@ export function HandoffPackageExportPanel({
         <PackageSection title="ConstraintCodex / Limiter">
           <div className="grid two">
             <div className="mini-list">
-              <strong>Hard constraints</strong>
-              <TextList items={handoffPackage.constraintCodex.hardConstraints} empty="No hard constraints listed." />
+              <strong>{t("Hard constraints")}</strong>
+              <TextList items={handoffPackage.constraintCodex.hardConstraints} empty={t("No hard constraints listed.")} />
             </div>
             <div className="mini-list">
-              <strong>Handoff limitations</strong>
+              <strong>{t("Handoff limitations")}</strong>
               <TextList
                 items={handoffPackage.constraintCodex.handoffLimitations}
-                empty="No handoff limitations listed."
+                empty={t("No handoff limitations listed.")}
               />
             </div>
             <div className="mini-list">
-              <strong>Forbidden actions</strong>
-              <TextList items={handoffPackage.constraintCodex.forbiddenActions} empty="No forbidden actions listed." />
+              <strong>{t("Forbidden actions")}</strong>
+              <TextList items={handoffPackage.constraintCodex.forbiddenActions} empty={t("No forbidden actions listed.")} />
             </div>
             <div className="mini-list">
-              <strong>AI limitations</strong>
-              <TextList items={handoffPackage.constraintCodex.aiLimitations} empty="No AI limitations listed." />
+              <strong>{t("AI limitations")}</strong>
+              <TextList items={handoffPackage.constraintCodex.aiLimitations} empty={t("No AI limitations listed.")} />
             </div>
           </div>
         </PackageSection>
 
         <PackageSection title="BackendDesignPlan">
           <div className="mini-list">
-            <strong>Local-first assumption</strong>
+            <strong>{t("Local-first assumption")}</strong>
             <p>{handoffPackage.backendDesignPlan.localFirstAssumption}</p>
           </div>
           <div className="cards">
             {handoffPackage.backendDesignPlan.futureEndpointCandidates.length === 0 ? (
-              <div className="mini-list">No backend endpoint candidates.</div>
+              <div className="mini-list">{t("No backend endpoint candidates.")}</div>
             ) : (
               handoffPackage.backendDesignPlan.futureEndpointCandidates.map((endpoint) => (
                 <article className="card handoff-export-card" key={`${endpoint.method}:${endpoint.path}`}>
@@ -375,7 +373,7 @@ export function HandoffPackageExportPanel({
         <PackageSection title="CodexTaskPlan">
           <div className="cards">
             {handoffPackage.codexTaskPlan.tasks.length === 0 ? (
-              <div className="mini-list">No Codex tasks listed.</div>
+              <div className="mini-list">{t("No Codex tasks listed.")}</div>
             ) : (
               handoffPackage.codexTaskPlan.tasks.map((task) => (
                 <article className="card handoff-export-card" key={task.id}>
@@ -399,7 +397,7 @@ export function HandoffPackageExportPanel({
             {Object.entries(handoffPackage.acceptanceTestPlan).map(([section, tests]) => (
               <div className="mini-list" key={section}>
                 <strong>{section}</strong>
-                <TextList items={tests} empty="No tests listed." />
+                <TextList items={tests} empty={t("No tests listed.")} />
               </div>
             ))}
           </div>
@@ -407,7 +405,7 @@ export function HandoffPackageExportPanel({
 
         <PackageSection title="Blockers / Warnings">
           {handoffPackage.blockers.length === 0 ? (
-            <p>No blockers or warnings reported.</p>
+            <p>{t("No blockers or warnings reported.")}</p>
           ) : (
             <div className="cards">
               {handoffPackage.blockers.map((blocker) => (

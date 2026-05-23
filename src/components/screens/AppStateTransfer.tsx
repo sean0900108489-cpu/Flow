@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { AppState } from "../../domain/types";
 import type { AppStateInvariantWarning } from "../../domain/validation/appStateInvariants";
+import { useI18n } from "../../i18n";
 import { downloadJson, parseAppStateJson, stringifyAppState } from "../../services/appStateTransfer";
 
 function optionalDetail(warning: AppStateInvariantWarning, key: "target" | "evidence") {
@@ -23,11 +24,13 @@ export function AppStateImportWarningDetails({
 }: {
   warnings: AppStateInvariantWarning[];
 }) {
+  const { t } = useI18n();
+
   if (warnings.length === 0) return null;
 
   return (
     <div className="notice import-warning-details">
-      <strong>Import warning details</strong>
+      <strong>{t("Import warning details")}</strong>
       <ul>
         {warnings.map((warning, index) => {
           const target = optionalDetail(warning, "target") || warningTarget(warning);
@@ -55,6 +58,7 @@ export function AppStateTransfer({
   state: AppState;
   onImport: (state: AppState) => void;
 }) {
+  const { t } = useI18n();
   const [importText, setImportText] = useState("");
   const [message, setMessage] = useState("");
   const [importWarnings, setImportWarnings] = useState<AppStateInvariantWarning[]>([]);
@@ -62,29 +66,31 @@ export function AppStateTransfer({
 
   const copy = async () => {
     await navigator.clipboard.writeText(json);
-    setMessage("已複製完整 App State JSON。");
+    setMessage(t("Copied full App State JSON."));
   };
 
   const download = () => {
     downloadJson("todo-thought-universe-app-state.json", json);
-    setMessage("已下載完整 App State JSON。");
+    setMessage(t("Downloaded full App State JSON."));
   };
 
   const runImport = () => {
     const result = parseAppStateJson(importText);
 
     if (!result.ok || !result.state) {
-      setMessage(`匯入失敗：${result.error ?? "Invalid app state."}`);
+      setMessage(t("Import failed: {error}", { error: result.error ?? "Invalid app state." }));
       setImportWarnings([]);
       return;
     }
 
+    const warningCount = result.warnings?.length ?? 0;
+
     setImportText("");
     onImport(result.state);
     setImportWarnings(result.warnings ?? []);
-    setMessage(result.warnings?.length
-      ? `匯入完成，發現 ${result.warnings.length} 個 invariant warning。`
-      : "匯入完成，未發現 invariant warning。"
+    setMessage(warningCount
+      ? t("Import completed with {count} invariant warning(s).", { count: warningCount })
+      : t("Import completed with no invariant warnings.")
     );
   };
 
@@ -92,15 +98,12 @@ export function AppStateTransfer({
     <section className="panel">
       <div className="head">
         <div>
-          <h2>App State Transfer</h2>
-          <p className="muted">
-            匯出或匯入完整 local-first app state，包含 universes、thoughts、projects、relationships、aiInsights、
-            Decision Center、Review Queue、Engineering Readiness 與 Next Action state。
-          </p>
+          <h2>{t("App State Transfer")}</h2>
+          <p className="muted">{t("App State Transfer description")}</p>
         </div>
         <div className="actions">
-          <button className="ghost" onClick={copy}>複製 App State</button>
-          <button onClick={download}>下載 App State</button>
+          <button className="ghost" onClick={copy}>{t("Copy App State")}</button>
+          <button onClick={download}>{t("Export App State")}</button>
         </div>
       </div>
 
@@ -109,17 +112,17 @@ export function AppStateTransfer({
 
       <div className="form">
         <label>
-          匯入 App State JSON
+          {t("Import App State JSON")}
           <textarea
             value={importText}
             onChange={(event) => setImportText(event.target.value)}
-            placeholder="貼上 todo-thought-universe-app-state.json 內容，匯入前會驗證必要 collections 並套用 migration/defaults..."
+            placeholder={t("Paste todo-thought-universe app state JSON here. Required collections are validated and migrations/defaults are applied before import.")}
           />
         </label>
-        <button onClick={runImport}>匯入並覆蓋目前資料</button>
+        <button onClick={runImport}>{t("Import and overwrite current data")}</button>
       </div>
 
-      <h3>目前 App State JSON</h3>
+      <h3>{t("Current App State JSON")}</h3>
       <pre className="json">{json}</pre>
     </section>
   );
