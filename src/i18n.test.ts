@@ -43,6 +43,23 @@ describe("UI i18n", () => {
     expect(translateText("en", "Thought Triage Center")).toBe("Thought Triage Center");
   });
 
+  it("covers decision, blocking, and relationship UI copy", () => {
+    expect(translateText("zh-TW", "Decision Records Center")).toBe("決策紀錄中心");
+    expect(translateText("zh-TW", "Blocking Questions")).toBe("阻塞問題");
+    expect(translateText("zh-TW", "Relationships")).toBe("關聯");
+    expect(translateText("zh-TW", "Relationship Explorer")).toBe("關聯探索器");
+    expect(translateText("zh-TW", "Create Decision Record")).toBe("建立決策紀錄");
+    expect(translateText("zh-TW", "Decision Summary")).toBe("決策摘要");
+    expect(translateText("zh-TW", "Not fully ready for engineering while core blocking decisions remain open.")).toBe(
+      "核心阻塞決策仍待處理，尚未完全準備好進入工程。"
+    );
+    expect(translateText("zh-TW", "Impact: {impact}", { impact: "高" })).toBe("影響：高");
+    expect(translateText("zh-TW", "Linked projects: {count}", { count: 2 })).toBe("已連結專案：2");
+    expect(translateText("zh-TW", "blocks")).toBe("阻擋");
+    expect(translateText("zh-TW", "decided")).toBe("已決定");
+    expect(translateText("en", "Relationship Explorer")).toBe("Relationship Explorer");
+  });
+
   it("reports missing required translation keys", () => {
     expect(missingRequiredUiTranslations(["Global Search", "Missing Phase 2A key"])).toEqual(["Missing Phase 2A key"]);
   });

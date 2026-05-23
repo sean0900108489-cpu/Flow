@@ -6,16 +6,18 @@ import {
   type DecisionRecordInput,
   type DecisionRecordPatch
 } from "../../domain/decisionRecords";
+import { useI18n } from "../../i18n";
 import { Metric } from "../common/Metric";
 
 const statuses: Array<DecisionRecordStatus | "all"> = ["all", "proposed", "accepted", "superseded", "archived"];
+type Translate = (key: string, values?: Record<string, number | string>) => string;
 
-function actionMessage(result: { ok: boolean; error?: string }, fallback: string) {
-  return result.ok ? "" : result.error ?? fallback;
+function actionMessage(result: { ok: boolean; error?: string }, fallback: string, t: Translate) {
+  return result.ok ? "" : result.error ?? t(fallback);
 }
 
-function linkedCountLabel(label: string, count: number) {
-  return `${label}: ${count}`;
+function linkedCountLabel(label: string, count: number, t: Translate) {
+  return t(`${label}: {count}`, { count });
 }
 
 function sourceQuestionLabel(state: AppState, sourceBlockingQuestionId: string | undefined) {
@@ -48,6 +50,7 @@ function DecisionRecordCard({
   onDeleteDecisionRecord: (decisionRecordId: string) => DecisionRecordActionResult;
   onError: (message: string) => void;
 }) {
+  const { t } = useI18n();
   const [title, setTitle] = useState(record.title);
   const [decision, setDecision] = useState(record.decision);
   const [rationale, setRationale] = useState(record.rationale ?? "");
@@ -55,7 +58,7 @@ function DecisionRecordCard({
   const [status, setStatus] = useState<DecisionRecordStatus>(record.status);
 
   const applyResult = (result: DecisionRecordActionResult) => {
-    onError(actionMessage(result, "Decision record action failed."));
+    onError(actionMessage(result, "Decision record action failed.", t));
     return result.ok;
   };
 
@@ -82,7 +85,7 @@ function DecisionRecordCard({
   };
 
   const deleteRecord = () => {
-    if (!window.confirm("Delete this decision record?")) return;
+    if (!window.confirm(t("Delete this decision record?"))) return;
     applyResult(onDeleteDecisionRecord(record.id));
   };
 
@@ -92,63 +95,63 @@ function DecisionRecordCard({
     <article className="card decision-record-card">
       <div className="line">
         <strong>{record.title}</strong>
-        <span className={`badge decision-status-${record.status}`}>{record.status}</span>
+        <span className={`badge decision-status-${record.status}`}>{t(record.status)}</span>
       </div>
       <p>{record.decision}</p>
       {record.rationale && (
         <div className="mini-list">
-          <strong>Rationale</strong>
+          <strong>{t("Rationale")}</strong>
           <p>{record.rationale}</p>
         </div>
       )}
       {record.consequences && (
         <div className="mini-list">
-          <strong>Consequences</strong>
+          <strong>{t("Consequences")}</strong>
           <p>{record.consequences}</p>
         </div>
       )}
       {sourceQuestion && (
         <div className="mini-list">
-          <strong>Source blocking question</strong>
+          <strong>{t("Source blocking question")}</strong>
           <p>{sourceQuestion}</p>
         </div>
       )}
       <div className="chips">
-        <span>{linkedCountLabel("Linked thoughts", record.linkedThoughtIds?.length ?? 0)}</span>
-        <span>{linkedCountLabel("Linked projects", record.linkedProjectIds?.length ?? 0)}</span>
-        <span>{linkedCountLabel("Linked universes", record.linkedUniverseIds?.length ?? 0)}</span>
+        <span>{linkedCountLabel("Linked thoughts", record.linkedThoughtIds?.length ?? 0, t)}</span>
+        <span>{linkedCountLabel("Linked projects", record.linkedProjectIds?.length ?? 0, t)}</span>
+        <span>{linkedCountLabel("Linked universes", record.linkedUniverseIds?.length ?? 0, t)}</span>
       </div>
       <label>
-        Title
+        {t("Title")}
         <input value={title} onChange={(event) => setTitle(event.target.value)} />
       </label>
       <label>
-        Decision
+        {t("Decision")}
         <textarea value={decision} onChange={(event) => setDecision(event.target.value)} />
       </label>
       <label>
-        Rationale
+        {t("Rationale")}
         <textarea value={rationale} onChange={(event) => setRationale(event.target.value)} />
       </label>
       <label>
-        Consequences
+        {t("Consequences")}
         <textarea value={consequences} onChange={(event) => setConsequences(event.target.value)} />
       </label>
       <label>
-        Status
+        {t("Status")}
         <select value={status} onChange={(event) => setStatus(event.target.value as DecisionRecordStatus)}>
-          <option value="proposed">proposed</option>
-          <option value="accepted">accepted</option>
-          <option value="superseded">superseded</option>
-          <option value="archived">archived</option>
+          <option value="proposed">{t("proposed")}</option>
+          <option value="accepted">{t("accepted")}</option>
+          <option value="superseded">{t("superseded")}</option>
+          <option value="archived">{t("archived")}</option>
         </select>
       </label>
       <div className="actions">
-        <button className="ghost" onClick={save}>Save Decision</button>
-        <button className="restore" onClick={accept}>Accept</button>
-        <button className="ghost" onClick={supersede}>Supersede</button>
-        <button className="ghost" onClick={archive}>Archive</button>
-        <button className="danger" onClick={deleteRecord}>Delete</button>
+        <button className="ghost" onClick={save}>{t("Save Decision")}</button>
+        <button className="restore" onClick={accept}>{t("Accept")}</button>
+        <button className="ghost" onClick={supersede}>{t("Supersede")}</button>
+        <button className="ghost" onClick={archive}>{t("Archive")}</button>
+        <button className="danger" onClick={deleteRecord}>{t("Delete")}</button>
       </div>
     </article>
   );
@@ -173,6 +176,7 @@ export function DecisionRecordsCenter({
   onDeleteDecisionRecord: (decisionRecordId: string) => DecisionRecordActionResult;
   onCreateDecisionFromBlockingQuestion: (blockingQuestionId: string) => DecisionRecordActionResult;
 }) {
+  const { t } = useI18n();
   const [searchText, setSearchText] = useState("");
   const [status, setStatus] = useState<DecisionRecordStatus | "all">("all");
   const [universeId, setUniverseId] = useState<string | "all">("all");
@@ -199,7 +203,7 @@ export function DecisionRecordsCenter({
 
   const applyResult = (result: DecisionRecordActionResult, successMessage = "") => {
     if (!result.ok) {
-      setError(result.error ?? "Decision record action failed.");
+      setError(result.error ?? t("Decision record action failed."));
       setNotice("");
       return false;
     }
@@ -219,7 +223,7 @@ export function DecisionRecordsCenter({
       linkedUniverseIds: universeId === "all" ? [] : [universeId]
     };
 
-    if (applyResult(onCreateDecisionRecord(input), "Decision record created.")) {
+    if (applyResult(onCreateDecisionRecord(input), t("Decision record created."))) {
       setNewTitle("");
       setNewDecision("");
       setNewRationale("");
@@ -229,7 +233,7 @@ export function DecisionRecordsCenter({
   };
 
   const createFromQuestion = (blockingQuestionId: string) => {
-    applyResult(onCreateDecisionFromBlockingQuestion(blockingQuestionId), "Decision record created from blocking question.");
+    applyResult(onCreateDecisionFromBlockingQuestion(blockingQuestionId), t("Decision record created from blocking question."));
   };
 
   return (
@@ -237,49 +241,49 @@ export function DecisionRecordsCenter({
       <section className="panel hero">
         <div className="head">
           <div>
-            <h2>Decision Records Center</h2>
-            <p className="muted">Record accepted product and architecture decisions with rationale and consequences.</p>
+            <h2>{t("Decision Records Center")}</h2>
+            <p className="muted">{t("Record accepted product and architecture decisions with rationale and consequences.")}</p>
           </div>
         </div>
         <div className="metrics decision-record-metrics">
-          <Metric label="Proposed decisions" value={countByStatus("proposed")} />
-          <Metric label="Accepted decisions" value={countByStatus("accepted")} />
-          <Metric label="Superseded decisions" value={countByStatus("superseded")} />
-          <Metric label="Archived decisions" value={countByStatus("archived")} />
+          <Metric label={t("Proposed decisions")} value={countByStatus("proposed")} />
+          <Metric label={t("Accepted decisions")} value={countByStatus("accepted")} />
+          <Metric label={t("Superseded decisions")} value={countByStatus("superseded")} />
+          <Metric label={t("Archived decisions")} value={countByStatus("archived")} />
         </div>
       </section>
 
       <section className="panel form">
         <div className="list-controls">
           <label>
-            Search
+            {t("Search")}
             <input
-              aria-label="Search decision records"
+              aria-label={t("Search decision records")}
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search decision records"
+              placeholder={t("Search decision records")}
             />
           </label>
           <label>
-            Status filter
+            {t("Status filter")}
             <select
-              aria-label="Decision status filter"
+              aria-label={t("Decision status filter")}
               value={status}
               onChange={(event) => setStatus(event.target.value as DecisionRecordStatus | "all")}
             >
               {statuses.map((item) => (
-                <option key={item} value={item}>{item === "all" ? "All statuses" : item}</option>
+                <option key={item} value={item}>{item === "all" ? t("All statuses") : t(item)}</option>
               ))}
             </select>
           </label>
           <label>
-            Universe filter
+            {t("Universe filter")}
             <select
-              aria-label="Decision universe filter"
+              aria-label={t("Decision universe filter")}
               value={universeId}
               onChange={(event) => setUniverseId(event.target.value)}
             >
-              <option value="all">All universes</option>
+              <option value="all">{t("All universes")}</option>
               {state.universes.map((universe) => (
                 <option key={universe.id} value={universe.id}>{universe.name}</option>
               ))}
@@ -289,48 +293,48 @@ export function DecisionRecordsCenter({
       </section>
 
       <section className="panel form" data-testid="create-decision-form">
-        <h2>Create Decision</h2>
+        <h2>{t("Create Decision")}</h2>
         {error && <div className="warn">{error}</div>}
         {notice && <div className="notice">{notice}</div>}
         <label>
-          Title
+          {t("Title")}
           <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} />
         </label>
         <label>
-          Decision
+          {t("Decision")}
           <textarea value={newDecision} onChange={(event) => setNewDecision(event.target.value)} />
         </label>
         <label>
-          Rationale
+          {t("Rationale")}
           <textarea value={newRationale} onChange={(event) => setNewRationale(event.target.value)} />
         </label>
         <label>
-          Consequences
+          {t("Consequences")}
           <textarea value={newConsequences} onChange={(event) => setNewConsequences(event.target.value)} />
         </label>
         <label>
-          Status
+          {t("Status")}
           <select value={newStatus} onChange={(event) => setNewStatus(event.target.value as DecisionRecordStatus)}>
-            <option value="proposed">proposed</option>
-            <option value="accepted">accepted</option>
-            <option value="superseded">superseded</option>
-            <option value="archived">archived</option>
+            <option value="proposed">{t("proposed")}</option>
+            <option value="accepted">{t("accepted")}</option>
+            <option value="superseded">{t("superseded")}</option>
+            <option value="archived">{t("archived")}</option>
           </select>
         </label>
         <div className="actions">
-          <button onClick={create}>Create Decision Record</button>
+          <button onClick={create}>{t("Create Decision Record")}</button>
         </div>
       </section>
 
       <section className="panel stack">
         <div className="head">
           <div>
-            <h2>Decision Records</h2>
-            <p className="muted">{visibleRecords.length} shown</p>
+            <h2>{t("Decision Records")}</h2>
+            <p className="muted">{t("{count} shown", { count: visibleRecords.length })}</p>
           </div>
         </div>
         {visibleRecords.length === 0 ? (
-          <div className="notice">No decision records match the current filters.</div>
+          <div className="notice">{t("No decision records match the current filters.")}</div>
         ) : (
           <div className="cards">
             {visibleRecords.map((record) => (
@@ -353,24 +357,24 @@ export function DecisionRecordsCenter({
       <section className="panel stack">
         <div className="head">
           <div>
-            <h2>Create from Blocking Question</h2>
-            <p className="muted">Convert resolved or drafted resolutions into explicit user-owned decisions.</p>
+            <h2>{t("Create from Blocking Question")}</h2>
+            <p className="muted">{t("Convert resolved or drafted resolutions into explicit user-owned decisions.")}</p>
           </div>
         </div>
         {resolvableQuestions.length === 0 ? (
-          <div className="notice">No blocking questions with resolutions are available.</div>
+          <div className="notice">{t("No blocking questions with resolutions are available.")}</div>
         ) : (
           <div className="cards">
             {resolvableQuestions.map((question) => (
               <article className="card decision-source-question-card" key={question.id}>
                 <div className="line">
                   <strong>{question.question}</strong>
-                  <span className={`badge question-status-${question.status}`}>{question.status}</span>
+                  <span className={`badge question-status-${question.status}`}>{t(question.status)}</span>
                 </div>
                 <p>{question.finalResolution || question.proposedResolution}</p>
                 <div className="actions">
                   <button className="ghost" onClick={() => createFromQuestion(question.id)}>
-                    Create Decision From Question
+                    {t("Create Decision From Question")}
                   </button>
                 </div>
               </article>
