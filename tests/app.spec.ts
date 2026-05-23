@@ -203,6 +203,22 @@ test("language toggle switches visible shell UI without mutating app state", asy
   await expect(main.getByRole("heading", { name: "宇宙管理", level: 2 })).toBeVisible();
   await expect(main.getByRole("heading", { name: "建立宇宙" })).toBeVisible();
 
+  await page.getByRole("button", { name: "下一步行動", exact: true }).click();
+  await expect(main.getByRole("heading", { name: "下一步行動中心", level: 2 })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "系統訊號摘要" })).toBeVisible();
+
+  await page.getByRole("button", { name: "全域搜尋", exact: true }).click();
+  await expect(main.getByRole("heading", { name: "全域搜尋中心", level: 2 })).toBeVisible();
+  await expect(page.getByPlaceholder("搜尋所有內容")).toBeVisible();
+
+  await page.getByRole("button", { name: "審查佇列", exact: true }).click();
+  await expect(main.getByRole("heading", { name: "審查佇列中心", level: 2 })).toBeVisible();
+  await expect(main.getByText("待處理總數", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "想法分流", exact: true }).click();
+  await expect(main.getByRole("heading", { name: "想法分流中心", level: 2 })).toBeVisible();
+  await expect(main.getByText("收件匣想法", { exact: true })).toBeVisible();
+
   await expect.poll(
     () => page.evaluate(() => localStorage.getItem("todo-thought-universe:ui-language"))
   ).toBe("zh-TW");

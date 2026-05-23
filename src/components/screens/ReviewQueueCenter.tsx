@@ -8,6 +8,7 @@ import {
   type ReviewQueueItemType
 } from "../../domain/reviewQueue";
 import type { DecisionRecordActionResult } from "../../domain/decisionRecords";
+import { useI18n } from "../../i18n";
 import { Metric } from "../common/Metric";
 
 const reviewTypes: Array<ReviewQueueItemType | "all"> = [
@@ -27,14 +28,14 @@ const statusOptions = [
   "ready_for_engineering"
 ];
 
-function typeLabel(type: ReviewQueueItemType | "all") {
-  return {
+function typeLabel(type: ReviewQueueItemType | "all", t: (key: string) => string) {
+  return t({
     all: "All types",
     ai_insight: "AI drafts",
     decision_record: "Decision records",
     blocking_question: "Blocking questions",
     handoff_candidate: "Handoff candidates"
-  }[type];
+  }[type]);
 }
 
 function actionError(result: { ok: boolean; error?: string }, fallback: string) {
@@ -70,6 +71,7 @@ function ReviewQueueCard({
   onError: (message: string) => void;
   onNotice: (message: string) => void;
 }) {
+  const { t } = useI18n();
   const applyResult = (result: { ok: boolean; error?: string }, successMessage: string, fallback: string) => {
     const message = actionError(result, fallback);
     onError(message);
@@ -135,25 +137,25 @@ function ReviewQueueCard({
     <article className={`card review-queue-card review-queue-${item.type}`}>
       <div className="line">
         <strong>{item.title}</strong>
-        <span className={`badge ${statusClass(item.status)}`}>{item.status}</span>
+        <span className={`badge ${statusClass(item.status)}`}>{t(item.status)}</span>
       </div>
       <div className="chips">
-        <span>{typeLabel(item.type)}</span>
+        <span>{typeLabel(item.type, t)}</span>
         {item.universeId && <span>{item.universeId}</span>}
       </div>
       <p>{item.subtitle}</p>
       {item.body && <pre className="review-queue-body">{item.body}</pre>}
       <div className="actions">
         {(item.type === "ai_insight" || item.type === "decision_record") && (
-          <button onClick={accept}>Accept</button>
+          <button onClick={accept}>{t("Accept")}</button>
         )}
         {(item.type === "ai_insight" || item.type === "decision_record") && (
-          <button className="ghost" onClick={reject}>Reject</button>
+          <button className="ghost" onClick={reject}>{t("Reject")}</button>
         )}
         {(item.type === "blocking_question" || item.type === "handoff_candidate") && (
-          <button className="restore" onClick={markReviewed}>Mark Reviewed</button>
+          <button className="restore" onClick={markReviewed}>{t("Mark Reviewed")}</button>
         )}
-        <button className="ghost" onClick={() => onOpenReviewItem(item)}>Open Source</button>
+        <button className="ghost" onClick={() => onOpenReviewItem(item)}>{t("Open Source")}</button>
       </div>
     </article>
   );
@@ -180,6 +182,7 @@ export function ReviewQueueCenter({
   onOpenReviewItem: (item: ReviewQueueItem) => void;
   onOpenDecisionCenter: () => void;
 }) {
+  const { t } = useI18n();
   const [searchText, setSearchText] = useState("");
   const [type, setType] = useState<ReviewQueueItemType | "all">("all");
   const [status, setStatus] = useState("all");
@@ -200,66 +203,66 @@ export function ReviewQueueCenter({
       <section className="panel hero">
         <div className="head">
           <div>
-            <h2>Review Queue Center</h2>
-            <p className="muted">Review AI drafts, proposed decisions, blockers, and handoff-ready projects.</p>
+            <h2>{t("Review Queue Center")}</h2>
+            <p className="muted">{t("Review AI drafts, proposed decisions, blockers, and handoff-ready projects.")}</p>
           </div>
         </div>
         <div className="metrics review-queue-metrics">
-          <Metric label="Total pending" value={counts.total} />
-          <Metric label="AI drafts" value={counts.aiDrafts} />
-          <Metric label="Decisions" value={counts.proposedDecisions} />
-          <Metric label="Blockers" value={counts.blockingQuestions} />
-          <Metric label="Handoff" value={counts.handoffCandidates} />
-          <Metric label="Open decisions" value={decisionSummary.openCount} />
+          <Metric label={t("Total pending")} value={counts.total} />
+          <Metric label={t("AI drafts")} value={counts.aiDrafts} />
+          <Metric label={t("Decisions")} value={counts.proposedDecisions} />
+          <Metric label={t("Blockers")} value={counts.blockingQuestions} />
+          <Metric label={t("Handoff")} value={counts.handoffCandidates} />
+          <Metric label={t("Open decisions")} value={decisionSummary.openCount} />
         </div>
         <div className="actions review-queue-decision-link">
-          <button className="ghost" onClick={onOpenDecisionCenter}>Open Decision Center</button>
+          <button className="ghost" onClick={onOpenDecisionCenter}>{t("Open Decision Center")}</button>
         </div>
       </section>
 
       <section className="panel form">
         <div className="list-controls">
           <label>
-            Search
+            {t("Search")}
             <input
-              aria-label="Search review queue"
+              aria-label={t("Search review queue")}
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search review queue"
+              placeholder={t("Search review queue")}
             />
           </label>
           <label>
-            Type filter
+            {t("Type filter")}
             <select
-              aria-label="Review type filter"
+              aria-label={t("Review type filter")}
               value={type}
               onChange={(event) => setType(event.target.value as ReviewQueueItemType | "all")}
             >
               {reviewTypes.map((item) => (
-                <option key={item} value={item}>{typeLabel(item)}</option>
+                <option key={item} value={item}>{typeLabel(item, t)}</option>
               ))}
             </select>
           </label>
           <label>
-            Status filter
+            {t("Status filter")}
             <select
-              aria-label="Review status filter"
+              aria-label={t("Review status filter")}
               value={status}
               onChange={(event) => setStatus(event.target.value)}
             >
               {statusOptions.map((item) => (
-                <option key={item} value={item}>{item === "all" ? "All statuses" : item}</option>
+                <option key={item} value={item}>{item === "all" ? t("All statuses") : t(item)}</option>
               ))}
             </select>
           </label>
           <label>
-            Universe filter
+            {t("Universe filter")}
             <select
-              aria-label="Review universe filter"
+              aria-label={t("Review universe filter")}
               value={universeId}
               onChange={(event) => setUniverseId(event.target.value)}
             >
-              <option value="all">All universes</option>
+              <option value="all">{t("All universes")}</option>
               {state.universes.map((universe) => (
                 <option key={universe.id} value={universe.id}>{universe.name}</option>
               ))}
@@ -271,14 +274,14 @@ export function ReviewQueueCenter({
       <section className="panel stack">
         <div className="head">
           <div>
-            <h2>Queue Items</h2>
-            <p className="muted">{visibleItems.length} shown</p>
+            <h2>{t("Queue Items")}</h2>
+            <p className="muted">{t("{count} shown", { count: visibleItems.length })}</p>
           </div>
         </div>
-        {error && <div className="warn">{error}</div>}
-        {notice && <div className="notice">{notice}</div>}
+        {error && <div className="warn">{t(error)}</div>}
+        {notice && <div className="notice">{t(notice)}</div>}
         {visibleItems.length === 0 ? (
-          <div className="notice">No review queue items match the current filters.</div>
+          <div className="notice">{t("No review queue items match the current filters.")}</div>
         ) : (
           <div className="cards">
             {visibleItems.map((item) => (
