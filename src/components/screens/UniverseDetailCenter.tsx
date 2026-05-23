@@ -7,6 +7,7 @@ import {
 } from "../../domain/universeOverview";
 import { EmptyState } from "../common/EmptyState";
 import { Metric } from "../common/Metric";
+import { useI18n } from "../../i18n";
 
 function sourceName(state: AppState, id: string) {
   return state.universes.find((universe) => universe.id === id)?.name ??
@@ -38,6 +39,7 @@ export function UniverseDetailCenter({
   onOpenDecisionRecords: () => void;
   onOpenRelationshipExplorer: () => void;
 }) {
+  const { t } = useI18n();
   const [notice, setNotice] = useState("");
   const result = useMemo(() => getUniverseOverview(state, universeId), [state, universeId]);
   const packageData = useMemo(() => {
@@ -70,12 +72,12 @@ export function UniverseDetailCenter({
       <section className="panel">
         <div className="head">
           <div>
-            <h2>Universe Detail Center</h2>
-            <p className="muted">Review all thoughts, projects, actions, blockers, and relationships inside this universe.</p>
+            <h2>{t("Universe Detail Center")}</h2>
+            <p className="muted">{t("Review all thoughts, projects, actions, blockers, and relationships inside this universe.")}</p>
           </div>
         </div>
-        <EmptyState>Select a universe from Universes.</EmptyState>
-        {!result.ok && <div className="warn">{result.error}</div>}
+        <EmptyState>{t("Select a universe from Universes.")}</EmptyState>
+        {!result.ok && <div className="warn">{t(result.error)}</div>}
       </section>
     );
   }
@@ -87,41 +89,41 @@ export function UniverseDetailCenter({
       <section className="panel">
         <div className="head">
           <div>
-            <h2>Universe Detail Center</h2>
+            <h2>{t("Universe Detail Center")}</h2>
             <div className="line universe-title-line">
               <h3>{overview.universeName}</h3>
-              <span className="badge">{overview.universeStatus ?? "active"}</span>
+              <span className="badge">{t(overview.universeStatus ?? "active")}</span>
             </div>
-            <p className="muted">Review all thoughts, projects, actions, blockers, and relationships inside this universe.</p>
+            <p className="muted">{t("Review all thoughts, projects, actions, blockers, and relationships inside this universe.")}</p>
           </div>
           <div className="actions">
-            <button className="ghost" onClick={copyUniverseJson}>Copy Universe JSON</button>
-            <button className="ghost" onClick={downloadUniverseJson}>Download Universe JSON</button>
+            <button className="ghost" onClick={copyUniverseJson}>{t("Copy Universe JSON")}</button>
+            <button className="ghost" onClick={downloadUniverseJson}>{t("Download Universe JSON")}</button>
           </div>
         </div>
 
-        {notice && <div className="notice">{notice}</div>}
+        {notice && <div className="notice">{t(notice)}</div>}
 
         <div className="metrics universe-detail-metrics">
-          <Metric label="Health score" value={overview.health.score} />
-          <Metric label="Active thoughts" value={overview.summary.activeThoughts} />
-          <Metric label="Active projects" value={overview.summary.activeProjects} />
-          <Metric label="Next actions" value={overview.summary.nextActions} />
-          <Metric label="Blocking questions" value={overview.summary.blockingQuestions} />
-          <Metric label="Needs triage" value={overview.summary.needsTriage} />
-          <Metric label="Handoff ready projects" value={overview.summary.handoffReadyProjects} />
-          <Metric label="Relationships" value={overview.summary.relationships} />
+          <Metric label={t("Health score")} value={overview.health.score} />
+          <Metric label={t("Active thoughts")} value={overview.summary.activeThoughts} />
+          <Metric label={t("Active projects")} value={overview.summary.activeProjects} />
+          <Metric label={t("Next actions")} value={overview.summary.nextActions} />
+          <Metric label={t("Blocking questions")} value={overview.summary.blockingQuestions} />
+          <Metric label={t("Needs triage")} value={overview.summary.needsTriage} />
+          <Metric label={t("Handoff ready projects")} value={overview.summary.handoffReadyProjects} />
+          <Metric label={t("Relationships")} value={overview.summary.relationships} />
         </div>
 
         <div className="card universe-health-card">
           <div className="line">
-            <strong>Health summary</strong>
-            <span className={`badge universe-health-${overview.health.label}`}>{overview.health.label}</span>
+            <strong>{t("Health summary")}</strong>
+            <span className={`badge universe-health-${overview.health.label}`}>{t(overview.health.label)}</span>
           </div>
-          <p>Score: {overview.health.score}</p>
+          <p>{t("Score: {score}", { score: overview.health.score })}</p>
           <div className="mini-list">
             {overview.health.reasons.map((reason) => (
-              <p key={reason}>{reason}</p>
+              <p key={reason}>{t(reason)}</p>
             ))}
           </div>
         </div>
@@ -129,25 +131,25 @@ export function UniverseDetailCenter({
 
       <section className="panel">
         <div className="head">
-          <h2>Thoughts in this universe</h2>
+          <h2>{t("Thoughts in this universe")}</h2>
         </div>
         <div className="cards">
           {overview.thoughts.length === 0 ? (
-            <EmptyState>No thoughts in this universe.</EmptyState>
+            <EmptyState>{t("No thoughts in this universe.")}</EmptyState>
           ) : (
             overview.thoughts.map((thought) => (
               <article className="card universe-thought-card" key={thought.id}>
                 <div className="line">
-                  <strong>{thought.title || "Untitled Thought"}</strong>
-                  <span className="badge">{thought.status}</span>
+                  <strong>{thought.title || t("Untitled Thought")}</strong>
+                  <span className="badge">{t(thought.status)}</span>
                 </div>
                 <div className="chips">
-                  <span>{thought.type}</span>
-                  <span>{thought.nextAction ? "next action set" : "no next action"}</span>
+                  <span>{t(thought.type)}</span>
+                  <span>{thought.nextAction ? t("next action set") : t("no next action")}</span>
                 </div>
-                <p>{thought.nextAction || "No next action set."}</p>
+                <p>{thought.nextAction || t("No next action set.")}</p>
                 <div className="actions">
-                  <button className="ghost" onClick={() => onViewThought(thought.id)}>View Thought</button>
+                  <button className="ghost" onClick={() => onViewThought(thought.id)}>{t("View Thought")}</button>
                 </div>
               </article>
             ))
@@ -157,24 +159,24 @@ export function UniverseDetailCenter({
 
       <section className="panel">
         <div className="head">
-          <h2>Projects in this universe</h2>
+          <h2>{t("Projects in this universe")}</h2>
         </div>
         <div className="cards">
           {overview.projects.length === 0 ? (
-            <EmptyState>No projects in this universe.</EmptyState>
+            <EmptyState>{t("No projects in this universe.")}</EmptyState>
           ) : (
             overview.projects.map((project) => (
               <article className="card universe-project-card" key={project.id}>
                 <div className="line">
-                  <strong>{project.name || "Untitled Project"}</strong>
-                  <span className="badge">{project.lifecycleStatus ?? project.status}</span>
+                  <strong>{project.name || t("Untitled Project")}</strong>
+                  <span className="badge">{t(project.lifecycleStatus ?? project.status)}</span>
                 </div>
-                <p>{project.nextAction || "No next action set."}</p>
+                <p>{project.nextAction || t("No next action set.")}</p>
                 <div className="mini-list">
-                  <p>Linked thoughts: {project.linkedThoughtIds?.length ?? 0}</p>
+                  <p>{t("Linked thoughts: {count}", { count: project.linkedThoughtIds?.length ?? 0 })}</p>
                 </div>
                 <div className="actions">
-                  <button className="ghost" onClick={() => onViewProject(project.id)}>View Project</button>
+                  <button className="ghost" onClick={() => onViewProject(project.id)}>{t("View Project")}</button>
                 </div>
               </article>
             ))
@@ -184,22 +186,22 @@ export function UniverseDetailCenter({
 
       <section className="panel">
         <div className="head">
-          <h2>Next actions in this universe</h2>
-          <button className="ghost" onClick={onOpenNextActionCenter}>Open Next Action Center</button>
+          <h2>{t("Next actions in this universe")}</h2>
+          <button className="ghost" onClick={onOpenNextActionCenter}>{t("Open Next Action Center")}</button>
         </div>
         <div className="cards">
           {overview.nextActions.length === 0 ? (
-            <EmptyState>No next actions in this universe.</EmptyState>
+            <EmptyState>{t("No next actions in this universe.")}</EmptyState>
           ) : (
             overview.nextActions.map((action) => (
               <article className="card universe-next-action-card" key={action.id}>
                 <div className="line">
                   <strong>{action.title}</strong>
-                  <span className={`badge next-action-${action.status}`}>{action.status}</span>
+                  <span className={`badge next-action-${action.status}`}>{t(action.status)}</span>
                 </div>
                 <div className="chips">
-                  <span>{action.sourceType}</span>
-                  {action.sourceStatus && <span>{action.sourceStatus}</span>}
+                  <span>{t(action.sourceType)}</span>
+                  {action.sourceStatus && <span>{t(action.sourceStatus)}</span>}
                 </div>
                 <p>{action.actionText}</p>
               </article>
@@ -210,20 +212,20 @@ export function UniverseDetailCenter({
 
       <section className="panel">
         <div className="head">
-          <h2>Blocking questions in this universe</h2>
-          <button className="ghost" onClick={onOpenBlockingQuestions}>Open Blocking Questions</button>
+          <h2>{t("Blocking questions in this universe")}</h2>
+          <button className="ghost" onClick={onOpenBlockingQuestions}>{t("Open Blocking Questions")}</button>
         </div>
         <div className="cards">
           {overview.blockingQuestions.length === 0 ? (
-            <EmptyState>No blocking questions in this universe.</EmptyState>
+            <EmptyState>{t("No blocking questions in this universe.")}</EmptyState>
           ) : (
             overview.blockingQuestions.map((question) => (
               <article className="card universe-blocking-question-card" key={question.id}>
                 <div className="line">
                   <strong>{question.question}</strong>
-                  <span className={`badge question-status-${question.status}`}>{question.status}</span>
+                  <span className={`badge question-status-${question.status}`}>{t(question.status)}</span>
                 </div>
-                <p>{question.proposedResolution || "No proposed resolution yet."}</p>
+                <p>{question.proposedResolution || t("No proposed resolution yet.")}</p>
               </article>
             ))
           )}
@@ -232,22 +234,22 @@ export function UniverseDetailCenter({
 
       <section className="panel">
         <div className="head">
-          <h2>Decision records in this universe</h2>
-          <button className="ghost" onClick={onOpenDecisionRecords}>Open Decision Records</button>
+          <h2>{t("Decision records in this universe")}</h2>
+          <button className="ghost" onClick={onOpenDecisionRecords}>{t("Open Decision Records")}</button>
         </div>
         <div className="cards">
           {overview.decisionRecords.length === 0 ? (
-            <EmptyState>No decision records in this universe.</EmptyState>
+            <EmptyState>{t("No decision records in this universe.")}</EmptyState>
           ) : (
             overview.decisionRecords.map((decision) => (
               <article className="card universe-decision-record-card" key={decision.id}>
                 <div className="line">
                   <strong>{decision.title}</strong>
-                  <span className={`badge decision-status-${decision.status}`}>{decision.status}</span>
+                  <span className={`badge decision-status-${decision.status}`}>{t(decision.status)}</span>
                 </div>
                 <p>{decision.decision}</p>
                 <div className="actions">
-                  <button className="ghost" onClick={onOpenDecisionRecords}>Open Decision Records</button>
+                  <button className="ghost" onClick={onOpenDecisionRecords}>{t("Open Decision Records")}</button>
                 </div>
               </article>
             ))
@@ -257,12 +259,12 @@ export function UniverseDetailCenter({
 
       <section className="panel">
         <div className="head">
-          <h2>Relationships in this universe</h2>
-          <button className="ghost" onClick={onOpenRelationshipExplorer}>Open Relationship Explorer</button>
+          <h2>{t("Relationships in this universe")}</h2>
+          <button className="ghost" onClick={onOpenRelationshipExplorer}>{t("Open Relationship Explorer")}</button>
         </div>
         <div className="cards">
           {overview.relationships.length === 0 ? (
-            <EmptyState>No relationships in this universe.</EmptyState>
+            <EmptyState>{t("No relationships in this universe.")}</EmptyState>
           ) : (
             overview.relationships.map((relationship) => (
               <article className="card universe-relationship-card" key={relationship.id}>
@@ -271,7 +273,7 @@ export function UniverseDetailCenter({
                   <span className="badge">{relationship.id}</span>
                 </div>
                 <p>{sourceName(state, relationship.sourceId)}{" -> "}{sourceName(state, relationship.targetId)}</p>
-                <p>{relationship.description || "No description yet."}</p>
+                <p>{relationship.description || t("No description yet.")}</p>
               </article>
             ))
           )}
@@ -280,9 +282,9 @@ export function UniverseDetailCenter({
 
       <section className="panel">
         <div className="head">
-          <h2>Export</h2>
+          <h2>{t("Export")}</h2>
         </div>
-        <pre className="json" aria-label="Universe JSON preview">{json}</pre>
+        <pre className="json" aria-label={t("Universe JSON preview")}>{json}</pre>
       </section>
     </div>
   );

@@ -184,12 +184,24 @@ test("dashboard renders core product areas", async ({ page }) => {
 
 test("language toggle switches visible shell UI without mutating app state", async ({ page }) => {
   await page.getByRole("button", { name: "繁中" }).click();
+  const main = page.getByRole("main");
 
-  await expect(page.getByRole("heading", { name: "宇宙儀表板" })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "宇宙儀表板" })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "全域搜尋" })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "審查佇列" })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "下一步行動" })).toBeVisible();
   await expect(page.getByText("我現在想做什麼？")).toBeVisible();
   await expect(page.getByPlaceholder("搜尋想法")).toBeVisible();
   await expect(page.getByRole("button", { name: "快速捕捉" })).toBeVisible();
   await expect(page.getByRole("button", { name: "EN" })).toHaveAttribute("aria-pressed", "false");
+
+  await page.getByRole("button", { name: "專案", exact: true }).click();
+  await expect(main.getByRole("heading", { name: "建立專案" })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "專案清單" })).toBeVisible();
+
+  await page.getByRole("button", { name: "宇宙", exact: true }).click();
+  await expect(main.getByRole("heading", { name: "宇宙管理", level: 2 })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "建立宇宙" })).toBeVisible();
 
   await expect.poll(
     () => page.evaluate(() => localStorage.getItem("todo-thought-universe:ui-language"))
@@ -198,8 +210,9 @@ test("language toggle switches visible shell UI without mutating app state", asy
   const appStateJson = await page.evaluate(() => localStorage.getItem("todo-thought-universe:v1"));
   expect(appStateJson ?? "").not.toContain("zh-TW");
 
+  await page.getByRole("button", { name: "儀表板", exact: true }).click();
   await page.getByRole("button", { name: "EN" }).click();
-  await expect(page.getByRole("heading", { name: "Universe Dashboard" })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "Universe Dashboard" })).toBeVisible();
 });
 
 test("quick capture creates a thought and redirects to Thought Detail", async ({ page }) => {

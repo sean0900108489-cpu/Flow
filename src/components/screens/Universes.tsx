@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Project, ThoughtItem, Universe } from "../../domain/types";
 import { universeStatus } from "../../domain/universeActions";
+import { useI18n } from "../../i18n";
 import { EmptyState } from "../common/EmptyState";
 
 interface UniverseDraft {
@@ -33,6 +34,7 @@ export function Universes({
   onDetachDelete: (id: string) => void;
   onViewUniverse: (id: string) => void;
 }) {
+  const { t } = useI18n();
   const [createName, setCreateName] = useState("");
   const [createDescription, setCreateDescription] = useState("");
   const [drafts, setDrafts] = useState<Record<string, UniverseDraft>>({});
@@ -67,24 +69,24 @@ export function Universes({
     <section className="panel">
       <div className="head">
         <div>
-          <h2>Universe Management</h2>
-          <p className="muted">Create, edit, archive, restore, and delete first-class universes.</p>
+          <h2>{t("Universe Management")}</h2>
+          <p className="muted">{t("Create, edit, archive, restore, and delete first-class universes.")}</p>
         </div>
       </div>
 
-      {error && <div className="warn">{error}</div>}
+      {error && <div className="warn">{t(error)}</div>}
 
       <div className="card form">
-        <h3>Create Universe</h3>
-        <label>Name<input value={createName} onChange={(event) => setCreateName(event.target.value)} /></label>
-        <label>Description<textarea value={createDescription} onChange={(event) => setCreateDescription(event.target.value)} /></label>
+        <h3>{t("Create Universe")}</h3>
+        <label>{t("Name")}<input value={createName} onChange={(event) => setCreateName(event.target.value)} /></label>
+        <label>{t("Description")}<textarea value={createDescription} onChange={(event) => setCreateDescription(event.target.value)} /></label>
         <div className="actions">
-          <button onClick={handleCreate}>Create Universe</button>
+          <button onClick={handleCreate}>{t("Create Universe")}</button>
         </div>
       </div>
 
       <div className="stack">
-        {universes.length === 0 && <EmptyState>No universes yet.</EmptyState>}
+        {universes.length === 0 && <EmptyState>{t("No universes yet.")}</EmptyState>}
         {universes.map((universe) => {
           const draft = drafts[universe.id] ?? {
             name: universe.name,
@@ -98,29 +100,29 @@ export function Universes({
             <div className="card form" key={universe.id}>
               <div className="line">
                 <strong>{universe.name}</strong>
-                <span className="badge">{status}</span>
+                <span className="badge">{t(status)}</span>
               </div>
-              <p>{universe.description || "No description yet."}</p>
+              <p>{universe.description || t("No description yet.")}</p>
               <div className="chips">
-                <span>{linkedThoughtCount} thoughts</span>
-                <span>{linkedProjectCount} projects</span>
+                <span>{t("{count} thoughts", { count: linkedThoughtCount })}</span>
+                <span>{t("{count} projects", { count: linkedProjectCount })}</span>
               </div>
 
               <div className="row">
-                <label>Name<input value={draft.name} onChange={(event) => setDraft(universe, { name: event.target.value })} /></label>
-                <label>Description<textarea value={draft.description} onChange={(event) => setDraft(universe, { description: event.target.value })} /></label>
+                <label>{t("Name")}<input value={draft.name} onChange={(event) => setDraft(universe, { name: event.target.value })} /></label>
+                <label>{t("Description")}<textarea value={draft.description} onChange={(event) => setDraft(universe, { description: event.target.value })} /></label>
               </div>
 
               <div className="actions">
-                <button className="ghost" onClick={() => onViewUniverse(universe.id)}>View Universe</button>
-                <button className="ghost" onClick={() => onUpdate(universe.id, draft)}>Save</button>
+                <button className="ghost" onClick={() => onViewUniverse(universe.id)}>{t("View Universe")}</button>
+                <button className="ghost" onClick={() => onUpdate(universe.id, draft)}>{t("Save")}</button>
                 {status === "active" ? (
-                  <button className="ghost" onClick={() => onArchive(universe.id)}>Archive</button>
+                  <button className="ghost" onClick={() => onArchive(universe.id)}>{t("Archive")}</button>
                 ) : (
-                  <button className="restore" onClick={() => onRestore(universe.id)}>Restore</button>
+                  <button className="restore" onClick={() => onRestore(universe.id)}>{t("Restore")}</button>
                 )}
-                <button className="danger" onClick={() => onDelete(universe.id)}>Delete</button>
-                <button className="danger" onClick={() => onDetachDelete(universe.id)}>Detach and Delete</button>
+                <button className="danger" onClick={() => onDelete(universe.id)}>{t("Delete")}</button>
+                <button className="danger" onClick={() => onDetachDelete(universe.id)}>{t("Detach and Delete")}</button>
               </div>
             </div>
           );

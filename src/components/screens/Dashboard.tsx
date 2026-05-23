@@ -66,17 +66,17 @@ export function Dashboard({
         <h2>{translate("What do I want to do now?")}</h2>
         <p>{translate("Prioritize active thoughts, project readiness, and next actions.")}</p>
         <div className="metrics">
-          <Metric label="Inbox" value={inbox.length} />
-          <Metric label="Active" value={active.length} />
-          <Metric label="Universes" value={activeUniverses.length} />
-          <Metric label="Projects" value={activeProjects.length} />
+          <Metric label={translate("Inbox")} value={inbox.length} />
+          <Metric label={translate("Active")} value={active.length} />
+          <Metric label={translate("Universes")} value={activeUniverses.length} />
+          <Metric label={translate("Projects")} value={activeProjects.length} />
         </div>
       </div>
 
       <div className="panel">
         <div className="head">
           <div>
-            <h2>Global Search</h2>
+            <h2>{translate("Global Search")}</h2>
             <p className="muted">{translate("Open any thought, project, universe, decision, blocker, relationship, action, or command.")}</p>
           </div>
         </div>
@@ -88,7 +88,7 @@ export function Dashboard({
       <div className="panel">
         <div className="head">
           <div>
-            <h2>Review Queue</h2>
+            <h2>{translate("Review Queue")}</h2>
             <p className="muted">{translate("{count} drafts, decisions, blockers, or handoffs need review", { count: reviewQueue.length })}</p>
           </div>
         </div>
@@ -108,7 +108,7 @@ export function Dashboard({
       <div className="panel">
         <div className="head">
           <div>
-            <h2>Next Actions</h2>
+            <h2>{translate("Next Actions")}</h2>
             <p className="muted">{translate("{count} available actions", { count: availableNextActions.length })}</p>
           </div>
         </div>
