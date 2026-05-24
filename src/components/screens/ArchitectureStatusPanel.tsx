@@ -209,7 +209,7 @@ export function ArchitectureStatusPanel({
             <div className="chips">
               <span>{t("project {id}", { id: handoffPackage.projectId })}</span>
               <span>{t("readiness {status}", { status: t(handoffPackage.readinessReport.storedReadiness ?? "unknown") })}</span>
-              <span>{t("lifecycle {status}", { status: t(handoffPackage.readinessReport.lifecycleStatus) })}</span>
+              <span>{t("lifecycle {status}", { status: t(handoffPackage.readinessReport.lifecycleStatus ?? "unknown") })}</span>
             </div>
             <div className="mini-list">
               <strong>{t("Safety notes")}</strong>
