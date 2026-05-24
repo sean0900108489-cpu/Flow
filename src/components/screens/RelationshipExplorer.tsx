@@ -11,6 +11,7 @@ import {
   type RelationshipImpactSummary,
   type RelationshipNode
 } from "../../domain/relationshipExplorer";
+import { useI18n } from "../../i18n";
 import { EmptyState } from "../common/EmptyState";
 import { Metric } from "../common/Metric";
 
@@ -23,24 +24,25 @@ const relationshipTypes: Relationship["type"][] = [
   "blocks",
   "evolves_into"
 ];
+type Translate = (key: string, values?: Record<string, number | string>) => string;
 
-function nodeTypeLabel(type: RelationshipNodeType) {
-  return type;
+function nodeTypeLabel(type: RelationshipNodeType, t: Translate) {
+  return t(type);
 }
 
-function edgeLabel(edge: RelationshipExplorerEdge) {
-  return `${edge.source.title} ${edge.type} ${edge.target.title}`;
+function edgeLabel(edge: RelationshipExplorerEdge, t: Translate) {
+  return `${edge.source.title} ${t(edge.type)} ${edge.target.title}`;
 }
 
-function typeOptions() {
+function typeOptions(t: Translate) {
   return nodeTypes.map((type) => (
-    <option key={type} value={type}>{nodeTypeLabel(type)}</option>
+    <option key={type} value={type}>{nodeTypeLabel(type, t)}</option>
   ));
 }
 
-function relationshipTypeOptions() {
+function relationshipTypeOptions(t: Translate) {
   return relationshipTypes.map((type) => (
-    <option key={type} value={type}>{type}</option>
+    <option key={type} value={type}>{t(type)}</option>
   ));
 }
 
@@ -53,15 +55,17 @@ function EdgeList({
   edges: RelationshipExplorerEdge[];
   empty: string;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="mini-list impact-group">
-      <strong>{title}</strong>
+      <strong>{t(title)}</strong>
       {edges.length === 0 ? (
-        <p>{empty}</p>
+        <p>{t(empty)}</p>
       ) : (
         <ul>
           {edges.map((edge) => (
-            <li key={edge.id}>{edgeLabel(edge)}</li>
+            <li key={edge.id}>{edgeLabel(edge, t)}</li>
           ))}
         </ul>
       )}
@@ -76,38 +80,42 @@ function RelationshipCard({
   edge: RelationshipExplorerEdge;
   onViewRelationshipNode: (node: RelationshipNode) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <article className="card relationship-explorer-card">
       <div className="line">
         <strong>{edge.source.title}</strong>
-        <span className="badge">{edge.source.type}</span>
+        <span className="badge">{t(edge.source.type)}</span>
       </div>
       <div className="relationship-arrow">
-        <span>{edge.type}</span>
+        <span>{t(edge.type)}</span>
       </div>
       <div className="line">
         <strong>{edge.target.title}</strong>
-        <span className="badge">{edge.target.type}</span>
+        <span className="badge">{t(edge.target.type)}</span>
       </div>
-      <p>{edge.description || "No description yet."}</p>
+      <p>{edge.description || t("No description yet.")}</p>
       <div className="actions">
-        <button className="ghost" onClick={() => onViewRelationshipNode(edge.source)}>View Source</button>
-        <button className="ghost" onClick={() => onViewRelationshipNode(edge.target)}>View Target</button>
+        <button className="ghost" onClick={() => onViewRelationshipNode(edge.source)}>{t("View Source")}</button>
+        <button className="ghost" onClick={() => onViewRelationshipNode(edge.target)}>{t("View Target")}</button>
       </div>
     </article>
   );
 }
 
 function ImpactMap({ summary }: { summary?: RelationshipImpactSummary }) {
+  const { t } = useI18n();
+
   if (!summary) {
-    return <div className="notice">Select a node to inspect its impact.</div>;
+    return <div className="notice">{t("Select a node to inspect its impact.")}</div>;
   }
 
   return (
     <div className="stack">
       <div className="line">
         <strong>{summary.node.title}</strong>
-        <span className="badge">{summary.node.type}</span>
+        <span className="badge">{t(summary.node.type)}</span>
       </div>
       <div className="grid two">
         <EdgeList title="Incoming relationships" edges={summary.incoming} empty="No incoming relationships." />
@@ -131,6 +139,7 @@ export function RelationshipExplorer({
   onCreateRelationshipSafe: (input: CreateRelationshipSafeInput) => CreateRelationshipSafeResult;
   onViewRelationshipNode: (node: RelationshipNode) => void;
 }) {
+  const { t } = useI18n();
   const [searchText, setSearchText] = useState("");
   const [type, setType] = useState<Relationship["type"] | "all">("all");
   const [sourceTypeFilter, setSourceTypeFilter] = useState<RelationshipNodeType | "all">("all");
@@ -201,13 +210,13 @@ export function RelationshipExplorer({
     });
 
     if (!result.ok) {
-      setError(result.error ?? "Relationship could not be created.");
+      setError(result.error ?? t("Relationship could not be created."));
       setNotice("");
       return;
     }
 
     setError("");
-    setNotice("Relationship created.");
+    setNotice(t("Relationship created."));
     setDescription("");
     setSelectedNodeType(targetType);
     setSelectedNodeId(safeTargetId);
@@ -221,71 +230,71 @@ export function RelationshipExplorer({
       <section className="panel hero">
         <div className="head">
           <div>
-            <h2>Relationship Explorer</h2>
-            <p className="muted">Explore how thoughts, projects, universes, blockers, and decisions affect each other.</p>
+            <h2>{t("Relationship Explorer")}</h2>
+            <p className="muted">{t("Explore how thoughts, projects, universes, blockers, and decisions affect each other.")}</p>
           </div>
         </div>
         <div className="metrics relationship-explorer-metrics">
-          <Metric label="Total relationships" value={allEdges.length} />
-          <Metric label="Blocking relationships" value={blockingCount} />
-          <Metric label="Dependency relationships" value={dependencyCount} />
-          <Metric label="Orphan thoughts" value={orphans.thoughts.length} />
-          <Metric label="Orphan projects" value={orphans.projects.length} />
+          <Metric label={t("Total relationships")} value={allEdges.length} />
+          <Metric label={t("Blocking relationships")} value={blockingCount} />
+          <Metric label={t("Dependency relationships")} value={dependencyCount} />
+          <Metric label={t("Orphan thoughts")} value={orphans.thoughts.length} />
+          <Metric label={t("Orphan projects")} value={orphans.projects.length} />
         </div>
       </section>
 
       <section className="panel form">
         <div className="list-controls">
           <label>
-            Search
+            {t("Search")}
             <input
-              aria-label="Search relationships"
+              aria-label={t("Search relationships")}
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search relationships"
+              placeholder={t("Search relationships")}
             />
           </label>
           <label>
-            Type filter
+            {t("Type filter")}
             <select
-              aria-label="Relationship type filter"
+              aria-label={t("Relationship type filter")}
               value={type}
               onChange={(event) => setType(event.target.value as Relationship["type"] | "all")}
             >
-              <option value="all">All relationship types</option>
-              {relationshipTypeOptions()}
+              <option value="all">{t("All relationship types")}</option>
+              {relationshipTypeOptions(t)}
             </select>
           </label>
           <label>
-            Source type filter
+            {t("Source type filter")}
             <select
-              aria-label="Source type filter"
+              aria-label={t("Source type filter")}
               value={sourceTypeFilter}
               onChange={(event) => setSourceTypeFilter(event.target.value as RelationshipNodeType | "all")}
             >
-              <option value="all">All source types</option>
-              {typeOptions()}
+              <option value="all">{t("All source types")}</option>
+              {typeOptions(t)}
             </select>
           </label>
           <label>
-            Target type filter
+            {t("Target type filter")}
             <select
-              aria-label="Target type filter"
+              aria-label={t("Target type filter")}
               value={targetTypeFilter}
               onChange={(event) => setTargetTypeFilter(event.target.value as RelationshipNodeType | "all")}
             >
-              <option value="all">All target types</option>
-              {typeOptions()}
+              <option value="all">{t("All target types")}</option>
+              {typeOptions(t)}
             </select>
           </label>
           <label>
-            Universe filter
+            {t("Universe filter")}
             <select
-              aria-label="Relationship universe filter"
+              aria-label={t("Relationship universe filter")}
               value={universeId}
               onChange={(event) => setUniverseId(event.target.value)}
             >
-              <option value="all">All universes</option>
+              <option value="all">{t("All universes")}</option>
               {state.universes.map((universe) => (
                 <option key={universe.id} value={universe.id}>{universe.name}</option>
               ))}
@@ -295,24 +304,24 @@ export function RelationshipExplorer({
       </section>
 
       <section className="panel form">
-        <h2>Create Relationship</h2>
+        <h2>{t("Create Relationship")}</h2>
         {error && <div className="warn">{error}</div>}
         {notice && <div className="notice">{notice}</div>}
         <div className="row relationship-create-row">
           <label>
-            Source type
+            {t("Source type")}
             <select
-              aria-label="Source type"
+              aria-label={t("Source type")}
               value={sourceType}
               onChange={(event) => setCreateSourceType(event.target.value as RelationshipNodeType)}
             >
-              {typeOptions()}
+              {typeOptions(t)}
             </select>
           </label>
           <label>
-            Source
+            {t("Source")}
             <select
-              aria-label="Source"
+              aria-label={t("Source")}
               value={safeSourceId}
               onChange={(event) => setSourceId(event.target.value)}
             >
@@ -322,29 +331,29 @@ export function RelationshipExplorer({
             </select>
           </label>
           <label>
-            Relationship type
+            {t("Relationship type")}
             <select
-              aria-label="Relationship type"
+              aria-label={t("Relationship type")}
               value={relationshipType}
               onChange={(event) => setRelationshipType(event.target.value as Relationship["type"])}
             >
-              {relationshipTypeOptions()}
+              {relationshipTypeOptions(t)}
             </select>
           </label>
           <label>
-            Target type
+            {t("Target type")}
             <select
-              aria-label="Target type"
+              aria-label={t("Target type")}
               value={targetType}
               onChange={(event) => setCreateTargetType(event.target.value as RelationshipNodeType)}
             >
-              {typeOptions()}
+              {typeOptions(t)}
             </select>
           </label>
           <label>
-            Target
+            {t("Target")}
             <select
-              aria-label="Target"
+              aria-label={t("Target")}
               value={safeTargetId}
               onChange={(event) => setTargetId(event.target.value)}
             >
@@ -354,41 +363,41 @@ export function RelationshipExplorer({
             </select>
           </label>
           <label>
-            Description
+            {t("Description")}
             <input
-              aria-label="Description"
+              aria-label={t("Description")}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
             />
           </label>
         </div>
         <div className="actions">
-          <button onClick={create}>Create Relationship</button>
+          <button onClick={create}>{t("Create Relationship")}</button>
         </div>
       </section>
 
       <section className="panel stack">
         <div className="head">
           <div>
-            <h2>Impact Map</h2>
-            <p className="muted">Inspect incoming, outgoing, blocking, dependency, support, and related links.</p>
+            <h2>{t("Impact Map")}</h2>
+            <p className="muted">{t("Inspect incoming, outgoing, blocking, dependency, support, and related links.")}</p>
           </div>
         </div>
         <div className="list-controls">
           <label>
-            Select node type
+            {t("Select node type")}
             <select
-              aria-label="Select node type"
+              aria-label={t("Select node type")}
               value={selectedNodeType}
               onChange={(event) => setImpactNodeType(event.target.value as RelationshipNodeType)}
             >
-              {typeOptions()}
+              {typeOptions(t)}
             </select>
           </label>
           <label>
-            Select node
+            {t("Select node")}
             <select
-              aria-label="Select node"
+              aria-label={t("Select node")}
               value={safeSelectedNodeId}
               onChange={(event) => setSelectedNodeId(event.target.value)}
             >
@@ -405,12 +414,12 @@ export function RelationshipExplorer({
       <section className="panel stack">
         <div className="head">
           <div>
-            <h2>Relationships</h2>
-            <p className="muted">{visibleEdges.length} shown</p>
+            <h2>{t("Relationships")}</h2>
+            <p className="muted">{t("{count} shown", { count: visibleEdges.length })}</p>
           </div>
         </div>
         {visibleEdges.length === 0 ? (
-          <EmptyState>No relationships match the current filters.</EmptyState>
+          <EmptyState>{t("No relationships match the current filters.")}</EmptyState>
         ) : (
           <div className="cards">
             {visibleEdges.map((edge) => (
@@ -426,16 +435,16 @@ export function RelationshipExplorer({
 
       <section className="panel stack">
         <div className="head">
-          <h2>Orphan thoughts</h2>
+          <h2>{t("Orphan thoughts")}</h2>
         </div>
         {orphans.thoughts.length === 0 ? (
-          <EmptyState>No orphan thoughts.</EmptyState>
+          <EmptyState>{t("No orphan thoughts.")}</EmptyState>
         ) : (
           <div className="cards">
             {orphans.thoughts.map((item) => (
               <article className="card orphan-card" key={item.id}>
                 <strong>{item.title}</strong>
-                <p>{item.content || "No content yet."}</p>
+                <p>{item.content || t("No content yet.")}</p>
                 <button className="ghost" onClick={() => onViewRelationshipNode({
                   id: item.id,
                   type: "thought",
@@ -443,7 +452,7 @@ export function RelationshipExplorer({
                   status: item.status,
                   universeId: item.universeId
                 })}>
-                  View
+                  {t("View")}
                 </button>
               </article>
             ))}
@@ -453,16 +462,16 @@ export function RelationshipExplorer({
 
       <section className="panel stack">
         <div className="head">
-          <h2>Orphan projects</h2>
+          <h2>{t("Orphan projects")}</h2>
         </div>
         {orphans.projects.length === 0 ? (
-          <EmptyState>No orphan projects.</EmptyState>
+          <EmptyState>{t("No orphan projects.")}</EmptyState>
         ) : (
           <div className="cards">
             {orphans.projects.map((item) => (
               <article className="card orphan-card" key={item.id}>
                 <strong>{item.name}</strong>
-                <p>{item.intent || "No intent yet."}</p>
+                <p>{item.intent || t("No intent yet.")}</p>
                 <button className="ghost" onClick={() => onViewRelationshipNode({
                   id: item.id,
                   type: "project",
@@ -470,7 +479,7 @@ export function RelationshipExplorer({
                   status: item.status,
                   universeId: item.universeId
                 })}>
-                  View
+                  {t("View")}
                 </button>
               </article>
             ))}

@@ -6,6 +6,7 @@ import {
   type ProjectHandoffReadiness,
   type ProjectHandoffStatus
 } from "../../domain/engineeringHandoff";
+import { useI18n } from "../../i18n";
 import { downloadJson } from "../../services/appStateTransfer";
 
 const handoffLabel: Record<ProjectHandoffReadiness, string> = {
@@ -29,6 +30,7 @@ function ProjectHandoffCard({
   onMarkProjectHandoffReady: (projectId: string) => { ok: boolean; error?: string };
   onNotice: (message: string, preview?: string) => void;
 }) {
+  const { t } = useI18n();
   const jsonForProject = () => JSON.stringify(buildProjectHandoffPackage(project.id, state), null, 2);
 
   const copyHandoffJson = async () => {
@@ -58,33 +60,33 @@ function ProjectHandoffCard({
   return (
     <article className="card handoff-card">
       <div className="line">
-        <strong>{project.name || "Untitled Project"}</strong>
-        <span className={`badge handoff-${status.readiness}`}>{handoffLabel[status.readiness]}</span>
+        <strong>{project.name || t("Untitled Project")}</strong>
+        <span className={`badge handoff-${status.readiness}`}>{t(handoffLabel[status.readiness])}</span>
       </div>
       <div className="bar"><div style={{ width: `${status.score}%` }} /></div>
       <p>{status.summary}</p>
       <div className="chips">
-        <span>score {status.score}</span>
-        <span>status {project.status}</span>
-        <span>lifecycle {project.lifecycleStatus ?? "planning"}</span>
+        <span>{t("score {score}", { score: status.score })}</span>
+        <span>{t("status {status}", { status: t(project.status) })}</span>
+        <span>{t("lifecycle {status}", { status: t(project.lifecycleStatus ?? "planning") })}</span>
       </div>
       {status.missing.length > 0 && (
         <div className="mini-list">
-          <strong>Missing</strong>
+          <strong>{t("Missing")}</strong>
           <ul>{status.missing.map((item) => <li key={item}>{item}</li>)}</ul>
         </div>
       )}
       {status.warnings.length > 0 && (
         <div className="mini-list warn-lite">
-          <strong>Warnings</strong>
+          <strong>{t("Warnings")}</strong>
           <ul>{status.warnings.map((item) => <li key={item}>{item}</li>)}</ul>
         </div>
       )}
       <div className="actions">
-        <button className="ghost" onClick={() => onViewProject(project.id)}>View Project</button>
-        <button className="restore" disabled={status.readiness !== "ready"} onClick={markReady}>Mark Handoff Ready</button>
-        <button className="ghost" onClick={copyHandoffJson}>Copy Handoff JSON</button>
-        <button className="ghost" onClick={downloadHandoffJson}>Download Handoff JSON</button>
+        <button className="ghost" onClick={() => onViewProject(project.id)}>{t("View Project")}</button>
+        <button className="restore" disabled={status.readiness !== "ready"} onClick={markReady}>{t("Mark Handoff Ready")}</button>
+        <button className="ghost" onClick={copyHandoffJson}>{t("Copy Handoff JSON")}</button>
+        <button className="ghost" onClick={downloadHandoffJson}>{t("Download Handoff JSON")}</button>
       </div>
     </article>
   );
@@ -99,6 +101,7 @@ export function EngineeringHandoffCenter({
   onViewProject: (projectId: string) => void;
   onMarkProjectHandoffReady: (projectId: string) => { ok: boolean; error?: string };
 }) {
+  const { t } = useI18n();
   const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState("");
   const statuses = useMemo(() => listProjectHandoffStatuses(state), [state]);
@@ -116,12 +119,12 @@ export function EngineeringHandoffCenter({
       <section className="panel stack">
         <div className="head">
           <div>
-            <h2>{title}</h2>
-            <p className="muted">{projects.length} projects</p>
+            <h2>{t(title)}</h2>
+            <p className="muted">{t("{count} projects", { count: projects.length })}</p>
           </div>
         </div>
         {projects.length === 0 ? (
-          <div className="notice">No projects in this section.</div>
+          <div className="notice">{t("No projects in this section.")}</div>
         ) : (
           <div className="cards">
             {projects.map((project) => {
@@ -152,11 +155,11 @@ export function EngineeringHandoffCenter({
       <section className="panel hero">
         <div className="head">
           <div>
-            <h2>Engineering Handoff Center</h2>
-            <p className="muted">Review project readiness before exporting to engineering.</p>
+            <h2>{t("Engineering Handoff Center")}</h2>
+            <p className="muted">{t("Review project readiness before exporting to engineering.")}</p>
           </div>
         </div>
-        {notice && <div className="notice">{notice}</div>}
+        {notice && <div className="notice">{t(notice)}</div>}
         {preview && <pre className="json">{preview}</pre>}
       </section>
 

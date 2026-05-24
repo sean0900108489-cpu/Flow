@@ -3,7 +3,7 @@ import type { ListSortBy } from "../../domain/listQuery";
 import { filterProjects, filterThoughts, sortProjects, sortThoughts } from "../../domain/listQuery";
 import type { Project, ThoughtItem, Universe } from "../../domain/types";
 import { universeOptionsForItemUniverseIds } from "../../domain/universeActions";
-import { readinessLabel, statusLabel, typeLabel } from "../../domain/labels";
+import { useI18n } from "../../i18n";
 import { EmptyState } from "../common/EmptyState";
 import { ListControls } from "../common/ListControls";
 
@@ -24,6 +24,7 @@ export function ArchivedItems({
   onRestoreProject: (id: string) => void;
   onDeleteProject: (id: string) => void;
 }) {
+  const { t } = useI18n();
   const [thoughtSearchText, setThoughtSearchText] = useState("");
   const [thoughtTypeFilter, setThoughtTypeFilter] = useState<ThoughtItem["type"] | "all">("all");
   const [thoughtStatusFilter, setThoughtStatusFilter] = useState<ThoughtItem["status"] | "all">("all");
@@ -56,8 +57,8 @@ export function ArchivedItems({
   if (thoughts.length === 0 && projects.length === 0) {
     return (
       <section className="panel">
-        <h2>Archived Items</h2>
-        <EmptyState>No archived items yet.</EmptyState>
+        <h2>{t("Archived Items")}</h2>
+        <EmptyState>{t("No archived items yet.")}</EmptyState>
       </section>
     );
   }
@@ -65,7 +66,7 @@ export function ArchivedItems({
   return (
     <section className="grid two archived">
       <div className="panel">
-        <h2>Archived Thoughts</h2>
+        <h2>{t("Archived Thoughts")}</h2>
         <ListControls
           searchText={thoughtSearchText}
           onSearchTextChange={setThoughtSearchText}
@@ -80,7 +81,7 @@ export function ArchivedItems({
           universes={thoughtUniverseOptions}
         />
         <div className="archive-list">
-          {visibleThoughts.length === 0 && <EmptyState>No archived thoughts.</EmptyState>}
+          {visibleThoughts.length === 0 && <EmptyState>{t("No archived thoughts.")}</EmptyState>}
           {visibleThoughts.map((thought) => {
             const universe = universes.find((x) => x.id === thought.universeId);
 
@@ -88,15 +89,15 @@ export function ArchivedItems({
               <div className="archive-card" key={thought.id}>
                 <div className="line">
                   <strong>{thought.title}</strong>
-                  <span className={`badge ${thought.type}`}>{typeLabel[thought.type]}</span>
+                  <span className={`badge ${thought.type}`}>{t(thought.type)}</span>
                 </div>
                 <div className="chips">
-                  <span>{statusLabel[thought.status]}</span>
+                  <span>{t(thought.status)}</span>
                   {universe && <span>{universe.name}</span>}
                 </div>
                 <div className="actions">
-                  <button className="restore" onClick={() => onRestoreThought(thought.id)}>Restore Thought</button>
-                  <button className="danger" onClick={() => onDeleteThought(thought.id)}>Delete Thought</button>
+                  <button className="restore" onClick={() => onRestoreThought(thought.id)}>{t("Restore Thought")}</button>
+                  <button className="danger" onClick={() => onDeleteThought(thought.id)}>{t("Delete Thought")}</button>
                 </div>
               </div>
             );
@@ -105,7 +106,7 @@ export function ArchivedItems({
       </div>
 
       <div className="panel">
-        <h2>Archived Projects</h2>
+        <h2>{t("Archived Projects")}</h2>
         <ListControls
           searchText={projectSearchText}
           onSearchTextChange={setProjectSearchText}
@@ -119,7 +120,7 @@ export function ArchivedItems({
           universes={projectUniverseOptions}
         />
         <div className="archive-list">
-          {visibleProjects.length === 0 && <EmptyState>No archived projects.</EmptyState>}
+          {visibleProjects.length === 0 && <EmptyState>{t("No archived projects.")}</EmptyState>}
           {visibleProjects.map((project) => {
             const universe = universes.find((x) => x.id === project.universeId);
 
@@ -127,15 +128,15 @@ export function ArchivedItems({
               <div className="archive-card" key={project.id}>
                 <div className="line">
                   <strong>{project.name}</strong>
-                  <span className="badge">{project.status}</span>
+                  <span className="badge">{t(project.status)}</span>
                 </div>
                 <div className="chips">
-                  <span>{readinessLabel[project.readiness]}</span>
+                  <span>{t(project.readiness)}</span>
                   {universe && <span>{universe.name}</span>}
                 </div>
                 <div className="actions">
-                  <button className="restore" onClick={() => onRestoreProject(project.id)}>Restore Project</button>
-                  <button className="danger" onClick={() => onDeleteProject(project.id)}>Delete Project</button>
+                  <button className="restore" onClick={() => onRestoreProject(project.id)}>{t("Restore Project")}</button>
+                  <button className="danger" onClick={() => onDeleteProject(project.id)}>{t("Delete Project")}</button>
                 </div>
               </div>
             );

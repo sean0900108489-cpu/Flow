@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Brain, Search } from "lucide-react";
+import { Brain, RotateCcw, Search } from "lucide-react";
 import type { AppState, BlockingQuestion, Project, ThoughtItem } from "./domain/types";
 import type { GlobalSearchResult } from "./domain/globalSearch";
-import type { ReviewQueueItem } from "./domain/reviewQueue";
+import { searchReviewQueue, type ReviewQueueItem } from "./domain/reviewQueue";
 import { filterThoughts } from "./domain/listQuery";
 import { pathForScreen, screenForPath } from "./domain/appRouting";
 import {
@@ -35,7 +35,7 @@ import {
   universeOptionsForItemUniverseIds,
   type UniverseActionResult
 } from "./domain/universeActions";
-import { markProjectHandoffReady } from "./domain/engineeringHandoff";
+import { executeDomainCommand, type DomainCommand } from "./domain/commandLayer";
 import {
   updateEngineeringReadinessAssessment,
   type EngineeringReadinessPatch
@@ -87,8 +87,9 @@ import { id, now } from "./domain/utils";
 import { normalizeAppState } from "./domain/appState";
 import { seed } from "./data/seed";
 import { loadState, saveState } from "./services/storage";
-import { setAiInsightStatus } from "./services/applyAiPatch";
 import { generateProjectReadinessInsight, generateThoughtClassificationInsight } from "./services/aiMock";
+import { I18nProvider, useI18n } from "./i18n";
+import { AiChatDock } from "./components/layout/AiChatDock";
 import {
   AIPanel,
   AppStateTransfer,
@@ -118,7 +119,8 @@ import {
 } from "./components";
 import "./style.css";
 
-export function App() {
+function AppShell() {
+  const { language, languageOptions, setLanguage, t } = useI18n();
   const [state, setState] = useState<AppState>(() => loadState());
   const [screen, setScreen] = useState(() =>
     typeof window === "undefined" ? "dashboard" : screenForPath(window.location.pathname)
@@ -129,6 +131,7 @@ export function App() {
   const [query, setQuery] = useState("");
   const [universeError, setUniverseError] = useState("");
   const [systemMessage, setSystemMessage] = useState("");
+  const [isAiChatDockOpen, setIsAiChatDockOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -159,9 +162,34 @@ export function App() {
     return normalized;
   };
 
+  const runConfirmedDomainCommand = (
+    command: Omit<DomainCommand, "id" | "source" | "confirmedByUser">
+  ) => {
+    const result = executeDomainCommand(
+      state,
+      {
+        ...command,
+        id: id("cmd"),
+        source: "user",
+        confirmedByUser: true
+      },
+      { actorId: "local-ui" }
+    );
+
+    if (!result.ok) {
+      const message = `${result.error.code}: ${result.error.message}`;
+      setSystemMessage(message);
+      return { ok: false, error: message };
+    }
+
+    setSystemMessage("");
+    save(result.state);
+    return { ok: true };
+  };
+
   const applyUniverseResult = (result: UniverseActionResult) => {
     if (!result.ok) {
-      setUniverseError(result.error ?? "Universe action failed.");
+      setUniverseError(result.error ?? t("Universe action failed."));
       return false;
     }
 
@@ -209,7 +237,7 @@ export function App() {
 
   const applySafeMutationResult = (result: SafeMutationResult) => {
     if (!result.ok) {
-      setSystemMessage(result.error ?? "Mutation failed.");
+      setSystemMessage(result.error ?? t("Mutation failed."));
       return false;
     }
 
@@ -253,12 +281,12 @@ export function App() {
   };
 
   const handleDeleteUniverse = (universeId: string) => {
-    if (!window.confirm("Delete this universe?")) return;
+    if (!window.confirm(t("Delete this universe?"))) return;
     applyUniverseResult(deleteUniverse(state, universeId, "blockIfInUse"));
   };
 
   const handleDetachDeleteUniverse = (universeId: string) => {
-    if (!window.confirm("Detach linked items and delete this universe?")) return;
+    if (!window.confirm(t("Detach linked items and delete this universe?"))) return;
     applyUniverseResult(deleteUniverse(state, universeId, "detach"));
   };
 
@@ -268,13 +296,10 @@ export function App() {
   };
 
   const handleMarkProjectHandoffReady = (projectId: string) => {
-    const result = markProjectHandoffReady(state, projectId);
-
-    if (result.ok) {
-      save(result.state);
-    }
-
-    return { ok: result.ok, error: result.error };
+    return runConfirmedDomainCommand({
+      type: "project.markHandoffReady",
+      target: { type: "project", id: projectId }
+    });
   };
 
   const handleCreateBlockingQuestion = (input: { question: string; context?: string }) =>
@@ -588,13 +613,15 @@ export function App() {
   const projectUniverseOptions = project
     ? universeOptionsForItemUniverseIds(state.universes, [project.universeId])
     : activeUniverses;
+  const aiDraftCount = state.aiInsights.filter((insight) => insight.status === "draft").length;
+  const reviewQueueCount = searchReviewQueue(state).length;
 
   const restoreThought = (thoughtId: string) => {
     applySafeMutationResult(restoreThoughtMutation(state, thoughtId));
   };
 
   const deleteThought = (thoughtId: string, nextScreen = "dashboard") => {
-    if (!window.confirm("Delete this thought?")) return;
+    if (!window.confirm(t("Delete this thought?"))) return;
     const result = deleteThoughtMutation(state, thoughtId);
 
     if (applySafeMutationResult(result)) {
@@ -614,7 +641,7 @@ export function App() {
   };
 
   const deleteProject = (projectId: string, nextScreen = "dashboard") => {
-    if (!window.confirm("Delete this project?")) return;
+    if (!window.confirm(t("Delete this project?"))) return;
     const result = deleteProjectMutation(state, projectId);
 
     if (applySafeMutationResult(result)) {
@@ -648,40 +675,71 @@ export function App() {
   };
 
   const acceptAI = (aiId: string, status: "accepted" | "rejected") => {
-    const result = setAiInsightStatus(state, aiId, status);
-
-    if (result.statusChanged) {
-      save(result.state);
-    }
+    return runConfirmedDomainCommand({
+      type: "aiInsight.review",
+      target: { type: "aiInsight", id: aiId },
+      payload: { status }
+    });
   };
 
   return (
     <div className="shell">
-      <aside>
-        <div className="brand" onClick={() => setScreen("dashboard")}>
-          <Brain />
-          <div>
-            <strong>Thought Universe</strong>
-            <span>思想管理系統</span>
-          </div>
-        </div>
-        <Nav screen={screen} setScreen={setScreen} />
-        <button className="ghost full" onClick={() => save(seed)}>重置 Demo</button>
-      </aside>
+	      <aside>
+	        <button
+	          type="button"
+	          className="brand"
+	          aria-label={t("Thought Universe dashboard")}
+	          data-tooltip={t("Thought Universe")}
+	          title={t("Thought Universe")}
+	          onClick={() => setScreen("dashboard")}
+	        >
+	          <Brain />
+	          <div>
+	            <strong>{t("Thought Universe")}</strong>
+	            <span>{t("Thought management system")}</span>
+	          </div>
+	        </button>
+	        <Nav screen={screen} setScreen={setScreen} />
+	        <button
+	          type="button"
+	          className="ghost full sidebar-reset"
+	          aria-label={t("Reset demo")}
+	          data-tooltip={t("Reset Demo")}
+	          title={t("Reset Demo")}
+	          onClick={() => save(seed)}
+	        >
+	          <RotateCcw size={18} />
+	          <span className="nav-label">{t("Reset Demo")}</span>
+	        </button>
+	      </aside>
 
       <main>
         <header>
           <div>
-            <h1>{title(screen)}</h1>
-            <p>想法 → 宇宙 → 任務/專案 → 下一步 → 工程交接</p>
+            <h1>{t(title(screen))}</h1>
+            <p>{t("Thoughts → universes → tasks/projects → next actions → engineering handoff")}</p>
+          </div>
+          <div className="language-toggle" role="group" aria-label={t("UI language")}>
+            <span>{t("Language")}</span>
+            {languageOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={language === option.value ? "active" : "ghost"}
+                aria-pressed={language === option.value}
+                onClick={() => setLanguage(option.value)}
+              >
+                {option.shortLabel}
+              </button>
+            ))}
           </div>
           <label className="search">
             <Search size={16} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜尋想法..." />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Search thoughts")} />
           </label>
         </header>
 
-        {systemMessage && <div className="notice app-notice">{systemMessage}</div>}
+        {systemMessage && <div className="notice app-notice">{t(systemMessage)}</div>}
 
         {screen === "dashboard" && (
           <Dashboard
@@ -918,14 +976,21 @@ export function App() {
               setSelectedThoughtId(normalized.thoughts[0]?.id ?? "");
               setSelectedProjectId(normalized.projects[0]?.id ?? "");
               setSelectedUniverseId(normalized.universes[0]?.id ?? "");
-              setSystemMessage("App State imported successfully. Decision, readiness, and next action data were normalized.");
+              setSystemMessage(t("App State imported successfully. Decision, readiness, and next action data were normalized."));
               setScreen("dashboard");
             }}
           />
         )}
 
         {screen === "deployment-status" && (
-          <DeploymentStatus state={state} />
+          <DeploymentStatus
+            state={state}
+            projectId={project?.id}
+            onApplyImportedCommands={(nextState, message) => {
+              save(nextState);
+              setSystemMessage(message);
+            }}
+          />
         )}
 
         {screen === "universes" && (
@@ -957,6 +1022,26 @@ export function App() {
           />
         </section>
       </main>
+
+      <AiChatDock
+        isOpen={isAiChatDockOpen}
+        currentScreenLabel={t(title(screen))}
+        selectedThoughtTitle={thought?.title}
+        selectedProjectTitle={project?.name}
+        aiDraftCount={aiDraftCount}
+        reviewQueueCount={reviewQueueCount}
+        onOpenChange={setIsAiChatDockOpen}
+        onOpenAiPanel={() => setScreen("ai")}
+        onOpenReviewQueue={() => setScreen("review-queue")}
+      />
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <I18nProvider>
+      <AppShell />
+    </I18nProvider>
   );
 }

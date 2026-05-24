@@ -7,6 +7,7 @@ import {
   type GlobalSearchResultType
 } from "../../domain/globalSearch";
 import type { AppState } from "../../domain/types";
+import { useI18n } from "../../i18n";
 import { EmptyState } from "../common/EmptyState";
 import { Metric } from "../common/Metric";
 
@@ -30,6 +31,20 @@ function bodyPreview(value: string | undefined) {
   return `${body.slice(0, 177)}...`;
 }
 
+function resultTypeLabel(resultType: GlobalSearchResultType | "all", t: (key: string) => string) {
+  return t({
+    all: "All result types",
+    thought: "Thought",
+    project: "Project",
+    universe: "Universe",
+    blocking_question: "Blocking question",
+    decision_record: "Decision record",
+    relationship: "Relationship",
+    next_action: "Next action",
+    command: "Command"
+  }[resultType]);
+}
+
 export function GlobalSearchCenter({
   state,
   onOpenGlobalSearchResult
@@ -37,6 +52,7 @@ export function GlobalSearchCenter({
   state: AppState;
   onOpenGlobalSearchResult: (result: GlobalSearchResult) => void;
 }) {
+  const { t } = useI18n();
   const [searchText, setSearchText] = useState("");
   const [type, setType] = useState<GlobalSearchResultType | "all">("all");
   const [universeId, setUniverseId] = useState<string | "all">("all");
@@ -54,15 +70,15 @@ export function GlobalSearchCenter({
   const counts = useMemo(() => getGlobalSearchResultCounts(results), [results]);
 
   const universeLabel = (idValue: string | undefined) =>
-    state.universes.find((universe) => universe.id === idValue)?.name ?? "No universe";
+    state.universes.find((universe) => universe.id === idValue)?.name ?? t("No universe");
 
   return (
     <div className="stack">
       <section className="panel hero">
         <div className="head">
           <div>
-            <h2>Global Search Center</h2>
-            <p className="muted">Search and open thoughts, projects, universes, decisions, blockers, relationships, actions, and commands.</p>
+            <h2>{t("Global Search Center")}</h2>
+            <p className="muted">{t("Search and open thoughts, projects, universes, decisions, blockers, relationships, actions, and commands.")}</p>
           </div>
         </div>
       </section>
@@ -70,93 +86,93 @@ export function GlobalSearchCenter({
       <section className="panel form">
         <div className="list-controls global-search-controls">
           <label>
-            Search
+            {t("Search")}
             <input
-              aria-label="Search everything"
+              aria-label={t("Search everything")}
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search everything"
+              placeholder={t("Search everything")}
             />
           </label>
           <label>
-            Type filter
+            {t("Type filter")}
             <select
-              aria-label="Type filter"
+              aria-label={t("Type filter")}
               value={type}
               onChange={(event) => setType(event.target.value as GlobalSearchResultType | "all")}
             >
-              <option value="all">All result types</option>
+              <option value="all">{t("All result types")}</option>
               {resultTypes.filter((resultType) => resultType !== "all").map((resultType) => (
-                <option key={resultType} value={resultType}>{resultType}</option>
+                <option key={resultType} value={resultType}>{resultTypeLabel(resultType, t)}</option>
               ))}
             </select>
           </label>
           <label>
-            Universe filter
+            {t("Universe filter")}
             <select
-              aria-label="Universe filter"
+              aria-label={t("Universe filter")}
               value={universeId}
               onChange={(event) => setUniverseId(event.target.value)}
             >
-              <option value="all">All universes</option>
+              <option value="all">{t("All universes")}</option>
               {state.universes.map((universe) => (
                 <option key={universe.id} value={universe.id}>{universe.name}</option>
               ))}
             </select>
           </label>
           <label>
-            Status filter
+            {t("Status filter")}
             <select
-              aria-label="Status filter"
+              aria-label={t("Status filter")}
               value={status}
               onChange={(event) => setStatus(event.target.value)}
             >
-              <option value="all">All statuses</option>
+              <option value="all">{t("All statuses")}</option>
               {statuses.map((item) => (
-                <option key={item} value={item}>{item}</option>
+                <option key={item} value={item}>{t(item)}</option>
               ))}
             </select>
           </label>
         </div>
 
         <div className="metrics global-search-metrics">
-          <Metric label="Total results" value={counts.total} />
-          <Metric label="Thoughts" value={counts.thoughts} />
-          <Metric label="Projects" value={counts.projects} />
-          <Metric label="Universes" value={counts.universes} />
-          <Metric label="Next actions" value={counts.nextActions} />
-          <Metric label="Decisions" value={counts.decisionRecords} />
-          <Metric label="Commands" value={counts.commands} />
+          <Metric label={t("Total results")} value={counts.total} />
+          <Metric label={t("Thoughts")} value={counts.thoughts} />
+          <Metric label={t("Projects")} value={counts.projects} />
+          <Metric label={t("Universes")} value={counts.universes} />
+          <Metric label={t("Next actions")} value={counts.nextActions} />
+          <Metric label={t("Decisions")} value={counts.decisionRecords} />
+          <Metric label={t("Commands")} value={counts.commands} />
         </div>
       </section>
 
       <section className="panel">
         <div className="head">
           <div>
-            <h2>Results</h2>
-            <p className="muted">{counts.total} matching results</p>
+            <h2>{t("Results")}</h2>
+            <p className="muted">{t("{count} matching results", { count: counts.total })}</p>
           </div>
         </div>
 
         {results.length === 0 ? (
-          <EmptyState>No global search results.</EmptyState>
+          <EmptyState>{t("No global search results.")}</EmptyState>
         ) : (
           <div className="stack">
             {results.map((result) => (
               <article className="card global-search-result-card" key={result.id}>
                 <div className="line">
                   <strong>{result.title}</strong>
-                  <span className="badge">{result.type}</span>
+                  <span className="badge">{resultTypeLabel(result.type, t)}</span>
                 </div>
                 {result.subtitle && <p>{result.subtitle}</p>}
                 {bodyPreview(result.body) && <p>{bodyPreview(result.body)}</p>}
                 <div className="chips">
-                  <span>Status: {result.status ?? "none"}</span>
-                  <span>Universe: {universeLabel(result.universeId)}</span>
-                  <span>Score: {result.score}</span>
+                  <span>{t("Status: {status}", { status: t(result.status ?? "none") })}</span>
+                  <span>{t("Universe: {name}", { name: universeLabel(result.universeId) })}</span>
+                  <span>{t("Score: {score}", { score: result.score })}</span>
                 </div>
                 <div className="actions">
-                  <button className="ghost" onClick={() => onOpenGlobalSearchResult(result)}>Open</button>
+                  <button className="ghost" onClick={() => onOpenGlobalSearchResult(result)}>{t("Open")}</button>
                 </div>
               </article>
             ))}

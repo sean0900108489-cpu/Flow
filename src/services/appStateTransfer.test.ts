@@ -27,6 +27,32 @@ describe("app state transfer", () => {
     expect(result.state?.blockingQuestions?.length).toBeGreaterThanOrEqual(3);
   });
 
+  it("keeps local UI imports as full replacement payloads", () => {
+    const result = parseAppStateJson(JSON.stringify({
+      ...seed,
+      universes: [
+        {
+          ...seed.universes[0],
+          id: "u-replacement",
+          name: "Replacement Universe"
+        }
+      ],
+      thoughts: [],
+      projects: [],
+      relationships: [],
+      aiInsights: [],
+      blockingQuestions: [],
+      decisionRecords: []
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(result.state?.universes.map((item) => item.id)).toEqual(["u-replacement"]);
+    expect(result.state?.thoughts).toEqual([]);
+    expect(result.state?.projects).toEqual([]);
+    expect(result.state?.relationships).toEqual([]);
+    expect(result.state?.aiInsights).toEqual([]);
+  });
+
   it("imports old state without blocking questions", () => {
     const { blockingQuestions, ...oldState } = seed;
     const result = parseAppStateJson(JSON.stringify(oldState));

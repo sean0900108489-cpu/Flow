@@ -1,65 +1,143 @@
 # Architecture Hardening Context
 
-This file is a handoff context for Architecture Hardening Round 1. It is not general product documentation. It is intended to help the next model reason about architecture drift, AppState source-of-truth, mutation authority, relationship ownership, graph integrity, lifecycle/status/readiness semantics, persistence/import/export safety, AI patch boundaries, hidden cross-entity coupling, and dangerous mutation entrypoints.
+Purpose: high-density handoff context for the next LLM working on Post-v0.2.3-rc2 / rc3-rc5 Architecture Hardening Context & Next Planning. This is not general documentation. Treat source and tests as authority, architecture docs as orientation, and this file as a current-state map.
 
-Scan scope: repo source under `src/`, tests under `src/**/*.test.*` and `tests/`, `package.json`, and architecture notes under `docs/architecture/` plus `docs/safe-mutation-policy.md`. Dependency/build/generated outputs such as `node_modules/`, `dist/`, `playwright-report/`, `.vercel/`, and `test-results/` are not treated as source authority.
+Scan date: 2026-05-22, Australia/Sydney. Source, tests, package metadata, release docs, generated artifacts, tags, branches, remotes, and `.env.local` contents were not modified. `.env.local` content was not read, printed, snapshotted, diffed, staged, committed, or pushed.
 
-Authority note: `docs/architecture/*.md` files explicitly say they are draft coordination scaffolds. Trust source and tests first, then docs.
+Authority rule: source code is final. `docs/architecture/**` and `docs/release/**` are useful context, but several docs conflict with current source/git state and are marked stale below.
+
+Generated/local artifacts excluded from architecture source of truth: `dist/**`, `node_modules/**`, `playwright-report/**`, `test-results/**`, `coverage/**`, `.vite/**`, `*.tsbuildinfo`, OS files, and local env files.
 
 ---
 
 ## 0. Executive Summary
 
-- AppState canonical definition is in `src/domain/types.ts`. `src/domain/appState.ts` is the import/save/load normalizer, not the canonical type definition.
-- Runtime mutation is actually concentrated in `src/App.tsx`: it owns `useState<AppState>`, the `save(next)` wrapper, import replacement, AI accept/reject handling, and all screen callbacks. Domain modules usually return `{ state, ok }` snapshots; `App.tsx` decides whether to install and persist them.
-- Relationship mutation / cleanup is split. Creation is owned by `src/domain/relationships/relationshipGraph.ts#createTypedRelationship` through `src/domain/relationshipExplorer.ts#createRelationshipSafe`, with one special creation path in `src/domain/projectActions.ts#promoteThoughtToProject`. Cleanup is owned by `removeRelationshipsForNode` plus `src/domain/mutations/referenceCleanup.ts#removeDeletedNodeReferences`, called from delete helpers for thoughts, projects, universes, blocking questions, and decision records.
-- Status / readiness / lifecycle have semantic overlap. `Project.status`, `Project.lifecycleStatus`, stored `Project.readiness`, computed `readiness(project)`, handoff readiness, engineering readiness, review queue status, blocking question status, decision status, and next action status are related but not governed by one single semantic table.
-- Import/export/AI patch main risks: AppState import validates only top-level shape before full replacement; normalization repairs relationship endpoint types only when resolvable and preserves orphans; `save(next)` sets raw runtime state before persistence normalization; AI patches are key-whitelisted but not value-validated and bypass normal thought/project validators.
-- Most likely architecture drift hotspots: `src/App.tsx`, `src/domain/types.ts`, `src/domain/appState.ts`, `src/domain/blockingQuestions.ts` duplicate `normalizeAppState`, `src/domain/relationships/relationshipGraph.ts`, `src/domain/mutations/referenceCleanup.ts`, `src/domain/projectActions.ts`, `src/domain/nextActions.ts`, `src/domain/engineeringReadiness.ts`, `src/domain/engineeringHandoff.ts`, `src/services/appStateTransfer.ts`, `src/services/storage.ts`, and `src/domain/mutations/aiPatchMutations.ts`.
+**Current Release Context**
+
+- Actual app repo root: `/Users/sean/Documents/todolist/todo-thought-universe`. The invocation cwd `/Users/sean/Documents/todolist` is a separate outer git repo with no commits and an untracked `todo-thought-universe/` folder; this report treats the nested app repo as the source of truth.
+- Package version and lockfile version are both `0.2.3-rc.2`.
+- Local tag `v0.2.3-rc2` exists and points to `70dd9bb0e8895f87999fce25c6cb2c779320a1fe`.
+- Requested checkpoint commits exist:
+  - `ec15daa chore: untrack generated artifacts`
+  - `3f7c914 feat: stabilize thought-project direct reference consistency`
+  - `b3b7e98 chore: add local verification gate`
+- Actual git history order is `9874e54` UI dock commit, `b3b7e98` verification gate, `3f7c914` direct-ref consistency, `ec15daa` artifact untracking, `70dd9bb` rc2 metadata, then `f47280f` rc2 hardening. The conceptual rc3/rc4/rc5 labels are useful, but the artifact hygiene commit is earlier than rc3/rc4 in this repo history.
+- `docs/release/v0.2.3-rc2.md` is stale in places: it says the tag should be applied later and generated outputs remained dirty; current git state shows the local tag exists and generated/local artifact paths are ignored/untracked rather than tracked dirty.
+
+**Current Git / Worktree Context**
+
+- Current branch: `ui/right-ai-chat-dock`.
+- Upstream exists: `origin/ui/right-ai-chat-dock`; `git remote -v` shows `origin https://github.com/sean0900108489-cpu/Flow.git` for fetch/push.
+- Current `git status --short` before and after this scan is expected to show only `M docs/architecture-hardening-context.md`; the target file was already modified before this command and was refreshed by this command.
+- No uncommitted UI source changes were present during this scan. Right AI dock work is committed in `9874e54` and is UI-only/non-domain based on source inspection.
+- `.env.local` is a tracked ignored file: `git ls-files -ci --exclude-standard` returns `.env.local`; `git check-ignore --no-index -v .env.local` resolves to `.gitignore:21:.env.*`. This is a secret/process risk. Contents were not read.
+- Checked generated/local artifact paths are not tracked: `git ls-files dist node_modules playwright-report test-results tsconfig.tsbuildinfo coverage .vite` returned empty. `git status --ignored=matching` shows ignored local directories/files for `dist/`, `node_modules/`, `playwright-report/`, `test-results/`, and `tsconfig.tsbuildinfo`.
+
+**Implemented Hardening**
+
+- AppState canonical compile-time definition is `src/domain/types.ts`.
+- Runtime state holder and mutation coordinator is still `src/App.tsx`.
+- Runtime `save(next)` normalizes before both `setState(normalized)` and `saveState(normalized)`.
+- Persistence and transfer normalize before use: `src/services/storage.ts`, `src/services/appStateTransfer.ts`, `src/domain/appState.ts`.
+- Import is full replace through AppStateTransfer, not merge. Import returns invariant warnings and retains warning-bearing user data.
+- Import does not silently delete orphan relationships. Resolvable legacy relationship endpoint types are repaired; orphan/missing/ambiguous endpoints are retained and warned.
+- Import does not repair/delete Thought-Project direct-ref drift. Drift is warning-only through `thought_project_reference_drift`.
+- AI patch handling is centralized in `src/domain/mutations/aiPatchMutations.ts`, re-exported by `src/services/applyAiPatch.ts`.
+- AI patch validation is value/reference based, not only key whitelist based. It rejects invalid enum values, empty required strings, missing universe/project/source thought refs, archived project membership targets, unsupported target types, and no-op/no-allowed-change patches.
+- AI accepted/rejected flow is centralized in `setAiInsightStatus`; invalid patches are not marked accepted.
+- Imported invalid `AIInsight.patch.targetType` returns `invalid_patch_target_type` warning and does not throw or fail import.
+- `handoff_ready` cannot be newly set through general Project Detail/update path; it must go through `markProjectHandoffReady`.
+- Missing-id delete guards for thought/project/universe/blocking question/decision record return failure and preserve original state.
+- rc3 direct-ref consistency helper exists at `src/domain/projectThoughtLinks.ts`. It owns `Thought.projectId` / `Project.linkedThoughtIds` link, unlink, move, and cleanup semantics.
+- `Project.sourceThoughtId` is provenance, not active membership. Membership unlink must not clear it; deleted/missing thought cleanup can clear it.
+- rc4 local verification gate exists in `package.json`: `typecheck` and `check`.
+- rc5 artifact hygiene is visible: generated/local artifacts are ignored and not tracked in checked paths.
+
+**Tested Hardening**
+
+- Unit tests cover storage normalization, import normalization/warnings, orphan relationship preservation, invalid patch target warning, AI patch value/reference validation, invalid patch atomic failure, accepted/rejected flow, handoff guard, missing-id delete guards, relationship graph repair/removal, direct-ref link/move/unlink/cleanup, sourceThought provenance, and direct-ref invariant warnings.
+- E2E tests cover visible handoff behavior, project lifecycle UI behavior, review queue AI accept happy path, review queue handoff candidate marking, relationship explorer behavior, imported linked project display, and import full replacement UI.
+- `npm run check` exists but was not executed in this docs-only scan because the script includes `npm run build`, which can write `dist/**` and `tsconfig.tsbuildinfo`, paths the user explicitly asked not to modify. Script composition was verified from package metadata.
+
+**Remaining Risks**
+
+- No complete canonical status semantics table exists in source. There are partial semantic helpers across thought/universe/AI, project, question/decision, review queue, next actions, engineering readiness, and handoff.
+- Relationship graph edges (`relationships[]`) and direct project membership refs (`Thought.projectId`, `Project.linkedThoughtIds`) remain separate persisted representations with separate owners.
+- Import shape validation is intentionally shallow before TypeScript casting. Many cross-entity invalid states are warnings, not rejections.
+- Review Queue invalid AI accept UI feedback remains likely UI-only: the card reports "AI draft accepted." after invoking a void callback, even if `setAiInsightStatus` rejected an invalid patch and left state safe.
+- `.env.local` tracked+ignored state is a secret/process risk, not a domain architecture issue.
+- No lint gate is configured. `rg --files` found no ESLint/Biome/Oxlint/Prettier config; local verification is currently typecheck + tests + build.
+
+**Suggested Next Hardening Focus**
+
+- Priority 1: make Review Queue AI accept UI feedback reflect `setAiInsightStatus` result without weakening state safety.
+- Priority 2: document or slightly narrow the boundary between relationship graph edges and direct Thought-Project membership refs; avoid broad unification.
+- Priority 3: add a small canonical status interpretation table around existing semantic helpers.
+- Priority 4: handle `.env.local` tracked/ignored secret-process risk separately from domain architecture work.
+- Priority 5: decide whether lint remains deferred or add a minimal lint gate as a tooling task only.
+
+Most dangerous places to edit casually: `src/App.tsx`, `src/domain/types.ts`, `src/domain/appState.ts`, `src/services/appStateTransfer.ts`, `src/services/storage.ts`, `src/domain/validation/appStateInvariants.ts`, `src/domain/mutations/aiPatchMutations.ts`, `src/domain/projectThoughtLinks.ts`, `src/domain/projectActions.ts`, `src/domain/mutations/referenceCleanup.ts`, `src/domain/relationships/relationshipGraph.ts`, `src/domain/engineeringHandoff.ts`, package scripts, release metadata, and generated/local artifact tracking.
 
 ---
 
 ## 1. Core Files Included
 
-| File path | Why included | Related concern |
-| --- | --- | --- |
-| `package.json` | Defines verification commands and app shape: Vite/React/TypeScript/Vitest/Playwright. | validation |
-| `src/domain/types.ts` | Canonical compile-time AppState, entity, relationship, status, readiness, next action, and AI patch shape. | AppState, relationship, status semantics, persistence, AI patch |
-| `src/domain/appState.ts` | Central AppState normalization used by persistence/import/export and production readiness. | AppState, import/export, persistence, validation |
-| `src/data/seed.ts` | Fallback/reset AppState and representative legacy-ish seed relationship. | AppState, persistence, relationship, status semantics |
-| `src/App.tsx` | Runtime state holder, save/persist coordinator, and UI-to-domain mutation dispatcher. | mutation, persistence, import/export, AI patch |
-| `src/services/storage.ts` | localStorage load/save boundary and fallback behavior. | persistence, validation |
-| `src/services/appStateTransfer.ts` | Full AppState JSON import/export boundary and shallow validation. | import/export, validation, persistence |
-| `src/components/screens/AppStateTransfer.tsx` | User import/export UI that full-replaces current runtime state. | import/export, mutation |
-| `src/services/exportEngineeringInput.ts` | Per-project engineering export shape, separate from full AppState export. | import/export, derived state |
-| `src/components/screens/Export.tsx` | User engineering export UI. | import/export, derived state |
-| `src/domain/mutations/appMutations.ts` | Primary thought/project create/update/archive/restore/delete helper set. | mutation, relationship, status semantics |
-| `src/domain/mutations/referenceCleanup.ts` | Cross-entity stale-reference cleanup after deletes. | relationship, graph integrity, mutation |
-| `src/domain/mutations/aiPatchMutations.ts` | AI patch application boundary and whitelist. | AI patch, mutation, validation |
-| `src/domain/mutations/safeMutationPolicy.ts` | Source-side policy registry for safe mutation expectations. | mutation, relationship, validation |
-| `docs/safe-mutation-policy.md` | Human policy document aligned with v0.2.3 safe mutation pass. | mutation, relationship, AI patch |
-| `src/domain/relationships/relationshipGraph.ts` | Relationship graph node/edge derivation, endpoint repair, relationship creation/removal. | relationship, graph integrity, mutation, validation |
-| `src/domain/relationshipExplorer.ts` | Relationship Explorer domain facade and create entrypoint. | relationship, derived state, mutation |
-| `src/domain/projectActions.ts` | Project create/update/link/unlink/promote and project-readiness recompute. | mutation, relationship, status semantics |
-| `src/domain/universeActions.ts` | Universe create/update/archive/restore/delete/detach behavior. | mutation, relationship, status semantics |
-| `src/domain/blockingQuestions.ts` | Blocking question defaults, normalization, CRUD, and decision summary. | mutation, status semantics, validation |
-| `src/domain/decisionRecords.ts` | Decision record CRUD, accept/supersede/archive/delete, source-question resolution. | mutation, relationship, status semantics |
-| `src/domain/thoughtTriage.ts` | Thought triage derived stage plus thought patch/status transitions. | mutation, derived state, status semantics |
-| `src/domain/readiness.ts` | Computed project content readiness. | derived state, status semantics |
-| `src/domain/semantics/statusSemantics.ts` | Thought/universe/AI status semantic helpers. | status semantics, derived state |
-| `src/domain/semantics/projectSemantics.ts` | Project status/lifecycle/readiness/blocking semantic helpers. | status semantics, relationship |
-| `src/domain/semantics/questionDecisionSemantics.ts` | Blocking question and decision record semantic helpers. | status semantics, derived state |
-| `src/domain/engineeringHandoff.ts` | Project handoff readiness, handoff package, lifecycle transition. | status semantics, relationship, mutation, derived state |
-| `src/domain/engineeringReadiness.ts` | Derived engineering readiness plus persisted assessment mutation. | status semantics, persistence, derived state |
-| `src/domain/reviewQueue.ts` | Derived queue from AI drafts, decisions, blockers, and handoff candidates. | derived state, status semantics |
-| `src/domain/nextActions.ts` | Derived next actions plus persisted next action state mutations. | mutation, derived state, status semantics |
-| `src/domain/productionReadiness.ts` | Derived production readiness from normalized AppState. | persistence, import/export, derived state |
-| `src/domain/universeOverview.ts` | Derived universe package/overview from entity links and relationships. | relationship, derived state |
-| `src/domain/globalSearch.ts` | Derived global index, including relationship endpoint resolution. | relationship, derived state |
-| `src/services/aiMock.ts` | Deterministic AIInsight patch producer. | AI patch, mutation |
-| Key tests under `src/**/*.test.*` | Existing coverage for import/export, storage, relationships, safe mutations, AI patches, semantics, and derived centers. | validation |
-
-Excluded from this context: CSS/styling, layout-only components, common visual controls, and pure navigation rendering unless they are direct mutation/import/export/AI entrypoints.
+| File | Why Included | Related Concern | Source Status |
+| ---- | ------------ | --------------- | ------------- |
+| `package.json` | Version and scripts. | release metadata, tooling metadata | release metadata, tooling metadata |
+| `package-lock.json` | Confirms root package version. | release metadata | release metadata |
+| `.gitignore` | rc5 hygiene and `.env.local` ignored pattern. | tooling metadata, release metadata | tooling metadata |
+| `src/domain/types.ts` | Canonical compile-time AppState/entity/status/patch shapes. | AppState, direct refs, relationship, status semantics, AI patch | source-of-truth |
+| `src/domain/appState.ts` | Central normalizer used by storage, transfer, and runtime save. | AppState, import/export, persistence, validation | validation owner |
+| `src/data/seed.ts` | Runtime fallback/reset shape and seeded direct refs/legacy relationship. | AppState, persistence, relationship, direct refs | source-of-truth |
+| `src/App.tsx` | Runtime state holder, save wrapper, mutation dispatcher, import replacement, AI status callback, committed AI dock host. | mutation, AppState, persistence, import/export, AI patch, working-tree UI-only | runtime owner |
+| `src/services/storage.ts` | localStorage load/save boundary. | persistence, validation | runtime owner |
+| `src/services/appStateTransfer.ts` | JSON import/export validation, normalization, invariant warnings. | import/export, validation, persistence | validation owner |
+| `src/services/applyAiPatch.ts` | Facade re-export for AI patch mutation module. | AI patch | derived consumer |
+| `src/domain/mutations/aiPatchMutations.ts` | AI patch validation/apply/status authority. | AI patch, mutation, validation, direct refs | mutation owner |
+| `src/domain/validation/appStateInvariants.ts` | Warning-only invariant checker. | invariant, validation, relationship, direct refs, status semantics | validation owner |
+| `src/domain/mutations/appMutations.ts` | Thought/project create/update/archive/restore/delete safety. | mutation, status semantics, relationship cleanup, direct refs | mutation owner |
+| `src/domain/mutations/referenceCleanup.ts` | Cross-entity cleanup after deletes. | relationship, direct refs, derived state | mutation owner |
+| `src/domain/mutations/safeMutationPolicy.ts` | Source-side policy registry. | mutation, relationship, AI patch | documentation |
+| `src/domain/projectThoughtLinks.ts` | rc3 direct Thought-Project reference helper. | direct refs, mutation, validation | mutation owner |
+| `src/domain/projectThoughtLinks.test.ts` | Direct-ref link/move/unlink/cleanup coverage. | direct refs | test coverage |
+| `src/domain/projectActions.ts` | Project create/update/link/unlink/promote and handoff shortcut guard. | mutation, direct refs, relationship, readiness, lifecycle | mutation owner |
+| `src/domain/projectActions.test.ts` | Project action hardening coverage. | mutation, direct refs, lifecycle | test coverage |
+| `src/domain/relationships/relationshipGraph.ts` | Typed relationship graph authority. | relationship, validation, derived state | mutation owner |
+| `src/domain/relationships/relationshipGraph.test.ts` | Relationship repair/orphan/create/remove coverage. | relationship, invariant | test coverage |
+| `src/domain/relationshipExplorer.ts` | UI-facing relationship graph facade and safe create wrapper. | relationship, derived state | derived consumer |
+| `src/domain/universeActions.ts` | Universe mutation/delete/detach guard. | mutation, relationship cleanup, status semantics | mutation owner |
+| `src/domain/blockingQuestions.ts` | Blocking question defaults/normalization/CRUD/delete. | mutation, status semantics, relationship cleanup | mutation owner |
+| `src/domain/decisionRecords.ts` | Decision record CRUD, accept/supersede/delete and source question coupling. | mutation, status semantics, relationship cleanup | mutation owner |
+| `src/domain/engineeringHandoff.ts` | Handoff evaluation/package/guarded lifecycle transition. | lifecycle, readiness, relationship, derived state | mutation owner |
+| `src/domain/engineeringReadiness.ts` | Derived engineering readiness plus persisted manual assessment. | readiness, review status, derived state | mutation owner |
+| `src/domain/readiness.ts` | Project content readiness computation. | readiness, derived state | validation owner |
+| `src/domain/reviewQueue.ts` | Derived review queue from AI, decisions, blockers, handoff candidates. | review status, derived state | derived consumer |
+| `src/domain/nextActions.ts` | Derived next actions plus persisted preferences and direct source action mutations. | derived state, status semantics, mutation | mutation owner |
+| `src/domain/semantics/statusSemantics.ts` | Thought/universe/AI status predicates. | status semantics | validation owner |
+| `src/domain/semantics/projectSemantics.ts` | Project lifecycle/readiness/status predicates. | lifecycle, readiness, status semantics | validation owner |
+| `src/domain/semantics/questionDecisionSemantics.ts` | Blocking question and decision predicates. | status semantics, review status | validation owner |
+| `src/components/screens/AppStateTransfer.tsx` | User import/export UI and full-replace wording. | import/export, persistence | derived consumer |
+| `src/components/screens/ProjectDetail.tsx` | Lifecycle select, linked-thought display, unlink action. | lifecycle, readiness, direct refs | derived consumer |
+| `src/components/screens/ReviewQueueCenter.tsx` | Review queue actions and known AI accept UI feedback issue. | review status, AI patch, lifecycle | derived consumer |
+| `src/components/screens/AIPanel.tsx` | AI accept/reject UI using unified status callback. | AI patch, review status | derived consumer |
+| `src/components/layout/AiChatDock.tsx` | Current branch AI chat dock; UI-only/non-domain boundary. | working-tree UI-only | UI-only / non-domain |
+| `src/components/layout/Nav.tsx` | Current branch compact sidebar navigation work. | working-tree UI-only | UI-only / non-domain |
+| `src/style.css` | Current branch styling for dock/sidebar; no domain source of truth. | working-tree UI-only | UI-only / non-domain |
+| `src/services/appStateTransfer.test.ts` | Import/export legacy/default/relationship/AI patch round-trip coverage. | import/export, persistence, relationship, AI patch | test coverage |
+| `src/services/storage.test.ts` | Storage load/save normalization coverage. | persistence | test coverage |
+| `src/services/applyAiPatch.test.ts` | AI patch validation/status/direct-ref coverage. | AI patch, direct refs | test coverage |
+| `src/domain/validation/appStateInvariants.test.ts` | Invariant warning coverage, including direct-ref drift and invalid patch target type. | invariant, validation | test coverage |
+| `src/domain/mutations/appMutations.test.ts` | Delete cleanup and missing-id guard coverage. | mutation, relationship, direct refs | test coverage |
+| `src/domain/universeActions.test.ts` | Universe delete/missing-id/detach coverage. | mutation, relationship | test coverage |
+| `src/domain/blockingQuestions.test.ts` | Question delete/missing-id/default coverage. | mutation, status semantics | test coverage |
+| `src/domain/decisionRecords.test.ts` | Decision delete/missing-id/source-question coverage. | mutation, status semantics | test coverage |
+| `src/domain/engineeringHandoff.test.ts` | Guarded handoff readiness coverage. | lifecycle, readiness | test coverage |
+| `src/domain/semantics/statusSemantics.test.ts` | Partial semantic helper coverage. | status semantics | test coverage |
+| `tests/app.spec.ts` | E2E coverage for visible handoff, import, relationship, review flows. | lifecycle, import/export, relationship, review status | test coverage |
+| `docs/architecture/**` | Draft coordination scaffolds; source-backed only. | architecture docs | documentation, possible stale doc |
+| `docs/release/v0.2.3-rc2.md` | rc2 release context, partly stale against current git/artifact state. | release metadata, architecture docs | release metadata, possible stale doc |
+| `docs/architecture-hardening-context.md` | This refreshed handoff context. | architecture docs | documentation |
 
 ---
 
@@ -68,20 +146,25 @@ Excluded from this context: CSS/styling, layout-only components, common visual c
 ### `src/domain/types.ts`
 
 summary:
-- Defines the canonical compile-time AppState shape and entity interfaces.
-- It is the canonical source-of-truth for TypeScript shape, status unions, relationship node types, and AI patch operation types.
-- It is not runtime validation and does not enforce graph integrity, linked-id existence, timestamp validity, or cross-field status semantics.
-- Ambiguity: some persisted fields are also computed elsewhere, especially `Project.readiness`; relationship endpoint types are optional for legacy compatibility.
+
+- Canonical compile-time AppState and entity type definition.
+- It is not runtime validation by itself.
+- It is persisted/imported/exported as the local-first state shape.
+- Ambiguity remains because some persisted fields are partly derived or manually cached, especially `Project.readiness`, `engineeringReadiness`, `nextActionState`, and `AIInsight.status`.
+- v0.2.3-rc2 clarified normalization/validation around this shape; rc3 clarified direct-ref ownership without moving the canonical type definition.
+- Current UI dock branch does not alter this file.
 
 ```ts
-export type ThoughtStatus = "inbox" | "active" | "paused" | "done" | "archived";
-export type ProjectStatus = "active" | "archived";
 export type ProjectLifecycleStatus = "planning" | "handoff_ready" | "blocked";
-export type UniverseStatus = "active" | "archived";
 export type Readiness = "not_ready" | "needs_clarification" | "draftable" | "ready_for_engineering";
-export type BlockingQuestionStatus = "open" | "in_review" | "resolved" | "archived";
-export type DecisionRecordStatus = "proposed" | "accepted" | "superseded" | "archived";
 export type RelationshipNodeType = "thought" | "project" | "universe" | "blocking_question" | "decision_record";
+
+export interface ThoughtItem {
+  id: string;
+  status: ThoughtStatus;
+  universeId: string;
+  projectId?: string;
+}
 
 export interface Project {
   id: string;
@@ -91,23 +174,846 @@ export interface Project {
   status: ProjectStatus;
   lifecycleStatus?: ProjectLifecycleStatus;
   readiness: Readiness;
-  // other descriptive fields omitted here
 }
 
-export interface Relationship {
-  id: string;
-  sourceId: string;
-  targetId: string;
-  sourceType?: RelationshipNodeType;
-  targetType?: RelationshipNodeType;
-  type: "belongs_to" | "depends_on" | "supports" | "blocks" | "evolves_into" | "related_to";
-  description: string;
+export interface AppState {
+  universes: Universe[];
+  thoughts: ThoughtItem[];
+  projects: Project[];
+  relationships: Relationship[];
+  aiInsights: AIInsight[];
+  blockingQuestions?: BlockingQuestion[];
+  decisionRecords?: DecisionRecord[];
+  engineeringReadiness?: EngineeringReadinessAssessment;
+  nextActionState?: NextActionState;
+}
+```
+
+tags: canonical definition, persisted state, status semantics, direct refs, relationship graph.
+
+### `src/domain/appState.ts`
+
+summary:
+
+- Central normalizer for runtime save, import/export, and storage.
+- Provides migration/default behavior for optional state.
+- Repairs relationship endpoint types only when endpoints resolve.
+- Does not repair direct Thought-Project drift and does not delete orphan relationships.
+- v0.2.3-rc2 made this path central; rc3 kept direct-ref import drift warning-only.
+
+```ts
+export function normalizeAppState(state: AppState): AppState {
+  const normalized = {
+    ...state,
+    blockingQuestions: normalizeBlockingQuestions(state.blockingQuestions),
+    decisionRecords: state.decisionRecords ?? [],
+    engineeringReadiness: normalizeEngineeringReadiness(state.engineeringReadiness),
+    nextActionState: normalizeNextActionState(state.nextActionState)
+  };
+
+  return repairRelationshipEndpointTypes(normalized).state;
+}
+```
+
+tags: validation owner, normalized state, persisted state.
+
+### `src/App.tsx`
+
+summary:
+
+- Runtime owner of live `AppState`.
+- Mutation coordinator: UI callbacks call domain helpers, then `save(result.state)`.
+- `save(next)` normalizes before runtime state and persistence, so runtime state and localStorage receive the same normalized object.
+- Import is full replace via AppStateTransfer `onImport`.
+- AI accepted/rejected status routes through `setAiInsightStatus`.
+- Current branch adds `AiChatDock` and `isAiChatDockOpen` UI state; this does not add AppState fields or call domain mutation/AI patch/import/relationship/normalization code.
+
+```ts
+const [state, setState] = useState<AppState>(() => loadState());
+const [isAiChatDockOpen, setIsAiChatDockOpen] = useState(false);
+
+const save = (next: AppState) => {
+  const normalized = normalizeAppState(next);
+
+  setState(normalized);
+  saveState(normalized);
+
+  return normalized;
+};
+
+const acceptAI = (aiId: string, status: "accepted" | "rejected") => {
+  const result = setAiInsightStatus(state, aiId, status);
+
+  if (result.statusChanged) {
+    save(result.state);
+  }
+};
+```
+
+tags: runtime owner, mutation coordinator, persistence caller, UI-only branch host.
+
+### `src/services/appStateTransfer.ts`
+
+summary:
+
+- Import/export JSON boundary.
+- Validates root object and required arrays, then normalizes and returns invariant warnings.
+- Not a full schema validator; many semantic issues are warning-only.
+- Export serializes normalized AppState.
+
+```ts
+export function validateAppState(value: unknown): AppStateImportResult {
+  if (!isRecord(value)) {
+    return { ok: false, error: "Imported JSON must be an object." };
+  }
+
+  const requiredArrays = ["universes", "thoughts", "projects", "relationships", "aiInsights"] as const;
+
+  for (const key of requiredArrays) {
+    if (!Array.isArray(value[key])) {
+      return { ok: false, error: `Missing or invalid array: ${key}` };
+    }
+  }
+
+  const state = normalizeAppState(value as unknown as AppState);
+
+  return {
+    ok: true,
+    state,
+    warnings: validateAppStateInvariants(state)
+  };
 }
 
-export type AIInsightPatchOperation =
-  | { type: "updateThought"; thoughtId: string; patch: Partial<ThoughtItem> }
-  | { type: "updateProject"; projectId: string; patch: Partial<Project> };
+export function stringifyAppState(state: AppState): string {
+  return JSON.stringify(normalizeAppState(state), null, 2);
+}
+```
 
+tags: import/export owner, validation owner, persisted state.
+
+### `src/services/storage.ts`
+
+summary:
+
+- localStorage load/save boundary.
+- Loads by parsing and calling `validateAppState`, falling back to normalized seed.
+- Saves normalized state.
+- Load warnings are not surfaced to UI.
+
+```ts
+export function loadState(): AppState {
+  const result = validateAppState(JSON.parse(raw));
+
+  return result.ok && result.state ? result.state : fallbackState();
+}
+
+export function saveState(state: AppState) {
+  storage.setItem(STORAGE_KEY, JSON.stringify(normalizeState(state), null, 2));
+}
+```
+
+tags: persistence owner, validation consumer.
+
+### `src/domain/projectThoughtLinks.ts`
+
+summary:
+
+- rc3 direct-reference mutation owner for `Thought.projectId` and `Project.linkedThoughtIds`.
+- Handles link, unlink, move, missing direct-ref cleanup, and missing sourceThought cleanup.
+- Does not touch `relationships[]`; direct membership and graph edges remain separate owners.
+- Unlink does not clear `Project.sourceThoughtId`.
+
+```ts
+export function linkThoughtToProjectReference(state: AppState, projectId: string, thoughtId: string): ProjectThoughtLinkResult {
+  // Validates project and thought, sets thought.projectId,
+  // adds project.linkedThoughtIds once, and removes stale linkedThoughtIds from other projects.
+}
+
+export function unlinkThoughtFromProjectReferences(state: AppState, thoughtId: string): ProjectThoughtLinkResult {
+  // Clears thought.projectId and removes the thought from all project.linkedThoughtIds.
+  // Does not clear Project.sourceThoughtId.
+}
+
+export function cleanupProjectThoughtReferences(state: AppState): ProjectThoughtLinkResult {
+  // Clears missing Thought.projectId, missing linkedThoughtIds, and missing sourceThoughtId.
+}
+```
+
+tags: mutation owner, direct refs, tested.
+
+### `src/domain/validation/appStateInvariants.ts`
+
+summary:
+
+- Warning-only invariant checker.
+- Reports duplicate IDs, invalid enums, missing relationships, direct missing refs, direct-ref drift, AI insight target issues, next action ref issues, invalid handoff-ready, and readiness drift.
+- Does not mutate and does not reject import by itself.
+
+```ts
+function checkThoughtProjectReferenceDrift(warnings: AppStateInvariantWarning[], state: AppState) {
+  // Thought.projectId without reciprocal Project.linkedThoughtIds -> thought_project_reference_drift.
+  // Project.linkedThoughtIds where thought.projectId points elsewhere -> thought_project_reference_drift.
+}
+
+function addAIInsightInvalidPatchTargetTypeWarning(...) {
+  warnings.push({
+    code: "invalid_patch_target_type",
+    severity: "warning",
+    entityType: "ai_insight",
+    field: "patch.targetType",
+    ...
+  });
+}
+```
+
+tags: validation owner, invariant warnings.
+
+### `src/components/layout/AiChatDock.tsx`
+
+summary:
+
+- Committed UI-only component on `ui/right-ai-chat-dock`.
+- Uses component/local/session/localStorage state for chat UI, prompt draft, selected model, API base URL, dock open preference, attachments, and session API key.
+- Receives derived counts and navigation callbacks from App.
+- Does not mutate AppState, apply AI patches, import/export AppState, normalize state, or mutate relationships/direct refs.
+- Keep chat history and API/session state out of AppState unless explicitly reviewed later.
+
+```ts
+export interface AiChatDockProps {
+  isOpen: boolean;
+  currentScreenLabel: string;
+  selectedProjectTitle?: string;
+  selectedThoughtTitle?: string;
+  aiDraftCount: number;
+  reviewQueueCount: number;
+  onOpenChange: (isOpen: boolean) => void;
+  onOpenAiPanel: () => void;
+  onOpenReviewQueue: () => void;
+}
+```
+
+tags: UI-only / non-domain, committed branch context.
+
+---
+
+## 3. Mutation Flow Map
+
+| Entrypoint | File | Mutates What | Direct or Indirect | Cross-Entity? | Touches Relationships? | Touches Direct Refs? | Touches Status/Readiness/Lifecycle? | Validation? | Hardening Status | Risk |
+| ---------- | ---- | ------------ | ------------------ | ------------- | ---------------------- | ------------------- | ----------------------------------- | ----------- | ---------------- | ---- |
+| `save(next)` | `src/App.tsx` | Runtime AppState + localStorage | Direct | Whole-state | Via normalization only | Via caller state only | Via caller state only | `normalizeAppState` | implemented + tested indirectly | Central coordinator can hide bypasses |
+| `loadState()` | `src/services/storage.ts` | Restored AppState | Direct restore | Whole-state | Repairs endpoint types | Retains direct drift | Restores semantic fields | `validateAppState` | implemented + tested | Load warnings not surfaced |
+| `saveState()` | `src/services/storage.ts` | localStorage snapshot | Direct persistence | Whole-state | Repairs endpoint types | Does not repair direct drift | Persists semantic state | `normalizeAppState` | implemented + tested | Snapshot is durable local source |
+| `parseAppStateJson` / `validateAppState` | `src/services/appStateTransfer.ts` | Imported AppState | Direct full replace via App | Whole-state | Repairs resolvable endpoint types; retains orphans | Retains drift with warning | Restores semantic state | shape check + invariants | implemented + tested | Shallow schema validation |
+| `stringifyAppState` | `src/services/appStateTransfer.ts` | Export JSON | Direct serialize | Whole-state | Repairs endpoint types in output | No direct-ref repair | Exports persisted semantic state | `normalizeAppState` | implemented + tested | Exports stored manual/semantic fields |
+| AppState import UI | `src/components/screens/AppStateTransfer.tsx` + `src/App.tsx` | Replaces current AppState | Direct full replace | Whole-state | Via transfer/save normalization | Retained or caller-provided | Full replace | transfer validation | implemented + tested | Warning details only shown as count |
+| `createThought` | `src/domain/mutations/appMutations.ts` | Adds thought | Indirect via App | No | No | No | `Thought.status = inbox` | title fallback | implemented | No reference validation for universeId |
+| `updateThought` | `src/domain/mutations/appMutations.ts` | Thought fields except projectId | Indirect | No | No | No | Thought status/type can update | empty title guard | implemented | Does not validate universeId refs |
+| `archiveThought` / `restoreThought` | `src/domain/mutations/appMutations.ts` | Thought status | Indirect | No | No | No | `Thought.status` | missing id guard | implemented + tested | Semantics spread through readers |
+| `deleteThought` | `src/domain/mutations/appMutations.ts` | Removes thought | Indirect | Yes | Removes graph edges touching thought | Clears project source/linked refs | Removes AI insight targets and next-action ids | missing id guard | implemented + tested | Cleanup distributed |
+| `archiveProject` / `restoreProject` | `src/domain/mutations/appMutations.ts` | Project status | Indirect | No | Preserved | Preserved | `Project.status` | missing id guard | implemented + tested | Status/lifecycle/readiness overlap |
+| `deleteProject` | `src/domain/mutations/appMutations.ts` | Removes project | Indirect | Yes | Removes graph edges touching project | Clears `thought.projectId` | Removes AI insight targets and next-action ids | missing id guard | implemented + tested | Cleanup distributed |
+| `createProject` | `src/domain/projectActions.ts` | Adds project and optional direct links | Indirect | Yes | No | Uses direct-ref helper | lifecycle planning, readiness computed | title guard; link helper endpoint guard | implemented + tested | Invalid initial linked ids ignored |
+| `updateProjectDetails` | `src/domain/projectActions.ts` | Project details/direct links/status/lifecycle/readiness | Indirect | Yes when linkedThoughtIds changes | No | Uses direct-ref helper | Blocks new `handoff_ready`; recomputes readiness unless explicit | title guard, handoff guard | implemented + tested | Allows explicit readiness patch |
+| `linkThoughtToProject` | `src/domain/projectActions.ts` | Thought.projectId + project linked ids | Indirect | Yes | No | Yes | updatedAt | endpoint guard | implemented + tested | Does not create graph edge |
+| `unlinkThoughtFromProject` | `src/domain/projectActions.ts` | Clears direct membership | Indirect | Yes | No | Yes | updatedAt | project/thought guard | implemented + tested | Leaves sourceThoughtId provenance |
+| `promoteThoughtToProject` | `src/domain/projectActions.ts` | Project, thought, sourceThoughtId, direct refs, relationship | Indirect | Yes | Creates typed `evolves_into` edge | Yes | Thought type/status; readiness | thought guard + relationship guard | implemented + tested | Multi-representation coupling |
+| `createRelationshipSafe` | `src/domain/relationshipExplorer.ts` | Adds relationship edge | Indirect | Yes | Creates graph edge | No | No | endpoint/type/duplicate guard | implemented + tested | Separate from direct refs |
+| `removeRelationshipsForNode` | `src/domain/relationships/relationshipGraph.ts` | Removes graph edges touching typed node | Indirect | Yes | Yes | No | No | typed endpoint matching | implemented + tested | Untyped same-id edge behavior needs care |
+| `repairRelationshipEndpointTypes` | `src/domain/relationships/relationshipGraph.ts` | Adds endpoint types to resolvable legacy edges | Indirect via normalize | Yes | Repairs relationship metadata | No | No | endpoint resolution | implemented + tested | Orphans retained |
+| `deleteUniverse` | `src/domain/universeActions.ts` | Removes universe; detach or block | Indirect | Yes | Removes graph edges | Clears universe refs in detach mode | Universe status via archive/restore | missing id/in-use guard | implemented + tested | Caller chooses detach vs block |
+| Blocking question actions | `src/domain/blockingQuestions.ts` | Blocking questions | Indirect | Delete yes | Delete removes graph edges | Clears decision source refs | Question status | missing id guard on delete; enum checks | implemented + tested | Link refs not validated on create/update |
+| Decision record actions | `src/domain/decisionRecords.ts` | Decisions; accept can resolve source question | Indirect | Accept/delete yes | Delete removes graph edges | Clears supersedes refs | Decision status; source question status | missing id guard on delete; enum checks | implemented + tested | Accept has hidden source-question coupling |
+| `markProjectHandoffReady` | `src/domain/engineeringHandoff.ts` | Project lifecycle/readiness | Indirect | Reads relationships/questions/thought refs | Reads graph edges | Reads direct refs | Sets `handoff_ready` and `ready_for_engineering` | handoff evaluation | implemented + tested | Guard semantics depend on derived readers |
+| `updateEngineeringReadinessAssessment` | `src/domain/engineeringReadiness.ts` | Persisted manual assessment | Indirect | No | No | No | Manual confidence/target phase | enum normalization | implemented + tested | Manual state overlaps derived readiness |
+| Next action preference actions | `src/domain/nextActions.ts` | Persisted next action ids/preferences | Indirect | No | No | No | Manual confidence/focus mode | normalization | implemented + tested | Stores ids derived from current views |
+| `completeNextAction` | `src/domain/nextActions.ts` | Clears thought/project nextAction or marks question in_review | Indirect | Sometimes | No | No | BlockingQuestion.status | source existence guard | implemented + tested | Derived action mutates source records |
+| `setNextActionForSource` | `src/domain/nextActions.ts` | Thought/project nextAction | Indirect | No | No | No | No direct status | source/type guard | implemented + tested | Bypasses primary projectActions for project nextAction |
+| `applyAiInsightPatch` | `src/domain/mutations/aiPatchMutations.ts` | Targeted thought/project descriptive fields; direct ref membership | Indirect through accept | Yes for Thought.projectId | Cannot create/delete graph edges | Uses direct-ref helper | Cannot directly set status/readiness/lifecycle | value/reference/target validation | implemented + tested | Separate from normal thought/project helpers |
+| `setAiInsightStatus` | `src/domain/mutations/aiPatchMutations.ts` | AIInsight.status plus optional patch effect | Indirect via App | Yes if patch does | No graph edge mutation | Yes for Thought.projectId patch | AIInsight status only | apply result gate | implemented + tested | UI callback currently returns void |
+| Review Queue AI accept | `src/components/screens/ReviewQueueCenter.tsx` | Calls AI status callback | Indirect | Depends on patch | Depends on patch | Depends on patch | AIInsight.status | no UI-level result | state safety implemented, UI feedback issue | Notice can be misleading |
+| Right AI dock | `src/App.tsx`, `src/components/layout/AiChatDock.tsx` | UI/session/localStorage keys only | Direct UI-only | No | No | No | No AppState status | UI checks only | UI-only / non-domain | Do not put chat state into AppState casually |
+| `validateAppStateInvariants` | `src/domain/validation/appStateInvariants.ts` | Does not mutate | None | Reads all | Reads graph | Reads direct refs | Reads semantic state | warning-only | implemented + tested | Warnings can be ignored |
+
+### Canonical Mutation Path
+
+- `src/App.tsx` remains the runtime mutation coordinator.
+- Domain mutation helpers are the actual authority for most architecture-sensitive mutations.
+- Save/persist order is `domain result/import result -> App.save -> normalizeAppState -> setState -> saveState -> normalizeAppState again inside saveState`.
+- AI patch does not use regular `updateThought` / `updateProjectDetails`; it has its own guarded boundary. That boundary is not an unsafe bypass because it validates values/references and uses `linkThoughtToProjectReference` for `Thought.projectId`.
+- AI patch direct Thought.projectId mutation is guarded and reciprocal.
+- Import is full replace, not merge.
+- Import order is JSON parse -> shallow root shape validation -> `normalizeAppState` -> `validateAppStateInvariants` warnings -> App `onImport` -> `save` -> runtime state + localStorage.
+- `projectThoughtLinks` is the primary owner for `Thought.projectId` / `Project.linkedThoughtIds`.
+- `relationshipGraph` remains the owner for `relationships[]`.
+
+Current ambiguity:
+
+- competing mutation paths: `nextActions` mutates `thought.nextAction`, `project.nextAction`, and blocking question status outside primary helpers.
+- hidden mutation coupling: decision acceptance can resolve a blocking question; project promotion writes project, thought, direct refs, and relationship.
+- mutation bypass: import full-replaces state after shallow validation; invariant warnings are non-blocking.
+- missing canonical helper: no single umbrella helper owns every cross-entity mutation; this is acceptable for now but must be respected.
+- direct-ref / relationship graph ownership ambiguity: separate persisted representations can drift if future code updates one and assumes the other follows.
+
+---
+
+## 4. Source-of-Truth / Authority Matrix
+
+| State / Concept | Canonical Definition | Runtime Owner | Allowed Mutation Owner | Validation Owner | Derived or Persisted | Current Ambiguity | Risk |
+| --------------- | -------------------- | ------------- | ---------------------- | ---------------- | -------------------- | ----------------- | ---- |
+| AppState | `src/domain/types.ts` | `src/App.tsx` | Domain helpers + import full replace via App | `appStateTransfer`, `appStateInvariants`, `appState` | Persisted | Runtime owner still top-level App | Central coordinator can accumulate rules |
+| Thought | `types.ts` | `App.tsx` | `appMutations`, `thoughtTriage`, `nextActions`, AI patch allowed fields | type unions + invariants | Persisted | Several helpers mutate different fields | Scattered validation |
+| Project | `types.ts` | `App.tsx` | `projectActions`, `appMutations`, `engineeringHandoff`, `nextActions`, AI patch allowed fields | type unions + projectSemantics + invariants | Persisted | status/readiness/lifecycle overlap | Contradictory states possible |
+| Universe | `types.ts` | `App.tsx` | `universeActions` | type unions + invariants | Persisted | Optional status default active | Delete mode caller-dependent |
+| relationship / graph edge | `types.ts` + `relationshipGraph.ts` | `App.tsx` | `relationshipGraph`, `relationshipExplorer`, promotion, delete cleanup | `relationshipGraph`, `appStateInvariants` | Persisted | Separate from direct refs | Orphan edge warning-only |
+| direct linked ids | `types.ts` | `App.tsx` | `projectThoughtLinks`, project actions, cleanup | `appStateInvariants` | Persisted | Not graph edges | Drift if raw object patched |
+| Thought.projectId | `types.ts` | `App.tsx` | `projectThoughtLinks`, AI patch via helper, delete cleanup | `appStateInvariants` | Persisted | Direct membership only | Drift if helper bypassed |
+| Project.linkedThoughtIds | `types.ts` | `App.tsx` | `projectThoughtLinks`, `projectActions`, delete cleanup | `appStateInvariants` | Persisted | Reciprocal direct membership | Drift if helper bypassed |
+| Project.sourceThoughtId | `types.ts` | `App.tsx` | promotion, AI project patch, cleanup for missing/deleted thought | `appStateInvariants` | Persisted provenance | Not active membership | Future unlink may clear incorrectly |
+| status | Entity type unions | `App.tsx` | Domain-specific helpers | semantic helpers + invariants | Persisted | Same word reused by entities | UI meaning can leak into domain |
+| lifecycleStatus | `ProjectLifecycleStatus` | `App.tsx` | `updateProjectDetails` except new handoff_ready; `markProjectHandoffReady` | projectSemantics + invariants | Persisted | Optional default planning | Guard must remain centralized |
+| readiness | `Readiness` + `readiness(project)` | `App.tsx` | `projectActions`, `engineeringHandoff`, AI project patch recompute | `readiness`, invariants | Persisted but recomputable | Stored readiness can drift | Warning-only drift |
+| review status | Derived item status | `reviewQueue.ts` | Source entity mutations only | reviewQueue + semantic helpers | Derived, not persisted as queue | Queue not canonical | UI feedback can mislead |
+| engineering readiness | `EngineeringReadinessAssessment` + derived summary | `App.tsx` | assessment action only for manual fields | `engineeringReadiness` | manual assessment persisted; summary derived | overlaps project readiness | User may treat summary as canonical |
+| blocking question status | `types.ts` | `App.tsx` | `blockingQuestions`, decision accept, nextAction complete | questionDecisionSemantics + invariants | Persisted | Multiple mutation owners | Status transitions need clearer semantics |
+| decision record status | `types.ts` | `App.tsx` | `decisionRecords` | questionDecisionSemantics + invariants | Persisted | Accept can mutate source question | Hidden coupling |
+| import state | JSON + AppState | `AppStateTransfer` then `App.tsx` | import full replace | transfer + invariants | Persisted after save | warnings not blockers | Invalid graph retained |
+| normalized state | `normalizeAppState` | `App.tsx` save/storage/transfer | normalizer only | normalizer | Runtime and persisted | Relationship repairs only, not direct drift repair | Users may expect repair |
+| invariant warning state | `appStateInvariants.ts` | None | Read-only | `appStateInvariants` | Derived output | Not persisted | Can be ignored |
+| AI patch state | `AIInsight.patch` | `App.tsx` | AI mock/import metadata, `setAiInsightStatus` apply | `aiPatchMutations`, invariants | Patch metadata persisted; apply result persisted only on accept | Invalid imported patch can exist as warning | UI must handle apply failure |
+| persisted state | localStorage under `todo-thought-universe:v1` | `storage.ts` | App save/import | transfer/normalizer | Persisted | No explicit schema version field | Compatibility risk |
+| derived UI state | components/hooks | component | UI only | none | Not persisted except UI localStorage keys | May be confused with AppState | Avoid domain leakage |
+| release metadata | package/git/docs | repo | release tasks only | git/package checks | Persisted repo metadata | rc labels not package-bumped after rc2 | Process drift |
+| tooling/check scripts | package scripts | package.json | release/tooling tasks | command output | Tooling metadata | check not executed here | False sense of verification |
+| AI dock UI/session state | `AiChatDock` component/localStorage/sessionStorage | component | component only | UI checks | UI-local, non-domain | committed UI branch, no domain owner | Do not store chat history in AppState casually |
+
+Who should not mutate directly:
+
+- UI components should not raw-edit `relationships[]`, `Thought.projectId`, `Project.linkedThoughtIds`, `AIInsight.status`, or `Project.lifecycleStatus = "handoff_ready"`.
+- Review queue should remain a derived consumer and should not become canonical state.
+- Generated artifacts should not be treated as architecture authority.
+
+---
+
+## 5. Relationship / Direct Reference Ownership Matrix
+
+| Relationship Type | Created By | Updated By | Deleted By | Cleanup Owner | Endpoint Integrity Rule | Delete Behavior | Import Behavior | AI Patch Behavior | Current Gap | Risk |
+| ----------------- | ---------- | ---------- | ---------- | ------------- | ----------------------- | --------------- | --------------- | ----------------- | ----------- | ---- |
+| `relationships[]` graph edge | `createTypedRelationship`, `createRelationshipSafe`, `promoteThoughtToProject` | endpoint type repair only | `removeRelationshipsForNode` during entity delete | `relationshipGraph` | create requires resolved typed endpoints; duplicate rejected | deleting node removes touching typed edges | resolvable endpoint types repaired; orphan/ambiguous retained with warning | AI cannot create/delete edges | separate from direct refs | Future code may assume graph edge creates membership |
+| Legacy untyped graph edge | seed/import legacy shape | `repairRelationshipEndpointTypes` if resolvable | same cleanup if touched by endpoint match | `relationshipGraph` | untyped same-id endpoints can be ambiguous | retained unless touched by delete cleanup | repaired if resolvable; missing/ambiguous retained | AI cannot create | ambiguous endpoint semantics | Same id across types can confuse cleanup/readers |
+| Thought-Project direct membership | `projectThoughtLinks`, project actions, AI Thought.projectId patch | same helpers | unlink/delete cleanup | `projectThoughtLinks` + `referenceCleanup` | `Thought.projectId` should be reciprocal with one project linkedThoughtIds entry | thought delete removes from projects; project delete clears thought.projectId | drift retained with warning; no repair | AI Thought.projectId uses helper and is atomic | separate from graph | Drift if helper bypassed |
+| Project.sourceThoughtId provenance | `promoteThoughtToProject`, AI project patch | AI project patch if valid | thought delete or cleanup when missing | `referenceCleanup`, `cleanupProjectThoughtReferences` | must reference existing thought if present | deleted thought clears matching provenance | missing source warning-only; cleanup helper can clear outside import | AI can set valid sourceThoughtId | provenance vs membership can be confused | Future unlink could erase history |
+| BlockingQuestion linked ids | question create/update/defaults | `updateBlockingQuestion` | entity delete cleanup | `referenceCleanup` | invariant warns missing refs | linked entity delete removes matching ids | missing refs warning-only | AI cannot mutate | create/update do not validate endpoints | Invalid refs can persist |
+| DecisionRecord linked ids | decision create/update/from question | `updateDecisionRecord` | entity delete cleanup | `referenceCleanup` | invariant warns missing refs | linked entity delete removes matching ids | missing refs warning-only | AI cannot mutate | create/update do not validate endpoints | Invalid refs can persist |
+| Decision source question | decision create/from question | limited through create input | `deleteBlockingQuestion` clears | `referenceCleanup` | invariant warns missing source | question delete clears | missing ref warning-only | AI cannot mutate | accept has hidden question coupling | Semantic surprise |
+| Decision supersedes link | supersede/create/update | `updateDecisionRecord` | `deleteDecisionRecord` clears reverse refs | `referenceCleanup` | invariant warns missing decision | deleted decision clears dependent refs | missing ref warning-only | AI cannot mutate | no formal decision graph | Status graph ambiguity |
+| Universe direct membership | thought/project universeId, linkedUniverseIds | entity/domain updates | `deleteUniverse(detach)` clears | `referenceCleanup` | invariant warns missing universe | blockIfInUse rejects; detach clears | missing ref warning-only | AI can update thought/project universeId after validation | question/decision update lacks endpoint validation | Orphan universe refs warning-only |
+| AIInsight target/patch targets | AI mock/import | status mutation only | thought/project delete filters target insights | `referenceCleanup`, invariants | target must exist by inferred/patch target type | deleting target removes matching insights | missing/invalid targets warning-only | invalid apply fails atomic | invalid metadata can persist as draft | UI must surface failure |
+| NextAction ids | next action pin/dismiss/focus | next action state actions | delete cleanup removes source action ids | `referenceCleanup`, invariants | encoded `prefix:id`; refs should resolve or be intrinsic | deleted source clears saved/dismissed/focus ids | missing refs warning-only | AI cannot mutate | review queue ids can disappear | Persisted preference ids stale |
+
+### Relationship Cleanup Ownership Rules
+
+- implemented + tested: graph edge cleanup for thought/project/universe/blocking question/decision record deletes goes through `removeRelationshipsForNode`.
+- implemented + tested: direct Thought-Project link/move/unlink uses `projectThoughtLinks` in project actions and AI Thought.projectId patches.
+- implemented + tested: delete cleanup clears stale direct refs, linked ids, AI insight targets, and next-action references through `referenceCleanup`.
+- implemented + tested: `Project.sourceThoughtId` is provenance; membership unlink does not clear it.
+- implemented + tested: import preserves orphan relationships and returns invariant warnings.
+- implemented + tested: import preserves direct-ref drift and returns `thought_project_reference_drift`.
+- inferred: future direct membership changes should use `projectThoughtLinks` even though raw object patches are still possible in TypeScript.
+- missing: no single source-owned relationship policy ties graph edges and direct refs into one representation; they remain separate owners.
+
+---
+
+## 6. Status Semantics Matrix
+
+| Field / Concept | Entity | File | Meaning | Allowed Values | Who Sets It | Who Reads It | Derived or Manual | Overlaps With | Guard | Risk |
+| --------------- | ------ | ---- | ------- | -------------- | ----------- | ------------ | ----------------- | ------------- | ----- | ---- |
+| `Thought.status` | Thought | `types.ts`, `appMutations.ts`, `thoughtTriage.ts` | Inbox/active/pause/done/archive state | `inbox`, `active`, `paused`, `done`, `archived` | thought mutations, triage | list filters, next actions, UI | Manual persisted | next action visibility | enum invariant | Split across helpers |
+| `Project.status` | Project | `types.ts`, `appMutations.ts`, `projectActions.ts` | Active vs archived | `active`, `archived` | project mutations/details | dashboards, handoff, review, semantics | Manual persisted | lifecycle/readiness | enum invariant | Archived ready projects possible |
+| `Project.lifecycleStatus` | Project | `types.ts`, `projectActions.ts`, `engineeringHandoff.ts` | Planning/blocked/handoff ready lifecycle | `planning`, `handoff_ready`, `blocked` | project details except new handoff_ready; handoff action | ProjectDetail, handoff, review, invariants | Manual persisted with default planning in helpers | status/readiness/handoff | guarded handoff action | Optional field can confuse |
+| `Project.readiness` | Project | `types.ts`, `readiness.ts`, `projectActions.ts` | Stored content readiness | `not_ready`, `needs_clarification`, `draftable`, `ready_for_engineering` | projectActions, handoff, AI project patch recompute | UI, review queue, invariants | Persisted but recomputable | engineering readiness, handoff readiness | readiness_drift warning | Stored value can drift |
+| `handoff_ready` | Project lifecycle | `engineeringHandoff.ts`, `projectActions.ts` | Passed guarded handoff evaluation | lifecycle value | `markProjectHandoffReady` for new transition | review queue, ProjectDetail, handoff center | Manual persisted after guard | readiness/status | direct update rejected | Future shortcut risk |
+| `BlockingQuestion.status` | BlockingQuestion | `blockingQuestions.ts`, `questionDecisionSemantics.ts` | Decision/question lifecycle | `open`, `in_review`, `resolved`, `archived` | question actions, decision accept, nextAction complete | review queue, engineering readiness, handoff blockers | Manual persisted | decision/review | enum invariant | Multiple mutation owners |
+| `DecisionRecord.status` | DecisionRecord | `decisionRecords.ts`, `questionDecisionSemantics.ts` | Decision lifecycle | `proposed`, `accepted`, `superseded`, `archived` | decision actions/review queue | review queue, decision center, question resolution | Manual persisted | blocking question resolution | enum invariant | Accept mutates source question |
+| EngineeringReadiness overall status | Derived summary | `engineeringReadiness.ts` | Whole app readiness phase | `not_ready`, `partially_ready`, `ready_to_prototype`, `ready_for_engineering` | derived only | readiness UI, next actions | Derived | Project.readiness/handoff | tests | Can be mistaken as persisted |
+| EngineeringReadiness assessment | AppState subobject | `engineeringReadiness.ts` | Manual note/confidence/phase | confidence low/medium/high; phase exploration/prototype/engineering | assessment action | readiness summary | Manual persisted | derived readiness | normalization | Manual fields affect derived status |
+| ReviewQueue item status | Derived item | `reviewQueue.ts` | Pending review source status | source status string | source entities | ReviewQueue UI/next actions | Derived | lifecycle/readiness/question/decision/AI statuses | semantic helpers | Not canonical |
+| `AIInsight.status` | AIInsight | `types.ts`, `aiPatchMutations.ts` | Draft/review decision | `draft`, `accepted`, `rejected` | `setAiInsightStatus` | AI panel, review queue | Manual persisted | review status | accept gated by patch apply | UI notice mismatch risk |
+| NextAction item status | Derived item | `nextActions.ts` | Available/blocked/completed recommendation | `available`, `blocked`, `completed` | derived | NextAction UI/dashboard | Derived | source statuses/readiness/review | derived helper | Not canonical |
+| NextActionState manual fields | AppState subobject | `nextActions.ts` | Persisted focus/dismissals/preferences | confidence/focus modes | next action actions | next action summary | Manual persisted | derived next actions | normalization + invariants | Persisted derived ids can stale |
+| Universe status | Universe | `types.ts`, `universeActions.ts` | Active/archived grouping | `active`, `archived`, optional default active | universe actions | options/filters | Manual persisted optional | none | optional enum invariant | Hidden default |
+
+### Canonical Status Interpretation Table
+
+Current state: no complete canonical status semantics found.
+
+Partial canonical helpers:
+
+| Helper File | Canonicalizes | Limit |
+| ----------- | ------------- | ----- |
+| `src/domain/semantics/statusSemantics.ts` | Thought archived/active/paused/inbox; universe active/archived; AI draft review visibility. | Does not cover projects/questions/decisions. |
+| `src/domain/semantics/projectSemantics.ts` | Project active/archived, lifecycle default, lifecycle blocked/handoff, readiness predicates, handoff review visibility. | Does not own mutation guard. |
+| `src/domain/semantics/questionDecisionSemantics.ts` | Blocking question unresolved/resolved/review/next action; decision pending/accepted/review. | Does not include AI/project status details. |
+| `src/domain/reviewQueue.ts` | Review queue item construction and pending item rules. | Derived, not canonical state. |
+| `src/domain/engineeringReadiness.ts` | App-wide readiness synthesis. | Derived summary with manual assessment overlap. |
+| `src/domain/engineeringHandoff.ts` | Project handoff guard semantics. | Project-specific. |
+
+Needs later canonicalization without behavior redesign:
+
+- precedence between `Project.status`, `Project.lifecycleStatus`, stored `Project.readiness`, computed `readiness(project)`, and handoff evaluation.
+- whether stored `Project.readiness` is authoritative or cached.
+- source of truth for review visibility when AI patch is invalid.
+- whether next-action source mutations should route through primary domain helpers.
+
+---
+
+## 7. Runtime vs Derived State Boundary Map
+
+| State | Persisted? | Derived From | Runtime Owner | Can Be Mutated Directly? | Should Be Recomputed? | Current Enforcement | Risk |
+| ----- | ---------- | ------------ | ------------- | ------------------------ | --------------------- | ------------------- | ---- |
+| AppState root | Yes | N/A | `App.tsx` | Only through `save`/import reset | No | type + normalizer | Full replace import can carry warnings |
+| Relationship graph nodes/edges view | No | entities + `relationships[]` | `relationshipGraph.ts` readers | No | Yes | pure readers/tests | Missing nodes visible as derived "Missing node" |
+| `relationships[]` | Yes | relationship actions/import | `App.tsx` | Only graph helpers/promotion/delete cleanup | No | helper ownership | Orphans retained |
+| Direct Thought-Project refs | Yes | domain/AI actions | `App.tsx` | Use helper only | No, except cleanup | helper/tests/invariants | Separate from graph |
+| `Project.sourceThoughtId` | Yes | promotion/provenance | `App.tsx` | promotion/validated AI/cleanup | No | tests/invariants | Confused with membership |
+| Review queue | No | AI drafts, decisions, blockers, handoff candidates | `reviewQueue.ts` | No | Yes | pure helper/tests | UI can present wrong notice |
+| Project content readiness | Stored and derived | Project fields | `readiness.ts` + Project | Stored can mutate through owner helpers | Yes for display/checks | readiness_drift invariant | Persisted drift warning-only |
+| Engineering readiness summary | No | AppState + assessment + review/orphans | `engineeringReadiness.ts` | No | Yes | pure helper/tests | Semantic overlap with project readiness |
+| Engineering readiness assessment | Yes | Manual user state | `engineeringReadiness.ts` | Via update action | No | normalization/tests | Manual state affects derived readiness |
+| Next action list | No | thoughts/projects/questions/review/readiness | `nextActions.ts` | No | Yes | pure helper/tests | Derived action can mutate source state |
+| NextActionState | Yes | user preferences over derived ids | `nextActions.ts` | Via next action actions | Normalize | normalization/invariants | Derived ids can stale |
+| Imported normalized values | Yes after save | import JSON + normalizer | `App.tsx` | Full replace | normalize before use | transfer + App save | Shallow shape validation |
+| Invariant warning output | No | normalized AppState | `appStateInvariants.ts` | No | Yes | transfer returns warnings | UI count only |
+| Persisted snapshots | Yes localStorage | normalized AppState | `storage.ts` | Via `saveState` only | normalize before write | tests | No explicit schema version field |
+| AI patch output | Only if accepted and saved | AIInsight.patch | `aiPatchMutations` + App | Via `setAiInsightStatus` | No | validation/tests | UI callback lacks result |
+| AIInsight patch metadata | Yes | AI mock/import | AppState | Created by AI mock/import | Not recomputed | invariants | Invalid metadata can persist warning-only |
+| AI dock open/chat/model/prompt/api/attachment state | UI local/session/localStorage only | UI interaction | `AiChatDock` | UI only | No | component checks | Must not enter AppState casually |
+| Release metadata | Git/package/docs | package/git | repo | release task only | No | package/git checks | rc labels can drift from package |
+| Tooling/check status | No | command outcome | tooling | No | run when needed | script exists | Not run here |
+
+Boundary warnings:
+
+- Derived state should not be persisted as canonical unless it is an intentional manual preference/assessment.
+- Import normalizes into runtime and persists; invalid graph/direct-ref cases can remain as warning-bearing user data.
+- AI dock/session state is UI-only. Do not store chat history, API key state, prompt drafts, or attachments in AppState without explicit product/domain review.
+
+---
+
+## 8. Import / Export / Persistence Lifecycle Flow
+
+```txt
+export -> serialized shape -> persisted file/storage -> import -> shape validation -> normalization -> invariant validation/warnings -> AppState replacement/merge -> runtime save -> persistence -> runtime use
+```
+
+| Stage | File | Input Shape | Output Shape | Validation | Normalization | Repair Behavior | Warning Behavior | Rejection Behavior | Compatibility Handling | Risk |
+| ----- | ---- | ----------- | ------------ | ---------- | ------------- | --------------- | ---------------- | ------------------ | ---------------------- | ---- |
+| export JSON string | `appStateTransfer.ts#stringifyAppState` | AppState | pretty JSON | none beyond TypeScript | `normalizeAppState` | relationship endpoint type repair if resolvable | none returned | none | optional legacy fields defaulted | exports manual semantic state too |
+| download/copy UI | `AppStateTransfer.tsx` | JSON string | file/clipboard | none | already normalized | none | none | import errors only | full AppState UX | not architecture owner |
+| localStorage save | `storage.ts#saveState` | AppState | normalized JSON | none beyond caller | `normalizeAppState` | endpoint type repair | none surfaced | catches storage errors | local-first safe fallback | silent persistence failure |
+| localStorage load | `storage.ts#loadState` | raw JSON | AppState | `validateAppState` | through validate path | endpoint type repair | warnings not surfaced | malformed/invalid shape -> normalized seed | optional legacy state initialized | warning visibility missing |
+| parse import | `parseAppStateJson` | text JSON | result object | JSON parse | later | none | parse error as error | invalid JSON rejected | N/A | JSON only |
+| shape validation | `validateAppState` | unknown | AppStateImportResult | root object; required arrays; optional arrays/objects | after shallow checks | none yet | none yet | missing required arrays rejected | optional additive fields tolerated | shallow cast |
+| normalization | `normalizeAppState` | cast AppState | normalized AppState | none | defaults optional state; endpoint repair | resolvable relationship endpoint types repaired | relationship repair warnings discarded here; invariants catch health later | no rejection | legacy additive fields defaulted | direct-ref drift not repaired |
+| invariant warnings | `validateAppStateInvariants` | normalized state | warning list | enum/refs/relationships/AI/nextAction/handoff/readiness | none | none | missing refs, orphans, invalid patch target type, drift, readiness drift | no rejection | warning-only compatibility | warnings can be ignored |
+| UI import | `AppStateTransfer.tsx` | result.state | calls `onImport` | result.ok check | already normalized | none | message shows count only | parse/shape errors shown | full replace wording | warning details not displayed |
+| App import save | `App.tsx` | imported state | runtime/persisted normalized state | save normalizer | `normalizeAppState` again | endpoint type repair | none surfaced | none | resets selected ids | full replace, not merge |
+| runtime use | `App.tsx` + readers | normalized AppState | UI/derived state | reader-specific | reader-specific | none | invariant warnings not automatic | none | local-first app | retained invalid graph can affect views |
+
+Direct answers:
+
+- Import is full replace, not merge.
+- Import normalizes relationships by repairing resolvable endpoint types, but it does not delete orphan relationships.
+- Import validates entity references as invariant warnings, not as rejection for most cross-entity problems.
+- Invariant warnings are returned as `warnings` from `validateAppState` and counted in `AppStateTransfer` UI.
+- Orphan relationships are retained + warning, not repaired/deleted/rejected.
+- Direct-ref drift is retained + `thought_project_reference_drift` warning, not repaired/deleted/rejected.
+- Invalid imported `AIInsight.patch.targetType` is warning-only: `invalid_patch_target_type`.
+- Export includes persisted semantic/manual state (`Project.readiness`, `AIInsight.status`, `engineeringReadiness`, `nextActionState`) but not derived review queue items or computed summaries.
+- Persistence saves semantic state because it serializes normalized AppState.
+- Legacy schema handling exists through optional/default normalizers for blocking questions, decisions, engineering readiness, next action state, and relationship endpoint type repair.
+- Round-trip safety is tested for current shape and legacy optional fields, but no explicit schema version migration exists.
+- Invalid graph is warning-retained, not rejected.
+- Runtime save normalizes before runtime state and persistence.
+
+---
+
+## 9. AI Patch Apply Safety Boundary
+
+| Stage | File | Input | Allowed Mutation | Forbidden / Risky Mutation | Validation | Atomicity | Hardening Status | Risk |
+| ----- | ---- | ----- | ---------------- | -------------------------- | ---------- | --------- | ---------------- | ---- |
+| facade | `src/services/applyAiPatch.ts` | service import | re-export only | none | none | n/a | implemented | no independent logic |
+| status entry | `aiPatchMutations.ts#setAiInsightStatus` | AppState, aiId, accepted/rejected | reject -> mark rejected; accept -> apply patch then mark accepted; no-patch accept -> mark accepted | invalid patch must not mark accepted | insight lookup, apply result | invalid patch returns original state/status unchanged | implemented + tested | UI callback void |
+| patch dispatch | `applyAiInsightPatch` | AIInsight.patch | target thought/project only | unsupported target type, missing target, empty targetId | targetType/targetId | failure returns original state | implemented + tested | imported invalid metadata can persist |
+| Thought patch validation | `validateThoughtPatch` | operation.patch | `title`, `content`, `type`, `universeId`, `projectId`, `why`, `outcome`, `nextAction` | `id`, `createdAt`, `status`, relationships, timestamps | string/type/ref/archive checks | validation happens before apply | implemented + tested | AI cannot unlink projectId because empty rejected |
+| Project patch validation | `validateProjectPatch` | operation.patch | `name`/`title`, `intent`, `nextAction`, `universeId`, `sourceThoughtId` | `status`, `readiness`, `lifecycleStatus`, `linkedThoughtIds`, relationships, timestamps | string/ref checks | validation happens before apply | implemented + tested | sourceThought provenance can be updated by AI if valid |
+| Thought apply | `applyAiInsightPatch` | accumulated patch | targeted field update + `updatedAt`; projectId via `linkThoughtToProjectReference` | direct relationship mutation | helper validation | if helper fails returns original state | implemented + tested | separate from regular updateThought |
+| Project apply | `applyAiInsightPatch` | accumulated patch | targeted field update + recomputed readiness | direct status/lifecycle/readiness | helper validation | failure returns original state | implemented + tested | no direct linkedThoughtIds mutation |
+| Review Queue accept UI | `ReviewQueueCenter.tsx` | click Accept | calls `onSetAiInsight(id, "accepted")` | UI assumes success | none at UI layer | state safety in callback only | partially enforced | misleading success notice |
+
+Direct answers:
+
+- AI patch can update thoughts and projects only.
+- AI patch cannot directly update status/readiness/lifecycle, except it recomputes `Project.readiness` after allowed project field changes.
+- AI patch cannot create/delete relationships.
+- AI patch has its own guarded path rather than normal project/thought helper path.
+- AI patch uses allowed-key filtering plus value/reference validation.
+- AI patch validates thought/project/universe/source thought references and rejects archived project membership.
+- AI patch does not validate relationship endpoints because it cannot mutate relationships.
+- AI Thought.projectId causes hidden cross-entity mutation by design, but this goes through `linkThoughtToProjectReference` and is tested.
+- AI patch failure is atomic externally: invalid/no-op/missing-target returns original state and does not mark accepted.
+- Imported invalid patch targetType does not fail import; apply would reject unsupported target type.
+- AI dock UI/API panel is separate from AI patch apply path. It sends chat completion requests and stores UI-only session/local state; it does not create `AIInsight.patch` or call `setAiInsightStatus`.
+
+### AI Mutation Restrictions
+
+| Restriction | Status | Evidence | Notes |
+| ----------- | ------ | -------- | ----- |
+| AI cannot mutate ids/timestamps | implemented + tested | `disallowed_field:id`, `createdAt` tests | warnings, valid allowed fields may still apply |
+| AI cannot mutate Thought.status | implemented + tested | no allowed changes test | status remains unchanged |
+| AI cannot mutate Project.status/readiness/lifecycleStatus | implemented + tested | applyAiPatch test | readiness recomputes only from allowed project changes |
+| AI cannot mutate relationships[] | implemented | no operation supports relationships | no direct relationship test needed because impossible by type/path |
+| AI validates Thought.type | implemented + tested | invalid type test | rejects invalid enum |
+| AI validates universe refs | implemented + tested | missing universe tests | thought/project universeId |
+| AI validates Thought.projectId refs | implemented + tested | missing/archived/empty tests | active project required |
+| AI Thought.projectId keeps reciprocal direct refs | implemented + tested | link/move/no stale tests | uses `projectThoughtLinks` |
+| AI can set valid Project.sourceThoughtId | implemented + tested | sourceThoughtId test | provenance only |
+| Invalid AI patch not accepted | implemented + tested | setAiInsightStatus invalid title test | `statusChanged: false` |
+| No-patch AI insight can be accepted | implemented + tested | non-patch insight test | review decision only, no state patch |
+| Review Queue UI reflects invalid accept failure | missing / UI-only | callback is void | non-blocking state safety follow-up |
+
+Future LLM caution: do not add relationship creation, status changes, lifecycle changes, or chat-dock request output directly into AI patch apply without new validation and tests.
+
+---
+
+## 10. Cross-Entity Mutation Coupling Map
+
+| Action / Function | File | Mutates Entities | Also Mutates Relationships? | Also Mutates Direct Refs? | Also Mutates Status? | Hidden Coupling | Current Guard | Risk |
+| ----------------- | ---- | ---------------- | --------------------------- | ------------------------- | -------------------- | --------------- | ------------- | ---- |
+| `deleteThought` | `appMutations.ts` | thoughts, projects, questions, decisions, aiInsights, nextActionState | removes touching edges | clears source/linked thought refs | removes target insights/preferences | broad cleanup | missing id guard + tests | cleanup omissions if new refs added |
+| `deleteProject` | `appMutations.ts` | projects, thoughts, questions, decisions, aiInsights, nextActionState | removes touching edges | clears thought.projectId | removes target insights/preferences | broad cleanup | missing id guard + tests | cleanup omissions if new refs added |
+| `deleteUniverse(detach)` | `universeActions.ts` | universes, thoughts, projects, questions, decisions | removes touching edges | clears universe refs | n/a | mode-dependent cleanup | in-use guard or detach | caller may choose wrong mode |
+| `deleteBlockingQuestion` | `blockingQuestions.ts` | questions, decisionRecords, nextActionState | removes touching edges | clears decision source refs | n/a | decision source cleanup | missing id guard + tests | future source refs need cleanup |
+| `deleteDecisionRecord` | `decisionRecords.ts` | decisionRecords | removes touching edges | clears supersedes refs | n/a | reverse decision cleanup | missing id guard + tests | no formal decision graph |
+| `promoteThoughtToProject` | `projectActions.ts` | project + thought | creates `evolves_into` | sourceThoughtId + membership refs | thought type/status | creates both graph and direct refs | thought guard + tests | representation drift risk |
+| `linkThoughtToProjectReference` | `projectThoughtLinks.ts` | thoughts + projects | no | reciprocal refs | updatedAt | removes stale old project links | endpoint guards + tests | graph edge not updated |
+| `unlinkThoughtFromProjectReferences` | `projectThoughtLinks.ts` | thoughts + projects | no | clears membership only | updatedAt | preserves sourceThoughtId | thought guard + tests | future code may expect source cleared |
+| `updateProjectDetails(linkedThoughtIds)` | `projectActions.ts` | project + thoughts + projects | no | link/unlink/move refs | readiness/lifecycle/status may change | field patch can trigger membership moves | handoff guard + tests | explicit readiness patch |
+| `acceptDecisionRecord` | `decisionRecords.ts` | decision + source question | no | no | decision accepted, question resolved | accept can resolve source question | tests | semantic surprise |
+| `markProjectHandoffReady` | `engineeringHandoff.ts` | project | no | reads refs | lifecycle/readiness | derived guard reads relationships/questions | evaluation tests | guard drift if semantics change |
+| `completeNextAction` | `nextActions.ts` | thought/project/question | no | no | question may become in_review | derived action mutates source | source guards | bypasses primary helpers |
+| `setNextActionForSource` | `nextActions.ts` | thought/project | no | no | no | derived UI action writes source | source guards | bypasses primary helpers |
+| `applyAiInsightPatch` | `aiPatchMutations.ts` | thought/project; direct refs | no | projectId helper | project readiness recompute | patch can move membership | value/ref validation | separate mutation path |
+| import full replace | `appStateTransfer.ts`, `App.tsx` | whole AppState | repairs endpoint types only | retains direct refs | restores all statuses | imported state becomes runtime | shape + warnings | warning-only invalid state |
+| normalization | `appState.ts` | optional state defaults, relationship endpoint metadata | repairs endpoint type metadata | no direct-ref repair | normalizes manual settings | repair without warning return | tests | user may expect more repair |
+| persistence restore | `storage.ts` | whole AppState | same as import | same as import | restores statuses | localStorage becomes runtime | fallback on invalid shape | warnings hidden |
+
+Hidden coupling to watch:
+
+- `promoteThoughtToProject` is the only routine intentionally creating both direct refs and a relationship edge.
+- `acceptDecisionRecord` mutates another entity type.
+- `nextActions` is derived-state code that can mutate source records.
+- AI Thought.projectId patch causes cross-entity direct-ref mutations by design.
+
+---
+
+## 11. Invariant Risk Map
+
+| Invariant | Current Enforcement Location | Enforcement Status | Test Coverage | Missing Enforcement | Can Be Violated By | Risk | Recommended Enforcement Layer |
+| --------- | ---------------------------- | ------------------ | ------------- | ------------------- | ------------------ | ---- | ----------------------------- |
+| AppState shape must be valid | `appStateTransfer`, `storage` | partially enforced | transfer/storage tests | deep schema validation | import/localStorage | malformed semantic fields | import boundary |
+| relationship endpoints must exist | `relationshipGraph`, `appStateInvariants` | partially enforced | relationship/invariant tests | import rejection | import/manual bad data | orphan edges retained | invariant warnings + UI health |
+| linked ids must reference existing entities | `appStateInvariants`, `referenceCleanup` | partially enforced | invariant/delete tests | create/update endpoint validation | question/decision updates/import | warning-only invalid refs | mutation owner or invariant |
+| Thought.projectId and Project.linkedThoughtIds reciprocal | `projectThoughtLinks`, invariants | implemented + tested | projectThoughtLinks/projectActions/AI/invariant tests | raw patch prevention | future direct object patch/import | drift warning-only | direct-ref helper + tests |
+| Project.sourceThoughtId provenance not active membership | `projectThoughtLinks`, tests | implemented + tested | unlink/source provenance tests | formal doc in source | future unlink changes | provenance loss | direct-ref helper docs/tests |
+| entity delete must not leave orphan references | `referenceCleanup`, `relationshipGraph` | implemented + tested | appMutations/universe/question/decision tests | future new ref fields | new entity refs | stale state | delete cleanup owner |
+| relationship cleanup deterministic | `removeRelationshipsForNode` | implemented + tested | relationshipGraph tests | full typed policy doc | same-id untyped edges | wrong edge removal/retention | relationshipGraph |
+| direct-ref cleanup deterministic | `projectThoughtLinks`, `referenceCleanup` | implemented + tested | direct-ref tests | import repair choice | raw mutation/import | drift | projectThoughtLinks |
+| missing-id delete must not mutate state | domain action guards | implemented + tested | delete tests | none known | future delete actions | data loss | mutation owner |
+| derived state should not be directly mutated | semantic/derived helpers | partially enforced | helper tests | architectural lint/rule | UI code storing summaries | stale persisted values | docs + review |
+| import must normalize or warn invalid graph | transfer + invariants | implemented + tested | transfer/invariant tests | warning details UI | import | hidden warnings | import UI |
+| import must not silently delete orphan relationships | relationshipGraph + tests | implemented + tested | transfer/invariant tests | none known | normalizer changes | data loss | appState normalizer tests |
+| import must not throw on invalid AI patch targetType | invariants | implemented + tested | invariant test | none known | bad import | import failure | invariant checker |
+| AI patch must not bypass invariants | aiPatchMutations | implemented + tested | applyAiPatch tests | no global invariant run after apply | future patch types | unsafe mutation | AI patch boundary |
+| invalid AI patch must not be marked accepted | setAiInsightStatus | implemented + tested | applyAiPatch tests | UI feedback result | review queue UI | user confusion | callback result propagation |
+| AI patch Thought.projectId no stale linkedThoughtIds | projectThoughtLinks in AI patch | implemented + tested | applyAiPatch tests | none known | helper bypass | direct drift | helper |
+| status/readiness/lifecycle not contradictory | invariants/semantics | partially enforced | status/handoff/invariant tests | complete canonical semantics | project update/import | inconsistent UI | semantic table + invariant |
+| handoff_ready only guarded | `projectActions`, `engineeringHandoff` | implemented + tested | projectActions/handoff tests | import can still carry handoff_ready with warning only | import/raw state | warning-bearing inconsistent lifecycle | mutation guard + import warning |
+| review state must not redefine lifecycle | reviewQueue derived only | partially enforced | reviewQueue tests | explicit docs | future persisted queue | semantic drift | reviewQueue boundary |
+| persisted state round-trip safe | transfer/storage tests | implemented + tested for current cases | many transfer tests | explicit schema migration | future shape change | localStorage breakage | transfer/storage |
+| legacy import compatible or explicit | normalizers | implemented + tested for known optional fields | transfer/storage tests | schema versioning | future removals | silent default changes | appState normalizer |
+| UI-only AI panel/chat state must not mutate AppState | AiChatDock source inspection | implemented for current branch | no domain tests | formal boundary test | future AI dock changes | domain pollution | component boundary + tests |
+
+---
+
+## 12. Dangerous Drift Hotspots
+
+### `src/App.tsx`
+
+- why dangerous: runtime AppState owner and mutation coordinator.
+- invariant it can break: normalization-before-state/persistence, import full replacement, AI accept gating, UI-only vs domain state boundary.
+- future LLM might misunderstand: because App imports many helpers, it may look like domain authority; it is the coordinator, not the source of all rules.
+- safer in rc2: `save` normalizes before `setState` and `saveState`.
+- safer in current branch: AI dock state is UI-only and not AppState.
+- do not change casually: `save`, `acceptAI`, `onImport`, delete handlers, handoff handler.
+- safe later modification: keep domain logic in domain helpers, return action results to UI, preserve normalization.
+
+### `src/domain/types.ts`
+
+- why dangerous: persisted shape and compile-time authority.
+- invariant it can break: localStorage/import/export compatibility.
+- future LLM might misunderstand: type changes are migrations, not cosmetic edits.
+- safer in rc2/rc3: AppState shape supports warning/normalization and direct refs.
+- do not change casually: optional vs required fields, status unions, AI patch types.
+- safe later modification: add backwards-compatible optional fields and tests first.
+
+### `src/domain/appState.ts`
+
+- why dangerous: central normalizer.
+- invariant it can break: import/save behavior, orphan retention, endpoint repair.
+- future LLM might misunderstand: normalization is not a place to delete user data.
+- safer in rc2: runtime/import/storage use this normalizer.
+- rc3 boundary: direct-ref drift remains warning-only, not repaired.
+- do not change casually: relationship orphan retention.
+- safe later modification: add focused migration with transfer/storage tests.
+
+### `src/services/appStateTransfer.ts`
+
+- why dangerous: import validation and export serialization.
+- invariant it can break: full replace, warnings, legacy compatibility.
+- future LLM might misunderstand: `validateAppState` is shallow by design.
+- safer in rc2: returns invariant warnings.
+- do not change casually: warning-return behavior and normalization order.
+- safe later modification: add narrow warning details UI or schema guard tests.
+
+### `src/services/storage.ts`
+
+- why dangerous: localStorage durable state.
+- invariant it can break: reload compatibility and fallback safety.
+- safer in rc2: load validates/normalizes; save normalizes.
+- do not change casually: storage key, fallback behavior.
+- safe later modification: introduce migration/versioning only with storage tests.
+
+### `src/domain/validation/appStateInvariants.ts`
+
+- why dangerous: import health claims and warning semantics.
+- invariant it can break: orphan relationship warning, direct-ref drift warning, invalid AI patch target warning.
+- future LLM might misunderstand: warnings are not rejection.
+- safer in rc2/rc3: invalid patch target and direct drift coverage.
+- do not change casually: warning-only behavior and non-mutating checker.
+- safe later modification: add warnings, not destructive repairs, unless explicitly requested.
+
+### `src/domain/mutations/aiPatchMutations.ts`
+
+- why dangerous: untrusted AI-to-state boundary.
+- invariant it can break: status/lifecycle/readiness safety, atomic failure, direct-ref consistency.
+- future LLM might misunderstand: allowed keys are not enough; value/reference validation matters.
+- safer in rc2: validation and unified accepted/rejected status.
+- safer in rc3: Thought.projectId uses direct-ref helper.
+- do not change casually: allowed fields, fail returns original state, accepted marking order.
+- safe later modification: add one patch capability at a time with invalid and atomic tests.
+
+### `src/domain/projectThoughtLinks.ts`
+
+- why dangerous: reciprocal direct membership owner.
+- invariant it can break: stale old `linkedThoughtIds`, duplicated links, sourceThought provenance.
+- safer in rc3: explicit helper and tests.
+- do not change casually: move semantics, unlink preserving sourceThoughtId, no relationship mutation.
+- safe later modification: keep helper pure and add direct tests.
+
+### `src/domain/projectActions.ts`
+
+- why dangerous: project details, direct refs, readiness, lifecycle, promotion.
+- invariant it can break: handoff guard, direct-ref consistency, graph/direct-ref separation.
+- safer in rc2/rc3: handoff shortcut blocked; link/unlink/move uses helper.
+- do not change casually: `updateProjectDetails` handoff guard, promotion relationship creation, linkedThoughtIds handling.
+- safe later modification: route new membership behavior through `projectThoughtLinks`.
+
+### `src/domain/mutations/referenceCleanup.ts`
+
+- why dangerous: cross-entity cleanup owner.
+- invariant it can break: delete must not leave stale refs.
+- safer in rc2/rc3: direct refs, sourceThoughtId, linked ids, AI insights, next action ids cleaned.
+- do not change casually: provenance cleanup vs unlink behavior.
+- safe later modification: add new entity refs here when adding any new persisted cross-ref.
+
+### `src/domain/relationships/relationshipGraph.ts`
+
+- why dangerous: graph edge authority and endpoint repair.
+- invariant it can break: orphan retention, typed endpoint matching, duplicate prevention.
+- safer in rc2: typed endpoints, repair, remove helpers.
+- do not change casually: `repairRelationshipEndpointTypes`, `removeRelationshipsForNode`, ambiguous endpoint handling.
+- safe later modification: add relationship types/node types with tests.
+
+### `src/domain/engineeringHandoff.ts`
+
+- why dangerous: guarded `handoff_ready` authority.
+- invariant it can break: lifecycle/readiness semantics.
+- safer in rc2: guarded action and tests.
+- do not change casually: `markProjectHandoffReady` readiness check.
+- safe later modification: adjust evaluation with tests covering blocked/archive/question/relationship cases.
+
+### `package.json`
+
+- why dangerous: local verification/release signal.
+- rc4: `typecheck` and `check` exist.
+- do not change casually: `check` composition unless release/tooling task.
+- safe later modification: lint addition only with config and docs.
+
+### `docs/release/v0.2.3-rc2.md` and `docs/architecture/**`
+
+- why dangerous: can mislead future LLMs if treated as source.
+- stale/conflict: rc2 doc says tag not applied and generated outputs dirty; architecture docs say staged/uncommitted in places.
+- safe later modification: source-backed doc freshness pass only.
+
+### `src/components/layout/AiChatDock.tsx`
+
+- why dangerous: looks AI-related but is not AI patch/domain logic.
+- invariant it can break if expanded badly: UI-only chat/session state must not enter AppState and must not bypass AI patch review.
+- current branch: committed UI-only/non-domain.
+- do not change casually: do not wire model responses into `AIInsight` or AppState without validation/review.
+- safe later modification: keep API/chat/session state local, add explicit domain bridge only with tests.
+
+---
+
+## 13. Domain Ownership Map
+
+| Domain Area | Canonical File | Runtime Owner | Mutation Owner | Validation Owner | Test Coverage | Current Ambiguity |
+| ----------- | -------------- | ------------- | -------------- | ---------------- | ------------- | ----------------- |
+| AppState | `src/domain/types.ts` | `src/App.tsx` | App save/import + domain helpers | `appStateTransfer`, `appState`, invariants | transfer/storage/e2e | source type vs runtime owner |
+| graph | `relationshipGraph.ts` | `App.tsx` | relationshipGraph helpers | relationshipGraph + invariants | relationshipGraph/Explorer tests | separate from direct membership |
+| relationships | `types.ts`, `relationshipGraph.ts` | `App.tsx` | create/remove/repair helpers | relationshipGraph + invariants | relationship tests | orphan retained warning-only |
+| direct refs | `types.ts`, `projectThoughtLinks.ts` | `App.tsx` | projectThoughtLinks/projectActions/AI patch/cleanup | invariants | direct-ref/project/AI tests | raw object patch possible |
+| projects | `types.ts` | `App.tsx` | projectActions/appMutations/handoff/nextActions/AI patch | projectSemantics/readiness/invariants | project/handoff/status tests | readiness/lifecycle/status overlap |
+| thoughts | `types.ts` | `App.tsx` | appMutations/thoughtTriage/nextActions/AI patch | statusSemantics/invariants | appMutations/triage/AI tests | projectId not in regular updateThought |
+| universes | `types.ts` | `App.tsx` | universeActions | statusSemantics/invariants | universe tests | delete mode choice |
+| blocking questions | `types.ts` | `App.tsx` | blockingQuestions/decisionRecords/nextActions | questionDecisionSemantics/invariants | blocking/decision/status tests | status owners overlap |
+| decision records | `types.ts` | `App.tsx` | decisionRecords | questionDecisionSemantics/invariants | decision tests | accept resolves question |
+| readiness/review | `readiness.ts`, `reviewQueue.ts`, `engineeringReadiness.ts` | derived consumers | source entity actions + assessment actions | semantic helpers/invariants | readiness/review tests | derived vs persisted manual state |
+| lifecycle | `Project.lifecycleStatus` | `App.tsx` | projectActions + engineeringHandoff | projectSemantics/invariants | projectActions/handoff/status tests | import can carry invalid combo warning-only |
+| engineering handoff | `engineeringHandoff.ts` | App callback | `markProjectHandoffReady` | evaluation + invariants | handoff tests/e2e | depends on derived readers |
+| import/export | `appStateTransfer.ts` | App import callback | full replace only | transfer + invariants | transfer/e2e | warnings details not surfaced |
+| AI patch | `aiPatchMutations.ts` | App AI callback | set/apply AI insight status | patch validators + invariants | applyAiPatch tests/e2e happy path | UI accept callback lacks result |
+| persistence | `storage.ts` | App initial load/save | saveState/loadState | validateAppState/normalizer | storage tests | no schema version |
+| invariant validation | `appStateInvariants.ts` | none | none | itself | invariant tests | warning-only |
+| verification tooling | `package.json` scripts | npm | package metadata | command exit | not run here | lint deferred |
+| release metadata | package/git/docs | repo | release tasks | git/package checks | not command-run here | rc docs stale |
+| UI-only AI panel/session | `AiChatDock.tsx`, `AIPanel.tsx` | components | UI local state/navigation only | UI checks | no domain tests for dock | non-domain boundary must stay clear |
+
+---
+
+## 14. Hardening Summary: v0.2.3-rc2 through rc5
+
+| Hardening Area | Files Involved | What Was Hardened | Tests | Remaining Risk |
+| -------------- | -------------- | ----------------- | ----- | -------------- |
+| runtime save/import normalization | `App.tsx`, `appState.ts`, `storage.ts`, `appStateTransfer.ts` | Runtime save/import/storage normalize before use/persist. State safety improvement. | storage/transfer tests | direct-ref drift retained |
+| import invariant warnings | `appStateTransfer.ts`, `appStateInvariants.ts` | Imports return warning metadata after normalization. State safety improvement. | invariant/transfer tests | UI shows count, not details |
+| orphan relationship handling | `relationshipGraph.ts`, `appState.ts`, invariants | Resolvable endpoint types repaired; orphan edges retained and warned. State safety improvement. | relationship/transfer/invariant tests | warning-only invalid graph |
+| invalid AIInsight.patch.targetType warning | `appStateInvariants.ts` | Invalid imported patch targetType warns without throw/import failure. State safety improvement. | invariant test | bad draft can persist |
+| AI patch value/reference validation | `aiPatchMutations.ts` | Validates values and refs, not only keys. State safety improvement. | applyAiPatch tests | new patch types need tests |
+| unified AI accepted/rejected status flow | `aiPatchMutations.ts`, `App.tsx` | Status transitions centralized; invalid patch does not mark accepted. State safety improvement. | applyAiPatch tests/e2e happy path | Review Queue UI feedback issue |
+| handoff_ready guarded transition | `projectActions.ts`, `engineeringHandoff.ts`, `ProjectDetail.tsx` | General project detail shortcut cannot newly set handoff_ready; guarded action required. State safety improvement. | projectActions/handoff/e2e | import can carry invalid combo warning-only |
+| missing-id delete guard | domain action files | Missing thought/project/universe/question/decision deletes reject and keep original state. State safety improvement. | action tests | future delete actions must copy pattern |
+| Thought-Project direct reference helper | `projectThoughtLinks.ts`, `projectActions.ts` | Reciprocal link/unlink/move/cleanup owner. State safety improvement. | projectThoughtLinks/projectActions tests | helper bypass still possible |
+| AI patch Thought.projectId reciprocal consistency | `aiPatchMutations.ts`, `projectThoughtLinks.ts` | AI projectId patch uses helper and removes stale old linkedThoughtIds. State safety improvement. | applyAiPatch tests | AI cannot unlink projectId currently |
+| direct-ref invariant warnings | `appStateInvariants.ts` | `thought_project_reference_drift` warns on reciprocal drift. State safety improvement. | invariant/transfer tests | warning-only |
+| Project.sourceThoughtId provenance clarification | `projectThoughtLinks.ts`, tests | Unlink does not clear sourceThoughtId; delete/missing cleanup can clear. State safety improvement. | projectThoughtLinks/appMutations tests | easy future misunderstanding |
+| architecture docs | `docs/architecture/**`, this file | Lightweight guardrails and current context. Architecture documentation improvement. | source/doc scan only | draft docs can stale |
+| local verification gate | `package.json` | Adds `typecheck` and aggregate `check`. Tooling improvement. | script existence verified | check not run here; lint deferred |
+| generated/local artifact untracking | `.gitignore`, git tracking state | Generated/local paths ignored and not tracked in checked paths. Release/process improvement. | git ls-files/status checks | ignored artifacts still exist locally |
+| release metadata / rc2 tag readiness | `package.json`, `package-lock.json`, git tag, release doc | rc2 package version and local tag exist. Release/process improvement. | git/package checks | rc2 doc stale about tag/artifacts |
+
+Classification:
+
+- State safety improvements: normalization, warnings, AI validation/status gating, handoff guard, delete guards, direct-ref consistency.
+- Architecture documentation improvements: `docs/architecture/**`, this context.
+- Release/process improvements: rc2 metadata/tag, generated artifact untracking, `.env.local` risk identification.
+- Tooling improvements: `typecheck` and `check`.
+- Non-blocking follow-ups: Review Queue UI feedback, doc freshness, lint, `.env.local` process cleanup.
+
+---
+
+## 15. Remaining Risks / Follow-ups
+
+| Follow-up | Type | Blocking? | Why It Matters | Likely Files | Suggested Minimal Next Step |
+| --------- | ---- | --------- | -------------- | ------------ | --------------------------- |
+| Review Queue invalid AI accept UI feedback | UI feedback/state-result boundary | non-blocking | State remains safe but user may see accepted notice on rejected invalid patch. | `ReviewQueueCenter.tsx`, `App.tsx`, `aiPatchMutations.ts`, tests | Return AI status result through callback and show success only when `statusChanged`. |
+| docs freshness pass | documentation | non-blocking | `docs/release/v0.2.3-rc2.md` and draft architecture docs conflict with current git/tag/artifact state. | `docs/architecture/**`, `docs/release/v0.2.3-rc2.md` | Source-backed doc correction only; no source changes. |
+| canonical status semantics consolidation | architecture | non-blocking | Status/readiness/lifecycle/review semantics overlap across helpers. | `semantics/**`, `readiness.ts`, `engineeringHandoff.ts`, `reviewQueue.ts` | Add small status interpretation table/tests; avoid state-machine rewrite. |
+| relationship cleanup ownership clarification | architecture | non-blocking | Graph edges and direct refs are both persisted but separately owned. | `relationshipGraph.ts`, `projectThoughtLinks.ts`, `referenceCleanup.ts`, docs/tests | Document owner split and add missing tests if new ref paths appear. |
+| relationship graph and direct-ref representations remain separate | architecture | non-blocking | Future work can update one and assume the other updates. | same as above | Keep separate but explicit; do not auto-canonicalize broad behavior. |
+| remote/upstream | release/process | not blocking | Remote/upstream exists now, so no immediate follow-up. | git config | None unless release requires push/PR. |
+| `.env.local` tracked ignored | secret/process | secret/process risk | Tracked ignored secret-like file can leak through history/process. | git metadata, `.gitignore` | Human-led secret audit/untrack/rotate plan; do not read content. |
+| generated/local artifacts dirty/tracked | artifact hygiene | local artifact only | Checked generated paths are ignored/untracked, not tracked; local ignored artifacts exist. | `.gitignore`, git tracking | Keep out of architecture source; no action unless release process wants clean workspace. |
+| lint deferred | tooling | tooling only | `check` lacks lint; no lint config found. | `package.json`, future lint config | Decide separately whether lint is needed; avoid framework/tool churn. |
+| right AI panel/dock work | UI branch | UI-only | Current branch has committed UI-only AI dock/session work; could be mistaken for AI patch architecture. | `AiChatDock.tsx`, `App.tsx`, `Nav.tsx`, `style.css` | Keep chat/session state outside AppState; no domain conclusion from UI branch alone. |
+| `npm run check` not executed here | tooling verification | tooling only | Script exists but was not run due artifact-modification constraint. | package scripts | Run in a verification task where build artifacts may be modified/cleaned. |
+
+---
+
+## 16. Minimal Next Hardening Priorities
+
+Priority 1: Review Queue AI accept result feedback
+
+- purpose: align UI feedback with state safety.
+- files likely involved: `src/App.tsx`, `src/components/screens/ReviewQueueCenter.tsx`, `src/services/applyAiPatch.test.ts` or component/e2e test.
+- invariant protected: invalid AI patch must not be presented as accepted.
+- risk reduced: user-facing false positive without changing AI patch state safety.
+- why now: known follow-up, small surface.
+- do not touch: AI patch allowed fields, relationship helpers, AppState shape, right AI dock rendering beyond needed callback plumbing.
+- expected test coverage: invalid AI accept UI path and existing valid accept path.
+
+Priority 2: Relationship/direct-ref boundary note or narrow test
+
+- purpose: prevent future code from assuming `relationships[]` and direct membership are one canonical representation.
+- files likely involved: `projectThoughtLinks.test.ts`, `relationshipGraph.test.ts`, docs.
+- invariant protected: direct membership moves do not mutate graph edges; graph edge creation does not imply membership.
+- risk reduced: representation drift caused by incorrect future assumptions.
+- why now: rc3 made direct refs safer but not canonicalized with graph.
+- do not touch: broad relationship model, existing import behavior, product UI.
+- expected test coverage: one or two focused boundary tests if behavior is not already explicit enough.
+
+Priority 3: Small canonical status semantics table
+
+- purpose: document current precedence and meaning without redesign.
+- files likely involved: `src/domain/semantics/**`, docs, maybe invariant tests.
+- invariant protected: handoff_ready/readiness/status/review meanings stay separate.
+- risk reduced: UI interpretation leaking into domain semantics.
+- why now: multiple helpers exist but no full map.
+- do not touch: do not introduce state machine/workflow engine; do not change product behavior.
+- expected test coverage: helper tests only if code changes.
+
+Priority 4: Import warning visibility
+
+- purpose: make invariant warnings inspectable after import/load.
+- files likely involved: `AppStateTransfer.tsx`, maybe a small warning display type.
+- invariant protected: invalid graph/direct drift remains warning-bearing, not silently invisible.
+- risk reduced: users/agents ignoring warnings.
+- why now: import already returns warnings but UI only counts them.
+- do not touch: normalization repair/deletion rules.
+- expected test coverage: transfer/component test for warning code display if implemented.
+
+Priority 5: Secret/process cleanup plan for `.env.local`
+
+- purpose: resolve tracked ignored secret risk.
+- files likely involved: git metadata only; maybe `.gitignore` if process changes.
+- invariant protected: no secrets in repo history/process.
+- risk reduced: accidental disclosure.
+- why now: current scan confirms tracked ignored file.
+- do not touch: do not read content; do not auto-untrack/commit/push without explicit human instruction.
+- expected test coverage: none; process verification via git commands.
+
+---
+
+## 17. Code Context Appendix
+
+### `src/domain/types.ts`
+
+summary:
+
+- Source-of-truth for AppState/entity compile-time shape.
+- Used by almost every map above.
+- Source-of-truth, not runtime validator.
+
+```ts
 export interface AppState {
   universes: Universe[];
   thoughts: ThoughtItem[];
@@ -124,10 +1030,9 @@ export interface AppState {
 ### `src/domain/appState.ts`
 
 summary:
-- Central normalizer used by storage, transfer, and production readiness.
-- Not the canonical AppState definition; it is a compatibility/default repair boundary.
-- Normalizes optional additive state, then repairs relationship endpoint types when endpoints resolve.
-- Ambiguity: `normalizeAppState` sounds authoritative, but it does not validate entity internals, references, status values, timestamps, duplicate ids, or AI patch values.
+
+- Normalization owner for import/export/storage/runtime save.
+- Repairs relationship endpoint type metadata only.
 
 ```ts
 export function normalizeAppState(state: AppState): AppState {
@@ -143,533 +1048,180 @@ export function normalizeAppState(state: AppState): AppState {
 }
 ```
 
-### `src/domain/blockingQuestions.ts`
-
-summary:
-- Owns blocking-question defaults and normalization.
-- Also exports another function named `normalizeAppState`, but this duplicate only normalizes `blockingQuestions` and `decisionRecords`.
-- This exported duplicate is not the central normalizer; current source imports central normalization from `src/domain/appState.ts`.
-- Ambiguity: duplicate naming is a drift hazard for future agents and imports.
-
-```ts
-export function normalizeBlockingQuestions(blockingQuestions: BlockingQuestion[] | undefined) {
-  return blockingQuestions === undefined
-    ? defaultBlockingQuestions()
-    : blockingQuestions.map(normalizeQuestion);
-}
-
-export function normalizeAppState(state: AppState): AppState {
-  return {
-    ...state,
-    blockingQuestions: normalizeBlockingQuestions(state.blockingQuestions),
-    decisionRecords: state.decisionRecords ?? []
-  };
-}
-```
-
-### `src/data/seed.ts`
-
-summary:
-- Provides initial/fallback/reset AppState.
-- Not canonical, but it influences runtime via `fallbackState()` and the Reset Demo button.
-- Contains an untyped relationship (`sourceType`/`targetType` absent), so normalizers must tolerate legacy relationship shape.
-- Ambiguity: `App.tsx` reset calls `save(seed)`, which sets raw seed in runtime while storage receives normalized JSON.
-
-```ts
-export const seed: AppState = {
-  universes: [...],
-  thoughts: [
-    {
-      id: "t-1",
-      status: "active",
-      universeId: "u-thought",
-      projectId: "p-1",
-      // omitted descriptive fields
-    }
-  ],
-  projects: [
-    {
-      id: "p-1",
-      sourceThoughtId: "t-1",
-      linkedThoughtIds: ["t-1"],
-      status: "active",
-      readiness: "draftable",
-      // lifecycleStatus omitted in seed project
-    }
-  ],
-  relationships: [
-    {
-      id: "r-1",
-      sourceId: "t-2",
-      targetId: "t-1",
-      type: "supports",
-      description: "..."
-    }
-  ],
-  aiInsights: [],
-  engineeringReadiness: {...},
-  nextActionState: {...},
-  blockingQuestions: [...]
-};
-```
-
 ### `src/App.tsx`
 
 summary:
-- De facto runtime AppState holder and mutation coordinator.
-- Calls `loadState()` once to initialize, then `save(next)` for runtime replacement and persistence.
-- Not the canonical source-of-truth for shape, but it is the practical runtime source-of-truth while the app is mounted.
-- Ambiguity: `save(next)` does not normalize before `setState(next)`, so runtime state and persisted state can diverge if `next` is not already normalized.
 
-```tsx
-const [state, setState] = useState<AppState>(() => loadState());
+- Runtime owner and coordinator.
+- The normalization-before-runtime/persistence invariant depends on `save`.
 
+```ts
 const save = (next: AppState) => {
-  setState(next);
-  saveState(next);
+  const normalized = normalizeAppState(next);
+
+  setState(normalized);
+  saveState(normalized);
+
+  return normalized;
 };
 
-const applySafeMutationResult = (result: SafeMutationResult) => {
-  if (!result.ok) {
-    setSystemMessage(result.error ?? "Mutation failed.");
-    return false;
-  }
+const acceptAI = (aiId: string, status: "accepted" | "rejected") => {
+  const result = setAiInsightStatus(state, aiId, status);
 
-  setSystemMessage("");
-  save(result.state);
-  return true;
+  if (result.statusChanged) {
+    save(result.state);
+  }
+};
+```
+
+### `src/services/appStateTransfer.ts`
+
+summary:
+
+- Import/export boundary.
+- Shape validation is shallow; invariant validation returns warnings.
+
+```ts
+const requiredArrays = ["universes", "thoughts", "projects", "relationships", "aiInsights"] as const;
+
+const state = normalizeAppState(value as unknown as AppState);
+
+return {
+  ok: true,
+  state,
+  warnings: validateAppStateInvariants(state)
 };
 ```
 
 ### `src/services/storage.ts`
 
 summary:
-- Owns localStorage key and load/save persistence boundary.
-- Load validates shallow AppState shape, normalizes defaults/relationship endpoint types, or falls back to normalized seed.
-- Save serializes normalized state, but the caller's in-memory state is not normalized by this function.
-- Ambiguity: invalid field-level data can pass validation and become runtime state.
+
+- Persistence boundary.
+- Load validates/normalizes or falls back; save normalizes.
 
 ```ts
-export const STORAGE_KEY = "todo-thought-universe:v1";
+const result = validateAppState(JSON.parse(raw));
+return result.ok && result.state ? result.state : fallbackState();
 
-export function loadState(): AppState {
-  const raw = storage.getItem(STORAGE_KEY);
-  if (!raw) return fallbackState();
-
-  const result = validateAppState(JSON.parse(raw));
-  return result.ok && result.state ? result.state : fallbackState();
-}
-
-export function saveState(state: AppState) {
-  storage.setItem(STORAGE_KEY, JSON.stringify(normalizeState(state), null, 2));
-}
-```
-
-### `src/services/appStateTransfer.ts`
-
-summary:
-- Owns full AppState JSON import/export.
-- Validation checks only root object and required/optional collection object types.
-- Returns `normalizeAppState(value as AppState)` after shallow checks.
-- Ambiguity: import can full-replace runtime state with malformed entity fields, stale linked ids, invalid status strings, duplicate ids, or unsafe AI patch values if top-level shape passes.
-
-```ts
-export function validateAppState(value: unknown): AppStateImportResult {
-  if (!isRecord(value)) return { ok: false, error: "Imported JSON must be an object." };
-
-  const requiredArrays = ["universes", "thoughts", "projects", "relationships", "aiInsights"] as const;
-  for (const key of requiredArrays) {
-    if (!Array.isArray(value[key])) {
-      return { ok: false, error: `Missing or invalid array: ${key}` };
-    }
-  }
-
-  if ("nextActionState" in value && value.nextActionState !== undefined && !isRecord(value.nextActionState)) {
-    return { ok: false, error: "Invalid object: nextActionState" };
-  }
-
-  return { ok: true, state: normalizeAppState(value as unknown as AppState) };
-}
+storage.setItem(STORAGE_KEY, JSON.stringify(normalizeState(state), null, 2));
 ```
 
 ### `src/domain/relationships/relationshipGraph.ts`
 
 summary:
-- Defines derived graph node/edge types and relationship mutation helpers.
-- Not canonical AppState, but it is the canonical relationship graph interpretation.
-- Repairs legacy endpoint types on normalization when endpoint ids resolve unambiguously.
-- Ambiguity: relationship edges are only one relationship mechanism; many other cross-entity links are separate id arrays/fields.
+
+- Relationship graph owner.
+- Used for create, repair, orphan detection, and delete cleanup.
 
 ```ts
-export type RelationshipGraphNode = {
-  id: string;
-  type: RelationshipNodeType;
-  title: string;
-  status?: string;
-  universeId?: string;
-};
-
-export type RelationshipEndpointStatus = "resolved" | "missing" | "ambiguous";
-
-export function listRelationshipGraphNodes(state: AppState): RelationshipGraphNode[] {
-  return [
-    ...state.thoughts.map(thoughtNode),
-    ...state.projects.map(projectNode),
-    ...state.universes.map(...),
-    ...(state.blockingQuestions ?? []).map(...),
-    ...(state.decisionRecords ?? []).map(...)
-  ].sort(compareNodes);
-}
-```
-
-### `src/domain/engineeringReadiness.ts`
-
-summary:
-- Defines persisted `EngineeringReadinessAssessment` defaults/normalization and derived `EngineeringReadinessSummary`.
-- Not AppState canonical source-of-truth; it owns one optional AppState subobject's normalization and mutation.
-- Ambiguity: readiness summary uses blocking-question defaults, review queue, orphan relationships, and manual assessment, so its status can drift from project-level readiness terms.
-
-```ts
-export function normalizeEngineeringReadiness(
-  assessment: EngineeringReadinessAssessment | undefined
-): EngineeringReadinessAssessment {
-  const fallback = defaultEngineeringReadinessAssessment();
-  if (!assessment) return fallback;
-
-  return {
-    note: clean(assessment.note),
-    manualConfidence: isConfidence(assessment.manualConfidence) ? assessment.manualConfidence : fallback.manualConfidence,
-    targetPhase: isTargetPhase(assessment.targetPhase) ? assessment.targetPhase : fallback.targetPhase,
-    lastReviewedAt: clean(assessment.lastReviewedAt) || undefined,
-    updatedAt: clean(assessment.updatedAt) || fallback.updatedAt
-  };
-}
-```
-
-### `src/domain/nextActions.ts`
-
-summary:
-- Defines derived `NextActionItem` plus persisted `NextActionState` defaults/normalization and mutations.
-- Not AppState canonical source-of-truth; owns one optional AppState subobject's normalizer.
-- Ambiguity: next action ids are encoded strings such as `thought:t-1` and `blocking_question:bq-1`; cleanup depends on prefix conventions rather than typed refs.
-
-```ts
-export function normalizeNextActionState(state: NextActionState | undefined): NextActionState {
-  const fallback = defaultNextActionState();
-  if (!state) return fallback;
-
-  return {
-    savedActionIds: unique(state.savedActionIds ?? []),
-    selectedFocusActionId: text(state.selectedFocusActionId) || undefined,
-    dismissedActionIds: unique(state.dismissedActionIds ?? []),
-    manualNote: text(state.manualNote),
-    manualConfidence: isConfidence(state.manualConfidence) ? state.manualConfidence : fallback.manualConfidence,
-    focusMode: isFocusMode(state.focusMode) ? state.focusMode : fallback.focusMode,
-    lastReviewedAt: text(state.lastReviewedAt) || undefined,
-    updatedAt: text(state.updatedAt) || fallback.updatedAt
-  };
-}
-```
-
----
-
-## 3. Runtime Mutation Authority Map
-
-### Top-level mutation flow
-
-`src/App.tsx` converts UI intent into domain calls, then persists accepted next AppState snapshots.
-
-```tsx
-const applyProjectResult = (result: ProjectActionResult) => {
-  if (result.ok) {
-    save(result.state);
-  }
-
-  return { ok: result.ok, error: result.error, projectId: result.projectId };
-};
-
-const handleCreateRelationshipSafe = (input: CreateRelationshipSafeInput): CreateRelationshipSafeResult => {
-  const result = createRelationshipSafe(state, input);
-
-  if (result.ok) {
-    save(result.state);
-  }
-
-  return result;
-};
-```
-
-### Mutation owner table
-
-| Mutation surface | Primary implementation | Runtime caller | Notes / drift risk |
-| --- | --- | --- | --- |
-| Create/update/archive/restore/delete thought | `src/domain/mutations/appMutations.ts` | `src/App.tsx`, `ThoughtDetail`, `Capture`, `ArchivedItems` | `updateThought` validates empty title but allows status/universe/type changes without graph validation. |
-| Thought triage update / mark triaged | `src/domain/thoughtTriage.ts` | `src/App.tsx`, `ThoughtTriageCenter` | Separate thought mutation path from `appMutations`; can change fields overlapping `updateThought`. |
-| Create/update/archive/restore/delete project | Create/update/link/promote in `src/domain/projectActions.ts`; archive/restore/delete in `src/domain/mutations/appMutations.ts` | `src/App.tsx`, `ProjectDetail`, `Projects`, `ArchivedItems` | Project mutation authority is split across two files. |
-| Project handoff-ready transition | `src/domain/engineeringHandoff.ts#markProjectHandoffReady` | `src/App.tsx`, `EngineeringHandoffCenter`, `ReviewQueueCenter` | Writes both `lifecycleStatus` and `readiness`. |
-| Create/update/archive/restore/delete universe | `src/domain/universeActions.ts` | `src/App.tsx`, `Universes` | Delete has `blockIfInUse` or `detach`; detach clears linked ids to empty strings/arrays. |
-| Blocking question CRUD/status | `src/domain/blockingQuestions.ts` | `src/App.tsx`, `BlockingQuestionsCenter`, `ReviewQueueCenter` | `deleteBlockingQuestion` does not first assert existence; link arrays are not id-validated. |
-| Decision record CRUD/status | `src/domain/decisionRecords.ts` | `src/App.tsx`, `DecisionRecordsCenter`, `ReviewQueueCenter` | Accepting a decision can resolve source blocking question. |
-| Relationship create | `src/domain/relationships/relationshipGraph.ts#createTypedRelationship`, wrapped by `src/domain/relationshipExplorer.ts#createRelationshipSafe` | `src/App.tsx`, `RelationshipExplorer` | Creates graph edge only; does not update `Project.linkedThoughtIds` or `Thought.projectId`. |
-| Promotion thought to project | `src/domain/projectActions.ts#promoteThoughtToProject` | `src/App.tsx`, `ThoughtDetail`, `ThoughtTriageCenter` | Creates project, sets thought/project fields, then tries to create `evolves_into` relationship; returns ok even if relationship creation fails. |
-| AI insight draft generation | `src/services/aiMock.ts`, inline `App.tsx#ai` | `AIPanel`, `ThoughtDetail`, `ProjectDetail` | Direct `save({...state, aiInsights: [...]})` bypasses domain mutation registry. |
-| AI insight accept/reject | `src/App.tsx#acceptAI` and `src/domain/mutations/aiPatchMutations.ts` | `AIPanel`, `ReviewQueueCenter` | Patch applies before insight status change; bypasses normal thought/project validators. |
-| Engineering readiness assessment | `src/domain/engineeringReadiness.ts#updateEngineeringReadinessAssessment` | `EngineeringReadinessCenter` | Persists manual assessment; derived summary recomputed elsewhere. |
-| Next action state / source actions | `src/domain/nextActions.ts` | `NextActionCenter` | Mutates persisted nextActionState and can directly mutate thought/project nextAction or blocking question status. |
-| Full AppState import | `src/services/appStateTransfer.ts`, `AppStateTransfer` screen, `src/App.tsx#onImport` | `AppStateTransfer` | Full runtime replacement after shallow validation. |
-| Persistence save/load | `src/services/storage.ts` | `src/App.tsx#save` | Save normalizes only serialized JSON, not runtime `setState`. |
-
-### Dangerous direct writes in `App.tsx`
-
-```tsx
-const ai = (targetId: string) => {
-  // creates AIInsight inline, not through a domain mutation owner
-  save({
-    ...state,
-    aiInsights: [{ id: id("ai"), createdAt: now(), ...draft }, ...state.aiInsights]
-  });
-};
-
-const acceptAI = (aiId: string, status: "accepted" | "rejected") => {
-  const insight = state.aiInsights.find((x) => x.id === aiId);
-  const patchedState = status === "accepted" && insight ? applyAiInsightPatch(state, insight) : state;
-
-  save({
-    ...patchedState,
-    aiInsights: patchedState.aiInsights.map((x) => x.id === aiId ? { ...x, status } : x)
-  });
-};
-
-<button className="ghost full" onClick={() => save(seed)}>重置 Demo</button>
-```
-
----
-
-## 4. Relationship Ownership / Graph Integrity
-
-### Relationship graph owner
-
-`src/domain/relationships/relationshipGraph.ts` is the closest thing to a graph authority. It owns:
-- supported relationship node types and relationship types
-- node derivation from AppState collections
-- endpoint resolution: `resolved`, `missing`, `ambiguous`
-- typed relationship creation
-- legacy endpoint type repair
-- relationship removal by typed node
-
-```ts
-export const relationshipNodeTypes: RelationshipNodeType[] = [
-  "thought",
-  "project",
-  "universe",
-  "blocking_question",
-  "decision_record"
-];
-
-export function resolveRelationshipEndpoint(
-  state: AppState,
-  nodeId: string,
-  explicitType?: RelationshipNodeType
-): RelationshipEndpointResolution {
-  const candidates = explicitType
-    ? listRelationshipGraphNodes(state).filter((node) => node.id === nodeId && node.type === explicitType)
-    : findRelationshipGraphNodesById(state, nodeId);
-
-  if (candidates.length === 0) return { id: nodeId, explicitType, status: "missing", candidates: [] };
-  if (candidates.length > 1 && !explicitType) return { id: nodeId, explicitType, status: "ambiguous", candidates };
-
-  return { id: nodeId, explicitType, status: "resolved", node: candidates[0], candidates };
-}
-```
-
-### Relationship creation
-
-Creation is typed and validates endpoints, duplicate edge, type, and self-link.
-
-```ts
-export function createTypedRelationship(
-  state: AppState,
-  input: CreateRelationshipInput
-): CreateRelationshipResult {
-  if (!isSupportedRelationshipType(input.type)) {
-    return { state, ok: false, error: "Invalid relationship type." };
-  }
-
+export function createTypedRelationship(state: AppState, input: CreateRelationshipInput): CreateRelationshipResult {
+  if (!isSupportedRelationshipType(input.type)) return { state, ok: false, error: "Invalid relationship type." };
   const source = resolveRelationshipEndpoint(state, input.sourceId, input.sourceType);
   const target = resolveRelationshipEndpoint(state, input.targetId, input.targetType);
-
   if (source.status !== "resolved") return { state, ok: false, error: "Source node not found." };
   if (target.status !== "resolved") return { state, ok: false, error: "Target node not found." };
-  if (input.sourceId === input.targetId && input.sourceType === input.targetType) {
-    return { state, ok: false, error: "Source and target must be different." };
-  }
-
-  return {
-    state: { ...state, relationships: [relationship, ...state.relationships] },
-    ok: true,
-    relationshipId
-  };
+  ...
 }
-```
 
-### Relationship repair and orphan policy
-
-Import/load/save normalization repairs missing endpoint types when both endpoints are resolvable. Orphans are preserved and can be surfaced by warning-capable views.
-
-```ts
 export function repairRelationshipEndpointTypes(state: AppState): RelationshipEndpointRepairResult {
-  const relationships = state.relationships.map((relationship) => {
-    const source = resolveRelationshipEndpoint(state, relationship.sourceId, relationship.sourceType);
-    const target = resolveRelationshipEndpoint(state, relationship.targetId, relationship.targetType);
-
-    if (source.status !== "resolved" || target.status !== "resolved") {
-      orphanRelationshipIds.push(relationship.id);
-      return relationship;
-    }
-
-    return {
-      ...relationship,
-      sourceType: relationship.sourceType ?? source.node.type,
-      targetType: relationship.targetType ?? target.node.type
-    };
-  });
-
-  return { state: { ...state, relationships }, repairedRelationshipIds, orphanRelationshipIds, warnings };
+  // Repairs sourceType/targetType only when both endpoints resolve.
+  // Missing/ambiguous endpoints are retained and reported.
 }
 ```
 
-### Delete cleanup owner
+### `src/domain/projectThoughtLinks.ts`
 
-Primary delete helpers call `removeRelationshipsForNode`, then `removeDeletedNodeReferences`.
+summary:
+
+- Direct-ref consistency owner.
+- Does not touch `relationships[]`.
 
 ```ts
-export function deleteThought(state: AppState, thoughtId: string): ThoughtMutationResult {
-  const relationshipCleanup = removeRelationshipsForNode(state, { id: thoughtId, type: "thought" });
-  const referenceCleanup = removeDeletedNodeReferences(relationshipCleanup.state, { id: thoughtId, type: "thought" });
+export function linkThoughtToProjectReference(state: AppState, projectId: string, thoughtId: string) {
+  // sets thought.projectId, adds project.linkedThoughtIds,
+  // removes stale linkedThoughtIds from other projects.
+}
 
+export function unlinkThoughtFromProjectReferences(state: AppState, thoughtId: string) {
+  // clears membership but preserves Project.sourceThoughtId.
+}
+```
+
+### `src/domain/mutations/referenceCleanup.ts`
+
+summary:
+
+- Cross-entity delete cleanup owner.
+- Critical for preventing dangling direct refs and stale derived preference ids.
+
+```ts
+function removeThoughtReferences(state: AppState, thoughtId: string): AppState {
   return {
-    state: {
-      ...referenceCleanup,
-      thoughts: referenceCleanup.thoughts.filter((item) => item.id !== thoughtId)
-    },
-    ok: true,
-    thoughtId
+    ...state,
+    projects: state.projects.map((project) => withoutDeletedThoughtProjectReferences(project, thoughtId, timestamp)),
+    blockingQuestions: state.blockingQuestions?.map(...),
+    decisionRecords: state.decisionRecords?.map(...),
+    aiInsights: state.aiInsights.filter((insight) => insight.targetId !== thoughtId)
   };
 }
-```
 
-```ts
 export function removeDeletedNodeReferences(state: AppState, node: RelationshipNodeRef): AppState {
-  const cleanedState =
-    node.type === "thought" ? removeThoughtReferences(state, node.id) :
-    node.type === "project" ? removeProjectReferences(state, node.id) :
-    node.type === "universe" ? removeUniverseReferences(state, node.id) :
-    node.type === "blocking_question" ? removeBlockingQuestionReferences(state, node.id) :
-    removeDecisionRecordReferences(state, node.id);
-
+  const cleanedState = node.type === "thought" ? removeThoughtReferences(state, node.id) : ...;
   return removeNextActionReferences(cleanedState, node);
 }
 ```
 
-### Relationship-like fields outside `relationships`
+### `src/domain/mutations/appMutations.ts`
 
-These are not graph edges but act as relationship sources-of-truth in derived views:
+summary:
 
-| Field | Owner / writer | Cleanup path | Drift concern |
-| --- | --- | --- | --- |
-| `ThoughtItem.projectId` | `projectActions`, `referenceCleanup`, manual delete cleanup | `removeProjectReferences`, `unlinkThoughtFromProject` | Can drift from `Project.linkedThoughtIds` and `relationships`. |
-| `Project.sourceThoughtId` | `promoteThoughtToProject`, `referenceCleanup` | `removeThoughtReferences` | Not guaranteed to have a matching `Relationship`. |
-| `Project.linkedThoughtIds` | `createProject`, `updateProjectDetails`, `linkThoughtToProject`, `unlinkThoughtFromProject` | `removeThoughtReferences` | No id validation; no automatic graph edge. |
-| `ThoughtItem.universeId`, `Project.universeId` | create/update/detail/import/universe detach | `removeUniverseReferences` | Can be empty or point to missing universe. |
-| `BlockingQuestion.linkedThoughtIds/linkedProjectIds/linkedUniverseIds` | blocking question create/update/import/defaults | `referenceCleanup` | No id validation on create/update/import. |
-| `DecisionRecord.linkedThoughtIds/linkedProjectIds/linkedUniverseIds` | decision create/update/import/from question | `referenceCleanup` | No id validation. |
-| `DecisionRecord.sourceBlockingQuestionId` | decision create/from question/import | `removeBlockingQuestionReferences` | Accepting a decision mutates the source question. |
-| `DecisionRecord.supersedesDecisionId` | decision create/update/supersede/import | `removeDecisionRecordReferences` | No id validation except delete cleanup. |
-| `AIInsight.targetId` and `patch.targetType/targetId` | AI generation/import | `removeThoughtReferences`, `removeProjectReferences` | Target resolution is inferred in Review Queue; no general target validator. |
-| `NextActionState.*ActionIds` | nextActions pin/dismiss/import | `removeNextActionReferences` | Encoded string ids rely on prefix convention. |
-
-### Graph integrity risks for Round 1
-
-- Relationship graph and link arrays are parallel systems. `promoteThoughtToProject` writes both; relationship creation writes only `relationships`; link/unlink writes only project/thought fields.
-- `removeRelationshipsForNode` treats an untyped relationship endpoint with a matching id as touching a typed node. This preserves legacy behavior but can over-remove in same-id cross-type scenarios.
-- Import preserves orphan relationships by design; downstream views need a clear policy for whether orphans are warnings, invalid state, or repair candidates.
-- Relationship endpoint repair can only repair when ids are unique across node types or explicit types exist.
-- No general invariant checker currently proves all linked ids point to existing entities.
-
----
-
-## 5. Status / Readiness / Lifecycle Semantics
-
-### Semantic helper files
-
-| File | What it owns | Concern |
-| --- | --- | --- |
-| `src/domain/semantics/statusSemantics.ts` | Thought archive/active/paused/inbox, universe active/archive, AI draft review visibility. | Basic status semantics |
-| `src/domain/semantics/projectSemantics.ts` | Project archive/active, lifecycle default, lifecycle blocked/handoff-ready, project content readiness, blocker checks, handoff eligibility. | Project lifecycle/readiness |
-| `src/domain/semantics/questionDecisionSemantics.ts` | Blocking question unresolved/resolved/high-impact/review visibility, decision accepted/pending/archive visibility, accepted decision source resolution. | Decision/status semantics |
-| `src/domain/readiness.ts` | Field-completeness readiness for a single project. | Derived readiness |
-| `src/domain/engineeringHandoff.ts` | Handoff readiness and `handoff_ready` lifecycle transition. | Lifecycle/readiness boundary |
-| `src/domain/engineeringReadiness.ts` | Whole-app readiness summary from decisions/review/persistence/manual assessment. | Lifecycle/readiness boundary |
-| `src/domain/reviewQueue.ts` | Derived review statuses from AI drafts, decisions, blockers, handoff candidates. | Status overlap |
-| `src/domain/nextActions.ts` | Derived next action statuses and source mutation effects. | Status overlap |
-
-### Project semantics overlap
+- Thought/project safe mutation owner.
+- Missing-id delete guards and cleanup depend on this file.
 
 ```ts
-export function projectLifecycleStatus(project: Pick<Project, "lifecycleStatus">): ProjectLifecycleStatus {
-  return project.lifecycleStatus ?? "planning";
-}
+export function deleteThought(state: AppState, thoughtId: string): ThoughtMutationResult {
+  const thought = state.thoughts.find((item) => item.id === thoughtId);
+  if (!thought) return { state, ok: false, error: thoughtNotFoundError };
 
-export function isProjectArchived(project: Pick<Project, "status">) {
-  return project.status === "archived";
-}
+  const relationshipCleanup = removeRelationshipsForNode(state, { id: thoughtId, type: "thought" });
+  const referenceCleanup = removeDeletedNodeReferences(relationshipCleanup.state, { id: thoughtId, type: "thought" });
 
-export function isProjectLifecycleBlocked(project: Pick<Project, "lifecycleStatus">) {
-  return projectLifecycleStatus(project) === "blocked";
-}
-
-export function isProjectReadyForEngineering(project: Pick<Project, "readiness">) {
-  return project.readiness === "ready_for_engineering";
-}
-
-export function canProjectEnterEngineeringHandoff(project: Project, state?: AppState) {
-  return isProjectActive(project) &&
-    !isProjectBlocked(project, state) &&
-    getProjectContentReadiness(project).value === "ready_for_engineering";
+  return { state: { ...referenceCleanup, thoughts: referenceCleanup.thoughts.filter((item) => item.id !== thoughtId) }, ok: true, thoughtId };
 }
 ```
 
-Risk: `Project.readiness` is persisted, but `canProjectEnterEngineeringHandoff` uses computed `getProjectContentReadiness(project).value`, not necessarily the stored value.
+### `src/domain/projectActions.ts`
+
+summary:
+
+- Project details, direct refs, promotion, and handoff shortcut guard.
 
 ```ts
-function withComputedReadiness(project: Project, explicitReadiness?: Readiness): Project {
+if (patch.lifecycleStatus === "handoff_ready" && project.lifecycleStatus !== "handoff_ready") {
   return {
-    ...project,
-    readiness: explicitReadiness ?? projectReadiness(project).value
+    state,
+    ok: false,
+    error: "Use the guarded handoff action to mark a project handoff_ready."
   };
 }
+
+if (nextLinkedThoughtIds !== undefined) {
+  // unlink removed thoughts and link/move valid linkedThoughtIds through projectThoughtLinks.
+}
 ```
 
-Risk: `updateProjectDetails` can accept explicit readiness through `patch.readiness`, although current UI does not expose it. Import can set any value at runtime because validation is shallow.
+### `src/domain/engineeringHandoff.ts`
 
-### Handoff semantics
+summary:
+
+- Guarded handoff lifecycle owner.
 
 ```ts
-export function evaluateProjectHandoff(project: Project, state: AppState): ProjectHandoffStatus {
-  const existingReadiness = projectReadiness(project);
-  const isArchived = isProjectArchived(project);
-  const isLifecycleBlocked = isProjectLifecycleBlocked(project);
-  const isBlockedByRelationship = hasBlockingRelationshipToProject(project, state.relationships);
-  const unresolvedHandoffQuestions = getProjectUnresolvedHandoffQuestions(project, state);
-
-  if (!hasTitle || isArchived || isLifecycleBlocked || isBlockedByRelationship || isBlockedByQuestion) {
-    readiness = "blocked";
-  } else if (unique(missing).length === 0 && existingReadiness.value === "ready_for_engineering") {
-    readiness = "ready";
-  }
-}
-
 export function markProjectHandoffReady(state: AppState, projectId: string): MarkProjectHandoffReadyResult {
+  const project = state.projects.find((item) => item.id === projectId);
+  if (!project) return { ok: false, state, error: "Project not found." };
+
   const status = evaluateProjectHandoff(project, state);
   if (status.readiness !== "ready") {
     return { ok: false, state, error: "Project is not ready for engineering handoff." };
@@ -689,435 +1241,185 @@ export function markProjectHandoffReady(state: AppState, projectId: string): Mar
 }
 ```
 
-Risk: `ProjectDetail` lets the user directly choose `lifecycleStatus`, including `handoff_ready`, without going through `markProjectHandoffReady`.
+### `src/domain/mutations/aiPatchMutations.ts`
 
-### Thought semantics
+summary:
 
-```ts
-export function isThoughtArchived(thought: Pick<ThoughtItem, "status">) {
-  return isArchivedStatus(thought.status);
-}
-
-export function isThoughtActive(thought: Pick<ThoughtItem, "status">) {
-  return !isThoughtArchived(thought);
-}
-
-export function shouldThoughtAppearInNextAction(thought: Pick<ThoughtItem, "status" | "nextAction">) {
-  return isThoughtActive(thought) && thought.nextAction.trim().length > 0;
-}
-```
-
-Risk: `"done"` is treated as active because only `"archived"` is inactive. A done thought with a non-empty next action can still appear in Next Action.
-
-### Blocking question and decision semantics
+- AI patch safety boundary and accepted/rejected status owner.
 
 ```ts
-const unresolvedBlockingQuestionStatuses = new Set(["open", "in_review"]);
+const allowedThoughtKeys = ["title", "content", "type", "universeId", "projectId", "why", "outcome", "nextAction"] as const;
+const allowedProjectKeys = ["name", "title", "intent", "nextAction", "universeId", "sourceThoughtId"] as const;
 
-export function shouldBlockingQuestionAffectEngineeringReadiness(
-  question: Pick<BlockingQuestion, "status" | "impactLevel">
-) {
-  return isBlockingQuestionUnresolved(question) && isHighImpactBlockingQuestion(question);
+if (projectIdPatch !== undefined) {
+  const linkResult = linkThoughtToProjectReference(nextState, projectIdPatch, targetId);
+  if (!linkResult.ok) return fail(state, "invalid_value", [...warnings, linkResult.error ?? "invalid_value:projectId"]);
+  nextState = linkResult.state;
 }
 
-export function shouldDecisionRecordAppearInReviewQueue(record: Pick<DecisionRecord, "status">) {
-  return isDecisionRecordPending(record);
+const result = applyAiInsightPatch(state, insight);
+if (!result.applied) {
+  return { ...result, statusChanged: false };
 }
 ```
+
+### `src/domain/validation/appStateInvariants.ts`
+
+summary:
+
+- Warning-only invariant owner.
 
 ```ts
-export function acceptDecisionRecord(state: AppState, decisionRecordId: string) {
-  const record = records(state).find((item) => item.id === decisionRecordId);
-  const result = updateDecisionRecord(state, decisionRecordId, { status: "accepted" });
+warnings.push({
+  code: "thought_project_reference_drift",
+  severity: "warning",
+  entityType,
+  entityId,
+  field,
+  message
+});
 
-  if (!result.ok || !record?.sourceBlockingQuestionId) return result;
-
-  return {
-    ...result,
-    state: {
-      ...result.state,
-      blockingQuestions: (result.state.blockingQuestions ?? []).map((question) =>
-        question.id === record.sourceBlockingQuestionId && !isBlockingQuestionArchived(question)
-          ? { ...question, status: "resolved" as const, finalResolution: ..., updatedAt: now() }
-          : question
-      )
-    }
-  };
-}
-```
-
-Risk: accepting a decision mutates another entity's lifecycle/status. This is intentional but should be documented as relationship-owned behavior.
-
-### Semantic overlap matrix
-
-| Concept | Stored or derived | Current source | Ambiguity |
-| --- | --- | --- | --- |
-| Thought workflow | Stored `ThoughtItem.status` | `types.ts`, `statusSemantics.ts`, `thoughtTriage.ts`, `appMutations.ts` | `"done"` still active for next actions. |
-| Project archive | Stored `Project.status` | `types.ts`, `projectSemantics.ts`, `appMutations.ts`, `ProjectDetail` | User can set directly or via archive helper. |
-| Project lifecycle | Stored optional `Project.lifecycleStatus` | `types.ts`, `projectSemantics.ts`, `engineeringHandoff.ts`, `ProjectDetail` | UI can set `handoff_ready` without handoff guard. |
-| Project content readiness | Stored `Project.readiness` and computed `readiness(project)` | `types.ts`, `readiness.ts`, `projectActions.ts`, `engineeringHandoff.ts` | Stored value can drift from computed value. |
-| Project handoff readiness | Derived `ready/needs_clarification/blocked` | `engineeringHandoff.ts` | Uses computed readiness plus blockers, not just stored readiness. |
-| Engineering readiness | Derived overall status plus stored manual assessment | `engineeringReadiness.ts` | Whole-app readiness may be confused with project readiness. |
-| Review status | Derived `ReviewQueueItem.status` from source entities | `reviewQueue.ts` | Uses strings from different domains in one filter. |
-| Next action status | Derived `available/blocked/completed` plus source status | `nextActions.ts` | Source mutations can change thought/project/question statuses. |
-| Universe archive | Stored optional `Universe.status` defaulting active | `types.ts`, `universeActions.ts`, `statusSemantics.ts` | Optional field means absence is active. |
-
----
-
-## 6. Import / Export / Persistence Safety
-
-### Current flow
-
-```text
-loadState()
-  -> localStorage[todo-thought-universe:v1]
-  -> validateAppState(JSON.parse(raw))
-  -> normalizeAppState(...)
-  -> React useState initial value
-
-save(next)
-  -> setState(next)
-  -> saveState(next)
-  -> JSON.stringify(normalizeAppState(next))
-
-AppStateTransfer import
-  -> parseAppStateJson(importText)
-  -> validateAppState(...)
-  -> normalizeAppState(...)
-  -> App.tsx onImport(nextState)
-  -> save(nextState)
-```
-
-### `src/components/screens/AppStateTransfer.tsx`
-
-```tsx
-const json = stringifyAppState(state);
-
-const runImport = () => {
-  const result = parseAppStateJson(importText);
-
-  if (!result.ok || !result.state) {
-    setMessage(`匯入失敗：${result.error ?? "Invalid app state."}`);
-    return;
-  }
-
-  setImportText("");
-  onImport(result.state);
-};
-```
-
-### Full replacement in `src/App.tsx`
-
-```tsx
-<AppStateTransfer
-  state={state}
-  onImport={(nextState) => {
-    save(nextState);
-    setSelectedThoughtId(nextState.thoughts[0]?.id ?? "");
-    setSelectedProjectId(nextState.projects[0]?.id ?? "");
-    setSelectedUniverseId(nextState.universes[0]?.id ?? "");
-    setSystemMessage("App State imported successfully. Decision, readiness, and next action data were normalized.");
-    setScreen("dashboard");
-  }}
-/>
-```
-
-### Import/export risks
-
-- `validateAppState` does not validate entity fields: ids, titles, enum values, timestamps, arrays of strings, duplicate ids, target ids, or patch payloads.
-- `normalizeAppState` repairs optional default state and relationship endpoint types; it does not validate cross-entity references.
-- Orphan relationships are preserved, which is useful for warnings but means imported state can be graph-invalid by design.
-- Full AppState import is a complete replacement of live state.
-- `save(next)` sets raw runtime state first; `saveState(next)` normalizes only serialized storage. Runtime and persisted state can differ until reload.
-- Full AppState export uses `stringifyAppState`, so export output is normalized even if runtime currently is not.
-- Per-project engineering export (`Export` / `engineeringInput`) is derived from selected project and universe only; it is not an AppState backup and does not include relationships, blockers, decisions, or readiness assessment.
-
-### Persistence tests currently cover
-
-- malformed localStorage falls back to normalized seed
-- invalid top-level shape falls back to normalized seed
-- old AppState without optional `blockingQuestions`, `decisionRecords`, `engineeringReadiness`, or `nextActionState` receives defaults
-- save normalizes before serializing
-- relationship endpoint type repair on import
-- orphan relationship preservation
-
-Round 1 gap to analyze: no field-level schema validation or invariant validation exists for imported entities and linked ids.
-
----
-
-## 7. AI Patch Mutation Boundary
-
-### Patch shape is broad in types
-
-```ts
-export type AIInsightPatchOperation =
-  | {
-      type: "updateThought";
-      thoughtId: string;
-      patch: Partial<ThoughtItem>;
-    }
-  | {
-      type: "updateProject";
-      projectId: string;
-      patch: Partial<Project>;
-    };
-```
-
-### Runtime whitelist is narrow
-
-```ts
-const allowedThoughtKeys = ["title", "content", "type", "universeId", "why", "outcome", "nextAction"] as const;
-const allowedProjectKeys = ["name", "intent", "nextAction", "universeId"] as const;
-
-function pickAllowed<T extends object, K extends Extract<keyof T, string>>(
-  source: unknown,
-  keys: readonly K[]
-): Partial<Pick<T, K>> {
-  if (!isRecord(source)) return {};
-
-  const next: Partial<Pick<T, K>> = {};
-  for (const key of keys) {
-    const value = source[key];
-    if (value !== undefined) next[key] = value as Pick<T, K>[K];
-  }
-  return next;
-}
-```
-
-### Application bypasses normal app mutation helpers
-
-```ts
-if (operation.type === "updateThought" && targetType === "thought" && operation.thoughtId === targetId) {
-  const safePatch = pickAllowed<ThoughtItem, (typeof allowedThoughtKeys)[number]>(
-    operation.patch,
-    allowedThoughtKeys
-  );
-
-  const thoughts = nextState.thoughts.map((thought) => {
-    if (thought.id !== targetId) return thought;
-    return { ...thought, ...safePatch, updatedAt: now() };
-  });
-}
-
-if (operation.type === "updateProject" && targetType === "project" && operation.projectId === targetId) {
-  const safePatch = pickAllowed<Project, (typeof allowedProjectKeys)[number]>(
-    operation.patch,
-    allowedProjectKeys
-  );
-
-  const projects = nextState.projects.map((project) => {
-    if (project.id !== targetId) return project;
-    const patched = { ...project, ...safePatch, updatedAt: now() };
-    return { ...patched, readiness: readiness(patched).value };
-  });
-}
-```
-
-### What AI patches cannot directly change
-
-Current runtime whitelist blocks direct mutation of:
-- `id`
-- `createdAt`
-- `updatedAt` except system-generated update
-- `status`
-- `readiness`
-- `lifecycleStatus`
-- `sourceThoughtId`
-- `linkedThoughtIds`
-- `projectId`
-- `relationships`
-- arrays like `users`, `features`, `screens`, `dataObjects`, `flowSteps`, `unknowns`
-
-### What AI patches can still change
-
-- Thought `title`, `content`, `type`, `universeId`, `why`, `outcome`, `nextAction`
-- Project `name`, `intent`, `nextAction`, `universeId`
-
-### AI patch risks
-
-- Value validation is shallow. Imported or future AI patches could set invalid `ThoughtType`, empty `title`, empty `Project.name`, or missing/archived `universeId`.
-- AI patch bypasses `appMutations.updateThought` title validation and `projectActions.updateProjectDetails` title validation.
-- AI patches can move a thought/project to another universe id without validating that the universe exists or updating relationship/link context.
-- AIInsight patches are preserved by import/export; import does not validate operation values beyond top-level AppState arrays.
-- `acceptAI` has no result/error channel from `applyAiInsightPatch`; a no-op patch still lets the insight become accepted.
-
----
-
-## 8. Hidden Cross-Entity Coupling
-
-| Coupling | Files | Why it matters |
-| --- | --- | --- |
-| Thought to project via `thought.projectId`, `project.sourceThoughtId`, `project.linkedThoughtIds`, and `Relationship(type="evolves_into")` | `types.ts`, `projectActions.ts`, `appMutations.ts`, `engineeringHandoff.ts`, `universeOverview.ts` | Four representations can drift. Promotion writes all/many; relationship create writes only edge; unlink writes fields, not edges. |
-| Universe membership via direct `universeId`, linked arrays, relationship edges, and derived universe overview | `universeActions.ts`, `universeOverview.ts`, `relationshipGraph.ts`, `blockingQuestions.ts`, `decisionRecords.ts` | Deleting/detaching a universe clears direct and linked ids but not all possible semantic associations. |
-| Blocking question to decision via `sourceBlockingQuestionId` and accept side effect | `decisionRecords.ts`, `blockingQuestions.ts`, `questionDecisionSemantics.ts` | Accepting a decision mutates a blocking question to resolved. |
-| Project handoff blocked by relationship edges and linked blocking questions | `projectSemantics.ts`, `engineeringHandoff.ts`, `relationshipGraph.ts`, `questionDecisionSemantics.ts` | Handoff readiness can change because of either graph edges or question linked arrays. |
-| Next action ids encode entity refs as strings | `nextActions.ts`, `referenceCleanup.ts` | Cleanup depends on prefixes like `thought:` and `blocking_question:`. No typed ref object exists. |
-| AI insight target resolution uses both `targetId` and optional patch target type | `reviewQueue.ts`, `aiPatchMutations.ts`, `aiMock.ts` | Target can be missing, ambiguous, or inconsistent with patch metadata. |
-| Stored `Project.readiness` vs computed readiness | `types.ts`, `readiness.ts`, `projectActions.ts`, `engineeringHandoff.ts`, `reviewQueue.ts` | Different views may rely on stored or computed readiness. |
-| Core blocking questions are injected into legacy state | `blockingQuestions.ts`, `appState.ts`, `appStateTransfer.ts`, `storage.ts` | Normalization is not just shape repair; it adds domain records. |
-
-Code examples:
-
-```ts
-// projectActions.ts
-const promotedState: AppState = {
-  ...result.state,
-  thoughts: result.state.thoughts.map((item) =>
-    item.id === thoughtId
-      ? { ...item, type: "project", status: "active", projectId: result.projectId, updatedAt: now() }
-      : item
-  ),
-  projects: result.state.projects.map((project) =>
-    project.id === result.projectId
-      ? { ...project, sourceThoughtId: thoughtId, updatedAt: now() }
-      : project
-  )
-};
-
-const relationshipResult = createTypedRelationship(promotedState, {
-  sourceId: thoughtId,
-  sourceType: "thought",
-  targetId: result.projectId,
-  targetType: "project",
-  type: "evolves_into"
+warnings.push({
+  code: "invalid_patch_target_type",
+  severity: "warning",
+  entityType: "ai_insight",
+  entityId: insightId,
+  field: "patch.targetType",
+  message: ...
 });
 ```
 
-```ts
-// engineeringHandoff.ts
-return state.thoughts.filter((thought) =>
-  linkedThoughtIds.includes(thought.id) ||
-  thought.projectId === project.id ||
-  thought.id === project.sourceThoughtId ||
-  relatedThoughtIds.includes(thought.id)
-);
-```
+### `src/components/screens/ReviewQueueCenter.tsx`
 
----
+summary:
 
-## 9. Dangerous Mutation Entrypoints
+- Known UI feedback issue for invalid AI accept.
+- State safety is downstream in App/AI mutation, but UI does not receive result.
 
-| Entrypoint | Why dangerous | Hardening question |
-| --- | --- | --- |
-| `src/App.tsx#save(next)` | Sets runtime state before normalization; persistence may differ from in-memory state. | Should `save` normalize once and set/persist the same object? |
-| `src/App.tsx` Reset Demo button `save(seed)` | Raw seed has legacy untyped relationship; runtime may stay unnormalized until reload. | Should reset use `normalizeAppState(seed)`? |
-| `src/components/screens/AppStateTransfer.tsx#runImport` | Full AppState replacement after shallow validation. | Should import produce warnings, invariant report, or partial repair before replacement? |
-| `src/services/appStateTransfer.ts#validateAppState` | Only validates top-level arrays/objects. | Should Round 1 add runtime schema/invariant validation for entities and links? |
-| `src/domain/mutations/aiPatchMutations.ts#applyAiInsightPatch` | Bypasses normal validators and allows value-unsafe descriptive fields. | Should AI patch reuse domain mutation helpers or a shared validator? |
-| `src/App.tsx#acceptAI` | Accepts AI insight even if patch no-ops or target missing. | Should accept return user-visible patch result/warnings? |
-| `src/domain/projectActions.ts#promoteThoughtToProject` | Returns ok even if relationship creation fails after project creation. | Should failed relationship creation make promotion fail, warn, or repair? |
-| `src/domain/projectActions.ts#updateProjectDetails` | Can accept explicit readiness and linked ids; only current UI limits exposure. | Should readiness be derived-only or guarded? |
-| `src/components/screens/ProjectDetail.tsx` lifecycle select | User can set `handoff_ready` directly without `markProjectHandoffReady` checks. | Should lifecycle transition authority be centralized? |
-| `src/domain/blockingQuestions.ts#deleteBlockingQuestion` | Does not first verify question exists; still returns ok with filtered state. | Should delete helpers consistently fail on missing entity? |
-| `src/domain/decisionRecords.ts#deleteDecisionRecord` | Same missing-entity behavior as blocking question delete. | Should delete helpers consistently fail on missing entity? |
-| `src/domain/nextActions.ts#completeNextAction` | Directly mutates thought/project nextAction and blocking question status outside primary domain owners. | Should source mutation be delegated to owners? |
-| `src/domain/universeActions.ts#deleteUniverse(..., "detach")` | Clears `universeId` to empty strings; derived views must tolerate no-universe state. | Should no-universe be explicit nullable semantics or a special id? |
-| `src/domain/blockingQuestions.ts#normalizeAppState` | Duplicate exported name can be imported accidentally instead of central normalizer. | Should it be renamed or made private? |
-
----
-
-## 10. Existing Validation / Test Signals
-
-### Useful coverage already present
-
-| Area | Tests |
-| --- | --- |
-| AppState import/export and legacy compatibility | `src/services/appStateTransfer.test.ts` |
-| localStorage fallback and save normalization | `src/services/storage.test.ts` |
-| AI patch whitelist and no-op behavior | `src/services/applyAiPatch.test.ts` |
-| Relationship graph repair, orphans, duplicate detection, typed removal | `src/domain/relationships/relationshipGraph.test.ts` |
-| Thought/project delete cleanup | `src/domain/mutations/appMutations.test.ts` |
-| Universe detach/block behavior | `src/domain/universeActions.test.ts` |
-| Blocking question and decision CRUD/status side effects | `src/domain/blockingQuestions.test.ts`, `src/domain/decisionRecords.test.ts` |
-| Project semantics and status/readiness separation | `src/domain/semantics/statusSemantics.test.ts` |
-| Engineering handoff readiness and lifecycle transition | `src/domain/engineeringHandoff.test.ts` |
-| Engineering readiness summary | `src/domain/engineeringReadiness.test.ts` |
-| Next action derived/mutation behavior | `src/domain/nextActions.test.ts` |
-| Derived review/global/universe views | `src/domain/reviewQueue.test.ts`, `src/domain/globalSearch.test.ts`, `src/domain/universeOverview.test.ts` |
-
-### Known coverage gaps to analyze
-
-- No full invariant checker test suite for all AppState references.
-- No runtime schema validation tests for invalid entity enum values imported from JSON.
-- No test that `App.tsx#save` normalizes runtime state.
-- No test for relationship/link-array consistency after manual relationship create or project unlink.
-- No test for AI patch invalid allowed values such as empty project name, invalid thought type, or missing universe id.
-- No test for direct `ProjectDetail` lifecycle selection bypassing handoff readiness guard.
-- Delete behavior is inconsistent: thought/project fail on missing id; blocking question/decision delete currently succeed even if id is absent.
-
-### Verification commands from `package.json`
-
-```json
-{
-  "build": "tsc -b && vite build",
-  "test": "vitest run",
-  "e2e": "playwright test",
-  "check": "npm run build && npm run test && npm run e2e"
+```tsx
+if (item.type === "ai_insight") {
+  onAcceptAiInsight(item.sourceId);
+  onError("");
+  onNotice("AI draft accepted.");
+  return;
 }
 ```
 
+### `src/components/layout/AiChatDock.tsx`
+
+summary:
+
+- UI-only AI chat/API dock.
+- Stores UI/session settings in localStorage/sessionStorage keys separate from `todo-thought-universe:v1`.
+- Does not mutate AppState.
+
+```ts
+const LOCAL_STORAGE_KEYS = {
+  apiBaseUrl: "eflow.aiChat.apiBaseUrl",
+  customModelId: "eflow.aiChat.customModelId",
+  dockOpen: "eflow.ui.aiChatDockOpen",
+  messages: "eflow.aiChat.messages",
+  promptDraft: "eflow.aiChat.promptDraft",
+  promptMode: "eflow.aiChat.promptMode",
+  selectedModel: "eflow.aiChat.selectedModel"
+} as const;
+
+const SESSION_STORAGE_KEYS = {
+  apiKey: "eflow.aiChat.apiKey",
+  persistApiKey: "eflow.aiChat.persistApiKey"
+} as const;
+```
+
+### `package.json`
+
+summary:
+
+- rc4 verification gate owner.
+- `check` exists but was not run in this scan.
+
+```json
+{
+  "version": "0.2.3-rc.2",
+  "scripts": {
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run",
+    "build": "tsc -b && vite build",
+    "check": "npm run typecheck && npm test && npm run build"
+  }
+}
+```
+
+### `.gitignore`
+
+summary:
+
+- rc5 hygiene evidence.
+- `.env.local` is ignored by pattern but still tracked.
+
+```gitignore
+node_modules/
+dist/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+```
+
 ---
 
-## 11. Architecture Drift Hotspots
+## 18. Freshness / Confidence Notes
 
-Prioritize these files during Round 1:
-
-1. `src/App.tsx`
-   - Runtime mutation hub, persistence call site, full import replacement, AI accept/reject.
-   - Most likely place for accidental direct state mutation drift.
-
-2. `src/domain/types.ts`
-   - Canonical compile-time shape.
-   - Any shape change affects persistence/import/export compatibility.
-
-3. `src/domain/appState.ts`
-   - Central normalization boundary.
-   - Currently partial; likely place to add invariant checking or separate normalize vs validate.
-
-4. `src/domain/blockingQuestions.ts`
-   - Duplicate `normalizeAppState`; default domain records injected during normalization.
-   - High risk for confusion with central app state normalization.
-
-5. `src/domain/relationships/relationshipGraph.ts` and `src/domain/mutations/referenceCleanup.ts`
-   - Graph integrity and deletion cleanup.
-   - Relationship edges and id arrays need a clear ownership policy.
-
-6. `src/domain/projectActions.ts`
-   - Project mutations, readiness recompute, thought/project backlinking, promotion relationship creation.
-   - Central to relationship ownership drift.
-
-7. `src/domain/engineeringHandoff.ts`, `src/domain/engineeringReadiness.ts`, `src/domain/readiness.ts`
-   - Multiple readiness concepts that can be confused.
-   - Needs semantic boundary clarity.
-
-8. `src/domain/nextActions.ts` and `src/domain/reviewQueue.ts`
-   - Derived views with mutation side effects and string-encoded references.
-   - Easy place for hidden cross-entity coupling.
-
-9. `src/services/appStateTransfer.ts` and `src/services/storage.ts`
-   - Import/export/persistence safety boundary.
-   - Must preserve backward compatibility while improving validation.
-
-10. `src/domain/mutations/aiPatchMutations.ts` and `src/services/aiMock.ts`
-    - AI mutation boundary.
-    - Needs clear distinction between suggested patch, validated mutation, and accepted durable state.
+| Claim | Confidence | Based On | Needs Recheck? |
+| ----- | ---------- | -------- | -------------- |
+| Actual app repo is nested under `/Users/sean/Documents/todolist/todo-thought-universe` | high | git status, git rev-parse | Recheck only if cwd changes |
+| Current branch is `ui/right-ai-chat-dock` with upstream | high | git status, git branch -vv | Recheck before commit/push |
+| Current working tree only has modified context doc | high | git status | Recheck after edits |
+| Package version is `0.2.3-rc.2` | high | package metadata | Recheck before release |
+| `v0.2.3-rc2` tag exists at `70dd9bb` | high | git tag/rev-list | Recheck before tagging |
+| Requested checkpoint commits exist | high | git show | No |
+| rc5 artifact hygiene commit order differs from conceptual rc5 order | high | git log | No |
+| Remote/upstream exists | high | git remote, branch -vv | Recheck before push |
+| `.env.local` is tracked ignored | high | git ls-files -ci, git check-ignore --no-index | Yes before any secret process work |
+| Generated artifacts checked are not tracked | high | git ls-files paths | Recheck before release |
+| `npm run check` exists | high | package metadata | No |
+| `npm run check` was not executed here | high | tool actions | No |
+| No lint config found | medium | rg over common lint config names | Recheck if tooling changes |
+| AppState canonical definition is `src/domain/types.ts` | high | source | Recheck if types move |
+| App.tsx is runtime coordinator | high | source | Recheck after architecture refactor |
+| Runtime save normalizes before setState/persist | high | source + tests | Recheck after App/storage changes |
+| Import returns warnings and retains orphan relationships | high | source + tests | Recheck after transfer/invariant changes |
+| Direct-ref drift is warning-only on import | high | source + tests | Recheck after direct-ref changes |
+| AI patch value/reference validation implemented | high | source + tests | Recheck after AI patch changes |
+| Invalid AI patch not marked accepted | high | source + tests | Recheck after AI/UI callback changes |
+| Handoff ready is guarded | high | source + tests | Recheck after project/handoff UI changes |
+| `Project.sourceThoughtId` is provenance, not membership | high | source + tests | Recheck after link/unlink changes |
+| Relationship graph and direct refs remain separate owners | high | source + tests | Recheck after relationship refactor |
+| Review Queue invalid AI accept is UI-feedback only | medium | source inspection, inferred from void callback | Needs a targeted invalid-patch UI test |
+| AI dock is UI-only/non-domain | high | source inspection | Recheck if dock starts creating AIInsight/AppState writes |
+| Architecture docs are draft/stale in places | high | docs + git state | Recheck after docs pass |
 
 ---
 
-## 12. Round 1 Analysis Prompts For The Next LLM
+## 19. Working Tree / Branch Notes
 
-Use these as the next model's architecture hardening checklist:
+| Item | Status | Architecture Impact | Notes |
+| ---- | ------ | ------------------- | ----- |
+| Actual repo root | `/Users/sean/Documents/todolist/todo-thought-universe` | high | Nested app repo is source of truth. |
+| Invocation cwd | `/Users/sean/Documents/todolist` | process only | Outer repo has no commits and untracked app folder; do not use as app source. |
+| Current branch | `ui/right-ai-chat-dock` | medium | Current branch includes committed UI dock work. |
+| Current git status summary | `M docs/architecture-hardening-context.md` | documentation only | This file was already modified before this command and was refreshed by this command. |
+| Latest commits | `9874e54`, `b3b7e98`, `3f7c914`, `ec15daa`, `70dd9bb`, `f47280f`, `68419ab`, `4153017` | release/process context | `9874e54` is committed UI-only dock/sidebar work; not uncommitted. |
+| Remote/upstream | exists | release/process only | `origin/ui/right-ai-chat-dock` configured. |
+| `docs/architecture-hardening-context.md` modified by this command | yes | documentation only | Only intended output file. |
+| Source/test/package files left untouched | yes by intent and verified after write | none | Recheck `git diff --name-only` before any future action. |
+| Uncommitted UI files exist | no | none | No uncommitted UI source/style files observed. |
+| Committed UI/right AI dock files exist | yes | UI-only / non-domain | `src/components/layout/AiChatDock.tsx`, `src/App.tsx`, `src/components/layout/Nav.tsx`, `src/style.css` in latest commit. |
+| UI files affect AppState/domain/AI patch/relationships/import/normalize | no current evidence | none | App hosts dock and passes derived counts/navigation callbacks only. |
+| `.env.local` avoided | yes | secret/process risk only | Path status checked; contents not read. |
+| Generated/local artifacts | ignored/untracked in checked paths | none | Do not use as architecture source of truth. |
+| `npm run check` | script exists, not executed | tooling only | Not run because it may write generated artifacts. |
+| Lint tooling | not found | tooling only | Do not claim lint gate exists. |
 
-- Should `src/domain/types.ts` remain the only canonical state shape, or should runtime validators become a second explicit authority?
-- Should `normalizeAppState` be split into `migrateLegacyAppState`, `validateAppStateInvariants`, and `normalizeRuntimeAppState`?
-- Should `App.tsx#save` normalize before both `setState` and `saveState`?
-- Should `Project.readiness` be persisted, derived-only, or persisted with explicit recompute ownership?
-- Should `Project.lifecycleStatus = "handoff_ready"` be writable only through `markProjectHandoffReady`?
-- Should relationship edges and direct link fields be unified under a single relationship policy, or should their distinct ownership be documented and validated?
-- Should import preserve orphans silently, preserve with warnings, or block import when graph integrity fails?
-- Should AI patch application reuse normal domain mutation helpers or receive a dedicated validated patch command model?
-- Should next action ids become typed refs instead of string prefixes?
-- Should missing-entity delete behavior be consistent across all entity types?
-- Should duplicate `normalizeAppState` in `blockingQuestions.ts` be renamed or removed from public exports?
-
-Keep changes small. Existing architecture docs explicitly warn against broad rewrites, event sourcing, global workflow engines, or large state-machine conversions.
+Final handoff rule: next AI should treat committed domain/source/tests as authority, this file as a source-backed map, architecture docs as draft orientation, generated artifacts as non-authoritative, and current AI dock work as UI-only unless future source changes explicitly bridge it into AppState/domain mutation paths.

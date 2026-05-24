@@ -3,6 +3,7 @@ import type { Project, ProjectLifecycleStatus, ProjectStatus, ThoughtItem, Unive
 import { readiness } from "../../domain/readiness";
 import { readinessLabel } from "../../domain/labels";
 import { join, lines } from "../../domain/utils";
+import { useI18n } from "../../i18n";
 import { SelectUniverse } from "../common/SelectUniverse";
 
 function projectDraft(project: Project) {
@@ -43,6 +44,7 @@ export function ProjectDetail({
   onViewThought: (thoughtId: string) => void;
   onUnlinkThought: (thoughtId: string) => { ok: boolean; error?: string };
 }) {
+  const { t } = useI18n();
   const r = readiness(project);
   const [draft, setDraft] = useState(() => projectDraft(project));
   const [notice, setNotice] = useState("");
@@ -92,61 +94,67 @@ export function ProjectDetail({
     <section className="panel form">
       <div className="head">
         <div>
-          <h2>Project Detail</h2>
-          <p className="muted">狀態：{project.status === "archived" ? "封存" : "進行中"} · 工程準備度：{r.score}% · {readinessLabel[r.value]}</p>
+          <h2>{t("Project Detail")}</h2>
+          <p className="muted">
+            {t("狀態：{status} · 工程準備度：{score}% · {readiness}", {
+              status: project.status === "archived" ? t("archived") : t("active"),
+              score: r.score,
+              readiness: readinessLabel[r.value]
+            })}
+          </p>
         </div>
         <div className="actions">
-          <button className="ghost" onClick={onAI}>AI Readiness 建議</button>
-          {project.status !== "archived" && <button className="ghost" onClick={onArchive}>Archive Project</button>}
-          <button className="danger" onClick={onDelete}>Delete Project</button>
+          <button className="ghost" onClick={onAI}>{t("AI Readiness suggestion")}</button>
+          {project.status !== "archived" && <button className="ghost" onClick={onArchive}>{t("Archive Project")}</button>}
+          <button className="danger" onClick={onDelete}>{t("Delete Project")}</button>
         </div>
       </div>
-      {notice && <div className={notice.includes("could not") ? "warn" : "notice"}>{notice}</div>}
+      {notice && <div className={notice.includes("could not") ? "warn" : "notice"}>{t(notice)}</div>}
       <div className="bar"><div style={{ width: `${r.score}%` }} /></div>
-      {r.missing.length > 0 && <div className="warn">缺少欄位：{r.missing.join(", ")}</div>}
-      <label>Title<input value={draft.name} onChange={(e) => updateDraft({ name: e.target.value })} /></label>
-      <label>Description<textarea value={draft.intent} onChange={(e) => updateDraft({ intent: e.target.value })} /></label>
+      {r.missing.length > 0 && <div className="warn">{t("Missing fields: {fields}", { fields: r.missing.join(", ") })}</div>}
+      <label>{t("Title")}<input value={draft.name} onChange={(e) => updateDraft({ name: e.target.value })} /></label>
+      <label>{t("Description")}<textarea value={draft.intent} onChange={(e) => updateDraft({ intent: e.target.value })} /></label>
       <div className="row">
-        <label>Universe<SelectUniverse value={draft.universeId} universes={universes} onChange={(v) => updateDraft({ universeId: v })} /></label>
-        <label>Status
+        <label>{t("Universe")}<SelectUniverse value={draft.universeId} universes={universes} onChange={(v) => updateDraft({ universeId: v })} /></label>
+        <label>{t("Status")}
           <select value={draft.status} onChange={(e) => updateDraft({ status: e.target.value as ProjectStatus })}>
-            <option value="active">active</option>
-            <option value="archived">archived</option>
+            <option value="active">{t("active")}</option>
+            <option value="archived">{t("archived")}</option>
           </select>
         </label>
-        <label>Lifecycle
+        <label>{t("Lifecycle")}
           <select value={draft.lifecycleStatus} onChange={(e) => updateDraft({ lifecycleStatus: e.target.value as ProjectLifecycleStatus })}>
-            <option value="planning">planning</option>
-            {project.lifecycleStatus === "handoff_ready" && <option value="handoff_ready" disabled>handoff_ready</option>}
-            <option value="blocked">blocked</option>
+            <option value="planning">{t("planning")}</option>
+            {project.lifecycleStatus === "handoff_ready" && <option value="handoff_ready" disabled>{t("handoff_ready")}</option>}
+            <option value="blocked">{t("blocked")}</option>
           </select>
         </label>
       </div>
-      <label>Users，一行一個<textarea value={draft.users} onChange={(e) => updateDraft({ users: e.target.value })} /></label>
-      <label>Core Features，一行一個<textarea value={draft.features} onChange={(e) => updateDraft({ features: e.target.value })} /></label>
-      <label>Screens，一行一個<textarea value={draft.screens} onChange={(e) => updateDraft({ screens: e.target.value })} /></label>
-      <label>Data Objects，一行一個<textarea value={draft.dataObjects} onChange={(e) => updateDraft({ dataObjects: e.target.value })} /></label>
-      <label>Flow Steps，一行一個<textarea value={draft.flowSteps} onChange={(e) => updateDraft({ flowSteps: e.target.value })} /></label>
-      <label>Unknowns，一行一個<textarea value={draft.unknowns} onChange={(e) => updateDraft({ unknowns: e.target.value })} /></label>
-      <label>Next Action<input value={draft.nextAction} onChange={(e) => updateDraft({ nextAction: e.target.value })} /></label>
+      <label>{t("Users，一行一個")}<textarea value={draft.users} onChange={(e) => updateDraft({ users: e.target.value })} /></label>
+      <label>{t("Core Features，一行一個")}<textarea value={draft.features} onChange={(e) => updateDraft({ features: e.target.value })} /></label>
+      <label>{t("Screens，一行一個")}<textarea value={draft.screens} onChange={(e) => updateDraft({ screens: e.target.value })} /></label>
+      <label>{t("Data Objects，一行一個")}<textarea value={draft.dataObjects} onChange={(e) => updateDraft({ dataObjects: e.target.value })} /></label>
+      <label>{t("Flow Steps，一行一個")}<textarea value={draft.flowSteps} onChange={(e) => updateDraft({ flowSteps: e.target.value })} /></label>
+      <label>{t("Unknowns，一行一個")}<textarea value={draft.unknowns} onChange={(e) => updateDraft({ unknowns: e.target.value })} /></label>
+      <label>{t("Next Action")}<input value={draft.nextAction} onChange={(e) => updateDraft({ nextAction: e.target.value })} /></label>
       <div className="actions">
-        <button onClick={saveProject}>Save Project</button>
+        <button onClick={saveProject}>{t("Save Project")}</button>
       </div>
 
       <section className="mini-list">
         <div className="line">
-          <strong>Linked Thoughts</strong>
+          <strong>{t("Linked Thoughts")}</strong>
           <span className="badge">{linkedThoughts.length}</span>
         </div>
         {linkedThoughts.length === 0 ? (
-          <p>No linked thoughts yet.</p>
+          <p>{t("No linked thoughts yet.")}</p>
         ) : (
           linkedThoughts.map((thought) => (
             <div className="line" key={thought.id}>
               <span>{thought.title}</span>
               <div className="actions">
-                <button className="ghost" onClick={() => onViewThought(thought.id)}>View Thought</button>
-                <button className="ghost" onClick={() => unlinkThought(thought.id)}>Unlink</button>
+                <button className="ghost" onClick={() => onViewThought(thought.id)}>{t("View Thought")}</button>
+                <button className="ghost" onClick={() => unlinkThought(thought.id)}>{t("Unlink")}</button>
               </div>
             </div>
           ))
