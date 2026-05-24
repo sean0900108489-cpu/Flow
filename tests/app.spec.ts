@@ -1264,13 +1264,13 @@ test("detach and delete in-use universe clears linked thought universe", async (
 test("mock AI creates draft insight and can accept it", async ({ page }) => {
   await page.getByRole("button", { name: /AI Planning Panel/ }).click();
 
-  await page.getByRole("button", { name: "分析目前 Project" }).click();
+  await page.getByRole("button", { name: "Analyze current Project" }).click();
 
   await expect(page.getByText("project_readiness")).toBeVisible();
   await expect(page.getByText(/工程準備度：100%/)).toBeVisible();
   await expect(page.getByText("draft", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: /接受/ }).click();
+  await page.getByRole("button", { name: "Accept", exact: true }).click();
 
   await expect(page.getByText("accepted", { exact: true })).toBeVisible();
 });
@@ -1284,13 +1284,13 @@ test("AI patch proposal applies to thought only after accept", async ({ page }) 
   await page.getByRole("button", { name: "Save to Inbox" }).click();
 
   await page.getByRole("button", { name: /AI Planning Panel/ }).click();
-  await page.getByRole("button", { name: "分析目前 Thought" }).click();
+  await page.getByRole("button", { name: "Analyze current Thought" }).click();
 
   await expect(page.getByText("classification")).toBeVisible();
   await expect(page.getByText("Proposed changes")).toBeVisible();
   await expect(page.getByText('thought.nextAction: "Define the first concrete engineering step."')).toBeVisible();
 
-  await page.getByRole("button", { name: /接受/ }).click();
+  await page.getByRole("button", { name: "Accept", exact: true }).click();
   await page.getByRole("button", { name: "Thought Detail", exact: true }).click();
 
   await expect(page.getByLabel("Next Action / 下一步")).toHaveValue("Define the first concrete engineering step.");
@@ -1307,10 +1307,10 @@ test("rejecting AI patch proposal does not apply thought changes", async ({ page
   await page.getByRole("button", { name: "Save to Inbox" }).click();
 
   await page.getByRole("button", { name: /AI Planning Panel/ }).click();
-  await page.getByRole("button", { name: "分析目前 Thought" }).click();
+  await page.getByRole("button", { name: "Analyze current Thought" }).click();
 
   await expect(page.getByText("Proposed changes")).toBeVisible();
-  await page.getByRole("button", { name: /拒絕/ }).click();
+  await page.getByRole("button", { name: "Reject", exact: true }).click();
   await expect(page.getByText("rejected", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Thought Detail", exact: true }).click();
@@ -1611,7 +1611,7 @@ test("review queue accepts an AI draft and applies its patch", async ({ page }) 
   await page.getByRole("button", { name: "Save to Inbox" }).click();
 
   await page.getByRole("button", { name: /AI Planning Panel/ }).click();
-  await page.getByRole("button", { name: "分析目前 Thought" }).click();
+  await page.getByRole("button", { name: "Analyze current Thought" }).click();
 
   await page.getByRole("button", { name: "Review Queue", exact: true }).click();
   const card = reviewQueueCard(page, "Review queue AI idea");
