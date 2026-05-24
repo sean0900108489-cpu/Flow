@@ -9,6 +9,7 @@ import type {
   DerivedReviewSuggestedCommandDraft
 } from "../../domain/derivedReviewQueue";
 import type { AppState } from "../../domain/types";
+import { useI18n } from "../../i18n";
 import { Metric } from "../common/Metric";
 
 type ReviewFilter = "all" | "warnings_errors" | "with_commands" | "requires_confirmation";
@@ -135,8 +136,10 @@ export function groupDrillDownReviewItems(
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
-function evidenceList(values: readonly unknown[], empty: string) {
-  if (values.length === 0) return <p>{empty}</p>;
+type Translate = (key: string, values?: Record<string, number | string>) => string;
+
+function evidenceList(values: readonly unknown[], empty: string, t: Translate) {
+  if (values.length === 0) return <p>{t(empty)}</p>;
 
   return (
     <ul>
@@ -154,15 +157,16 @@ function TargetBlock({
   state: AppState;
   target: { type: string; id: string };
 }) {
+  const { t } = useI18n();
   const label = entityLabel(state, target);
 
   return (
     <div className="mini-list">
-      <strong>Target</strong>
+      <strong>{t("Target")}</strong>
       <ul>
-        <li>type: {target.type}</li>
-        <li>id: {target.id}</li>
-        <li>label: {label ?? "No label available"}</li>
+        <li>{t("type: {value}", { value: t(target.type) })}</li>
+        <li>{t("id: {value}", { value: target.id })}</li>
+        <li>{t("label: {value}", { value: label ?? t("No label available") })}</li>
       </ul>
     </div>
   );
@@ -175,11 +179,12 @@ function SuggestedCommandDrafts({
   commands: readonly DerivedReviewSuggestedCommandDraft[];
   onCopy: (text: string, message: string) => void;
 }) {
+  const { t } = useI18n();
   if (commands.length === 0) {
     return (
       <div className="mini-list">
-        <strong>Suggested commands</strong>
-        <p>No suggested command drafts for this item.</p>
+        <strong>{t("Suggested commands")}</strong>
+        <p>{t("No suggested command drafts for this item.")}</p>
       </div>
     );
   }
@@ -187,12 +192,12 @@ function SuggestedCommandDrafts({
   return (
     <div className="mini-list stack">
       <div className="line">
-        <strong>Suggested commands</strong>
+        <strong>{t("Suggested commands")}</strong>
         <button
           className="ghost"
           onClick={() => onCopy(formatSuggestedCommandBundle(commands), "All command drafts copied.")}
         >
-          Copy all commands for this item
+          {t("Copy all commands for this item")}
         </button>
       </div>
       {commands.map((command) => (
@@ -206,13 +211,15 @@ function SuggestedCommandDrafts({
               className="ghost"
               onClick={() => onCopy(formatSuggestedCommandJson(command), "Command draft copied.")}
             >
-              Copy command JSON
+              {t("Copy command JSON")}
             </button>
           </div>
           <p>{command.reason}</p>
           <div className="chips">
             <span>{targetKey(command.target)}</span>
-            <span>requiresHumanConfirmation: {String(command.requiresHumanConfirmation)}</span>
+            <span>{t("requiresHumanConfirmation: {value}", {
+              value: t(String(command.requiresHumanConfirmation))
+            })}</span>
           </div>
           <pre className="json command-draft-json">{formatSuggestedCommandJson(command)}</pre>
         </div>
@@ -230,6 +237,7 @@ function ReviewItemDetails({
   state: AppState;
   onCopy: (text: string, message: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <details className="review-drilldown-card" open>
       <summary>
@@ -237,37 +245,39 @@ function ReviewItemDetails({
           <strong>{item.sourceCode}</strong>
           <span className="muted">{item.id}</span>
         </span>
-        <span className={`badge review-severity-${item.severity}`}>{item.severity}</span>
+        <span className={`badge review-severity-${item.severity}`}>{t(item.severity)}</span>
       </summary>
 
       <div className="review-drilldown-body">
         <div className="chips">
-          <span>source: {item.source}</span>
-          <span>target: {targetKey(item.target)}</span>
-          <span>requiresHumanConfirmation: {String(item.requiresHumanConfirmation)}</span>
+          <span>{t("source: {value}", { value: item.source })}</span>
+          <span>{t("target: {value}", { value: targetKey(item.target) })}</span>
+          <span>{t("requiresHumanConfirmation: {value}", {
+            value: t(String(item.requiresHumanConfirmation))
+          })}</span>
         </div>
 
         <div className="grid two">
           <div className="mini-list">
-            <strong>Stable id</strong>
+            <strong>{t("Stable id")}</strong>
             <p>{item.id}</p>
           </div>
           <TargetBlock state={state} target={item.target} />
         </div>
 
         <div className="mini-list">
-          <strong>Reason</strong>
+          <strong>{t("Reason")}</strong>
           <p>{item.reason}</p>
         </div>
 
         <div className="mini-list">
-          <strong>Evidence</strong>
-          {evidenceList(item.evidence, "No deterministic evidence entries.")}
+          <strong>{t("Evidence")}</strong>
+          {evidenceList(item.evidence, "No deterministic evidence entries.", t)}
         </div>
 
         <div className="mini-list">
-          <strong>Severity</strong>
-          <p>{item.severity}</p>
+          <strong>{t("Severity")}</strong>
+          <p>{t(item.severity)}</p>
         </div>
 
         <SuggestedCommandDrafts commands={item.suggestedCommands} onCopy={onCopy} />
@@ -283,6 +293,7 @@ function AppHealthIssueDetails({
   finding: AppHealthFinding;
   state: AppState;
 }) {
+  const { t } = useI18n();
   return (
     <details className="review-drilldown-card health-drilldown-card" open>
       <summary>
@@ -290,26 +301,26 @@ function AppHealthIssueDetails({
           <strong>{finding.code}</strong>
           <span className="muted">{targetKey(finding.target)}</span>
         </span>
-        <span className={`badge review-severity-${finding.severity}`}>{finding.severity}</span>
+        <span className={`badge review-severity-${finding.severity}`}>{t(finding.severity)}</span>
       </summary>
 
       <div className="review-drilldown-body">
         <div className="chips">
-          <span>source: {finding.source}</span>
-          <span>sourceCode: {finding.sourceCode}</span>
+          <span>{t("source: {value}", { value: finding.source })}</span>
+          <span>{t("sourceCode: {value}", { value: finding.sourceCode })}</span>
         </div>
 
         <div className="grid two">
           <TargetBlock state={state} target={finding.target} />
           <div className="mini-list">
-            <strong>Reason</strong>
+            <strong>{t("Reason")}</strong>
             <p>{finding.reason}</p>
           </div>
         </div>
 
         <div className="mini-list">
-          <strong>Evidence IDs</strong>
-          {evidenceList(finding.evidenceIds, "No evidence IDs.")}
+          <strong>{t("Evidence IDs")}</strong>
+          {evidenceList(finding.evidenceIds, "No evidence IDs.", t)}
         </div>
       </div>
     </details>
@@ -329,6 +340,7 @@ export function ReviewHealthDrillDownPanel({
   reviewItems: readonly DerivedReviewItem[];
   appHealth: AppHealthReport;
 }) {
+  const { t } = useI18n();
   const [filter, setFilter] = useState<ReviewFilter>("all");
   const [groupMode, setGroupMode] = useState<ReviewGroupMode>("severity");
   const [copyNotice, setCopyNotice] = useState("");
@@ -359,60 +371,59 @@ export function ReviewHealthDrillDownPanel({
     <section className="panel stack review-health-drilldown">
       <div className="head">
         <div>
-          <h2>Review & Health Drill-down</h2>
+          <h2>{t("Review & Health Drill-down")}</h2>
           <p className="muted">
-            Expand deterministic review items, health issues, evidence, and draft command metadata.
+            {t("Expand deterministic review items, health issues, evidence, and draft command metadata.")}
           </p>
         </div>
-        <span className="badge">draft-only</span>
+        <span className="badge">{t("draft-only")}</span>
       </div>
 
       <div className="notice">
-        Suggested commands are drafts only. Copy them into Confirmed Command Import to Validate, Dry Run, and Apply with
-        confirmation.
+        {t("Suggested commands are drafts only. Copy them into Confirmed Command Import to Validate, Dry Run, and Apply with confirmation.")}
       </div>
 
-      {copyNotice && <div className="notice">{copyNotice}</div>}
+      {copyNotice && <div className="notice">{t(copyNotice)}</div>}
 
       <div className="review-drilldown-controls">
         <label>
-          Review filter
+          {t("Review filter")}
           <select value={filter} onChange={(event) => setFilter(event.target.value as ReviewFilter)}>
             {reviewFilters.map((item) => (
-              <option key={item.value} value={item.value}>{item.label}</option>
+              <option key={item.value} value={item.value}>{t(item.label)}</option>
             ))}
           </select>
         </label>
         <label>
-          Grouping
+          {t("Grouping")}
           <select value={groupMode} onChange={(event) => setGroupMode(event.target.value as ReviewGroupMode)}>
             {reviewGroupModes.map((item) => (
-              <option key={item.value} value={item.value}>{item.label}</option>
+              <option key={item.value} value={item.value}>{t(item.label)}</option>
             ))}
           </select>
         </label>
       </div>
 
       <div className="metrics deployment-data-metrics">
-        <Metric label="Review items" value={reviewItems.length} />
-        <Metric label="Shown" value={filteredReviewItems.length} />
-        <Metric label="Health errors" value={healthCount(appHealth.findings, "error")} />
-        <Metric label="Health warnings" value={healthCount(appHealth.findings, "warning")} />
+        <Metric label={t("Review items")} value={reviewItems.length} />
+        <Metric label={t("Shown")} value={filteredReviewItems.length} />
+        <Metric label={t("Health errors")} value={healthCount(appHealth.findings, "error")} />
+        <Metric label={t("Health warnings")} value={healthCount(appHealth.findings, "warning")} />
       </div>
 
       <div className="review-drilldown-section">
         <div className="line">
-          <h3>Derived Review Queue Details</h3>
-          <span className="badge">{filteredReviewItems.length} visible</span>
+          <h3>{t("Derived Review Queue Details")}</h3>
+          <span className="badge">{t("{count} visible", { count: filteredReviewItems.length })}</span>
         </div>
         {filteredReviewItems.length === 0 ? (
-          <div className="notice">No derived review items.</div>
+          <div className="notice">{t("No derived review items.")}</div>
         ) : (
           groupedReviewItems.map((group) => (
             <div className="review-drilldown-group" key={group.label}>
               <div className="line">
-                <strong>{group.label}</strong>
-                <span className="badge">{group.items.length} items</span>
+                <strong>{t(group.label)}</strong>
+                <span className="badge">{t("{count} items", { count: group.items.length })}</span>
               </div>
               <div className="cards">
                 {group.items.map((item) => (
@@ -426,11 +437,11 @@ export function ReviewHealthDrillDownPanel({
 
       <div className="review-drilldown-section">
         <div className="line">
-          <h3>AppHealth Issue Details</h3>
-          <span className="badge">{appHealth.findings.length} findings</span>
+          <h3>{t("AppHealth Issue Details")}</h3>
+          <span className="badge">{t("{count} findings", { count: appHealth.findings.length })}</span>
         </div>
         {appHealth.findings.length === 0 ? (
-          <div className="notice">No app health issues detected.</div>
+          <div className="notice">{t("No app health issues detected.")}</div>
         ) : (
           <div className="cards">
             {appHealth.findings.map((finding) => (

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
 import type { AIInsight } from "../../domain/types";
+import { useI18n } from "../../i18n";
 
 function formatPatchValue(value: unknown) {
   if (Array.isArray(value)) return value.join(", ");
@@ -29,13 +30,14 @@ export function AIPanel({
   onProject: () => void;
   onSet: (id: string, status: "accepted" | "rejected") => { ok: boolean; error?: string };
 }) {
+  const { t } = useI18n();
   const [message, setMessage] = useState("");
 
   const reviewInsight = (id: string, status: "accepted" | "rejected") => {
     const result = onSet(id, status);
 
     setMessage(result.ok
-      ? `AI draft ${status}.`
+      ? status === "accepted" ? "AI draft accepted." : "AI draft rejected."
       : result.error ?? "AI draft review failed."
     );
   };
@@ -43,29 +45,29 @@ export function AIPanel({
   return (
     <section className="panel">
       <div className="head">
-        <h2>AI Planning Panel</h2>
+        <h2>{t("AI Panel")}</h2>
         <div className="actions">
-          <button className="ghost" onClick={onThought}>分析目前 Thought</button>
-          <button onClick={onProject}>分析目前 Project</button>
+          <button className="ghost" onClick={onThought}>{t("Analyze current Thought")}</button>
+          <button onClick={onProject}>{t("Analyze current Project")}</button>
         </div>
       </div>
-      <p className="muted">MVP 使用 mock AI。AIInsight 是 draft，需要人工接受或拒絕。</p>
-      {message && <div className={message.includes("failed") || message.includes(":") ? "warn" : "notice"}>{message}</div>}
+      <p className="muted">{t("MVP uses mock AI. AIInsight is a draft and needs human accept/reject.")}</p>
+      {message && <div className={message.includes("failed") || message.includes(":") ? "warn" : "notice"}>{t(message)}</div>}
       <div className="stack">
-        {insights.length === 0 && <p className="muted">尚無 AI 建議。</p>}
+        {insights.length === 0 && <p className="muted">{t("No AI suggestions yet.")}</p>}
         {insights.map((x) => {
           const changes = proposedChanges(x);
 
           return (
             <div className={`insight ${x.status}`} key={x.id}>
               <div className="head">
-                <strong>{x.type}</strong>
-                <span className="badge">{x.status}</span>
+                <strong>{t(x.type)}</strong>
+                <span className="badge">{t(x.status)}</span>
               </div>
               <pre>{x.content}</pre>
               {changes.length > 0 && (
                 <div className="patch">
-                  <strong>Proposed changes</strong>
+                  <strong>{t("Proposed changes")}</strong>
                   <ul>
                     {changes.map((change) => <li key={change}>{change}</li>)}
                   </ul>
@@ -73,8 +75,8 @@ export function AIPanel({
               )}
               {x.status === "draft" && (
                 <div className="actions">
-                  <button onClick={() => reviewInsight(x.id, "accepted")}><CheckCircle2 size={16} />接受</button>
-                  <button className="ghost" onClick={() => reviewInsight(x.id, "rejected")}><XCircle size={16} />拒絕</button>
+                  <button onClick={() => reviewInsight(x.id, "accepted")}><CheckCircle2 size={16} />{t("Accept")}</button>
+                  <button className="ghost" onClick={() => reviewInsight(x.id, "rejected")}><XCircle size={16} />{t("Reject")}</button>
                 </div>
               )}
             </div>

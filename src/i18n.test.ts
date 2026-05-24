@@ -60,6 +60,20 @@ describe("UI i18n", () => {
     expect(translateText("en", "Relationship Explorer")).toBe("Relationship Explorer");
   });
 
+  it("covers AI, engineering, readiness, and architecture UI copy", () => {
+    expect(translateText("zh-TW", "AI Panel")).toBe("AI 面板");
+    expect(translateText("zh-TW", "Engineering Handoff Center")).toBe("工程交接中心");
+    expect(translateText("zh-TW", "Engineering Readiness Center")).toBe("工程就緒度中心");
+    expect(translateText("zh-TW", "Architecture / Health / Handoff Debug Panel")).toBe("架構狀態");
+    expect(translateText("zh-TW", "Review & Health Drill-down")).toBe("審查健康度");
+    expect(translateText("zh-TW", "Ready for Engineering")).toBe("可進入工程");
+    expect(translateText("zh-TW", "Review Queue Signal")).toBe("審查佇列訊號");
+    expect(translateText("zh-TW", "{count} major review blocker(s) detected.", { count: 2 })).toBe(
+      "偵測到 2 個主要審查阻塞。"
+    );
+    expect(translateText("en", "AI Panel")).toBe("AI Panel");
+  });
+
   it("reports missing required translation keys", () => {
     expect(missingRequiredUiTranslations(["Global Search", "Missing Phase 2A key"])).toEqual(["Missing Phase 2A key"]);
   });
